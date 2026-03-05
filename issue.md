@@ -10,7 +10,7 @@
 1. `ISSUE-001`：前后端单一 API 基本冻结（`vn_backend.h` + 注册/选择链）
 2. `ISSUE-002`：Frontend 输出 `VNRenderOp[]`，且 VM -> IR 主路径已接通
 3. `ISSUE-003`：`scalar` 最小可运行闭环（`600x800`、`S0-S3`）
-4. `ISSUE-004`（部分）：`vnpak v2`（CRC32）+ `manifest.json` + 资源一致性校验已落地，图像转换待补
+4. `ISSUE-004`：`vnpak v2`（CRC32）+ `manifest.json` + 资源一致性校验 + `PNG -> RGBA16/CI8/IA8` 已落地
 5. `ISSUE-005`（部分）：`S0-S3` perf CSV 产出链路可复现
 6. `ISSUE-006`（部分）：C89 门禁脚本 + 头文件独立编译检查
 
@@ -22,10 +22,10 @@
 
 ### 下一步（短周期）
 
-1. `ISSUE-004` 补完：图像转换（PNG -> RGBA16/CI8/IA8）
-2. `ISSUE-005` 补完：热身窗口与 p95 统计逻辑
-3. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
-4. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
+1. `ISSUE-005` 补完：热身窗口与 p95 统计逻辑
+2. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
+3. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
+4. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 
 ## 0. 适用原则
 
@@ -276,7 +276,7 @@ ctest --test-dir build --output-on-failure -R render_ops
 ### 任务清单
 
 - [x] `vnpak` 头表解析
-- [ ] 图像转换（PNG -> RGBA16/CI8/IA8）
+- [x] 图像转换（PNG -> RGBA16/CI8/IA8）
 - [x] 脚本编译（txt -> bin）
 - [x] CRC32 与 `manifest.json`
 
@@ -290,8 +290,8 @@ ctest --test-dir build --output-on-failure -R render_ops
 ### DoD
 
 - [x] Demo 资源可加载
-- [ ] 打包输出可复现（同输入同哈希）
-- [ ] 错误能映射到统一错误码
+- [x] 打包输出可复现（同输入同哈希）
+- [x] 错误能映射到统一错误码
 
 ### 回退策略
 

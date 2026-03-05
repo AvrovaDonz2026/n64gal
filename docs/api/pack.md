@@ -82,7 +82,24 @@
 1. 头：8 字节（magic/version/count）
 2. entry：18 字节（追加 `crc32`）
 
-## 6. 打包与 Manifest
+## 6. 图像格式与 Flags
+
+`ResourceEntry.flags` 低 4 位用于图像像素格式：
+
+1. `1`: `RGBA16`
+2. `2`: `CI8`
+3. `3`: `IA8`
+
+`type=2`（脚本资源）时 `flags=0`。
+
+### `CI8` 资源载荷布局（当前约定）
+
+1. 调色板：256 项 `RGBA16`（每项 2 字节，大端序）
+2. 索引面：`width * height` 字节
+
+即总大小为 `512 + width*height`。
+
+## 7. 打包与 Manifest
 
 默认打包命令：
 
@@ -94,5 +111,12 @@
 
 1. `assets/demo/demo.vnpak`
 2. `assets/demo/manifest.json`
+3. 可选输入：`assets/demo/images/images.json`
+
+`images.json` 示例字段：
+
+1. `name`：资源名
+2. `source`：相对 `images.json` 的 PNG 路径
+3. `format`：`rgba16|ci8|ia8`
 
 `manifest.json` 用于离线回归与打包产物审计，不参与运行时读取流程。

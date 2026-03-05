@@ -1,0 +1,19 @@
+{
+  "images": [
+    {
+      "name": "demo_ui_rgba16",
+      "source": "demo_ui.png",
+      "format": "rgba16"
+    },
+    {
+      "name": "demo_ui_ci8",
+      "source": "demo_ui.png",
+      "format": "ci8"
+    },
+    {
+      "name": "demo_ui_ia8",
+      "source": "demo_ui.png",
+      "format": "ia8"
+    }
+  ]
+}

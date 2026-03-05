@@ -69,6 +69,13 @@ docs/api/       API 文档
 
 1. `assets/demo/demo.vnpak`
 2. `assets/demo/manifest.json`
+3. 可选图片配置：`assets/demo/images/images.json`
+
+当前打包器支持：
+
+1. PNG -> `RGBA16`
+2. PNG -> `CI8`
+3. PNG -> `IA8`
 
 ## 构建
 
