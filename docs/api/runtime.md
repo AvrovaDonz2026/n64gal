@@ -36,11 +36,13 @@
 7. `choice_seq[]`, `choice_seq_count`
    - 分支选择序列，按 `CHOICE` 发生顺序消费
 8. `trace`
-   - 非 0 打印逐帧状态
+   - 非 0 打印逐帧状态与性能采样（`frame_ms/vm_ms/build_ms/raster_ms/audio_ms/rss_mb`）
 9. `keyboard`
    - 非 0 启用键盘输入（TTY 环境）
 10. `emit_logs`
    - 非 0 输出日志，0 时静默运行
+11. `hold_on_end`
+   - 非 0 时脚本到达 `END` 后继续维持帧循环直到 `frames` 用尽（主要用于 perf 采样）
 
 ### `VNRunResult`
 
@@ -101,6 +103,12 @@
 ### `int vn_runtime_run_cli(int argc, char** argv)`
 
 CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 `vn_runtime_run`。
+
+扩展参数：
+
+1. `--hold-end`
+   - 对应 `VNRunConfig.hold_on_end=1`
+   - 用于场景脚本提前结束时仍持续输出帧采样数据
 
 ## 5. 最小示例（推荐集成方式）
 
@@ -176,7 +184,21 @@ int run_scene_once(void) {
 2. `t`：切换 trace
 3. `q`：退出运行循环
 
-## 8. 当前已知约束
+## 8. Trace 输出（性能采样）
+
+启用 `trace` 时，每帧会输出包含以下键值对的单行日志：
+
+1. `frame`
+2. `frame_ms`
+3. `vm_ms`
+4. `build_ms`
+5. `raster_ms`
+6. `audio_ms`
+7. `rss_mb`
+
+`tests/perf/run_perf.sh` 基于这些字段生成 `perf_<scene>.csv` 与 `perf_summary.csv`。
+
+## 9. 当前已知约束
 
 1. 运行时会话当前是单实例全局渲染后端模型，不支持并发多会话。
 2. Windows 平台暂未提供键盘非阻塞输入实现（会返回 `VN_E_UNSUPPORTED`）。

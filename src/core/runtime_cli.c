@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <errno.h>
+#include <sys/time.h>
 #endif
 
 #include "vn_renderer.h"
@@ -59,6 +60,7 @@ struct VNRuntimeSession {
     vn_u32 dt_ms;
     vn_u32 trace;
     vn_u32 emit_logs;
+    vn_u32 hold_on_end;
     vn_u32 frames_executed;
     vn_u32 last_op_count;
     vn_u32 last_choice_serial;
@@ -72,6 +74,46 @@ struct VNRuntimeSession {
 };
 
 static VNRunResult g_last_run_result;
+
+static double runtime_now_ms(void) {
+#if !defined(_WIN32)
+    struct timeval tv;
+
+    if (gettimeofday(&tv, (struct timezone*)0) != 0) {
+        return 0.0;
+    }
+    return ((double)tv.tv_sec * 1000.0) + ((double)tv.tv_usec / 1000.0);
+#else
+    return 0.0;
+#endif
+}
+
+static double runtime_rss_mb(void) {
+#if !defined(_WIN32)
+    FILE* fp;
+    long rss_pages;
+    long page_size;
+
+    fp = fopen("/proc/self/statm", "r");
+    if (fp == (FILE*)0) {
+        return 0.0;
+    }
+    rss_pages = 0L;
+    if (fscanf(fp, "%*s %ld", &rss_pages) != 1) {
+        (void)fclose(fp);
+        return 0.0;
+    }
+    (void)fclose(fp);
+
+    page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0 || rss_pages < 0L) {
+        return 0.0;
+    }
+    return ((double)rss_pages * (double)page_size) / (1024.0 * 1024.0);
+#else
+    return 0.0;
+#endif
+}
 
 void vn_run_config_init(VNRunConfig* cfg) {
     if (cfg == (VNRunConfig*)0) {
@@ -87,6 +129,7 @@ void vn_run_config_init(VNRunConfig* cfg) {
     cfg->trace = 0u;
     cfg->keyboard = 0u;
     cfg->emit_logs = 1u;
+    cfg->hold_on_end = 0u;
     cfg->choice_index = 0u;
     cfg->choice_seq_count = 0u;
 }
@@ -688,6 +731,7 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     session->dt_ms = active_cfg->dt_ms;
     session->trace = active_cfg->trace;
     session->emit_logs = active_cfg->emit_logs;
+    session->hold_on_end = active_cfg->hold_on_end;
     session->default_choice_index = active_cfg->choice_index;
     session->keyboard.enabled = (active_cfg->keyboard != 0u) ? VN_TRUE : VN_FALSE;
     session->last_op_count = 0u;
@@ -752,6 +796,16 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
     vn_u8 applied_choice;
     vn_u32 choice_serial_now;
     vn_u32 op_count;
+    double t_frame_start;
+    double t_after_vm;
+    double t_after_build;
+    double t_after_raster;
+    double frame_ms;
+    double vm_ms;
+    double build_ms;
+    double raster_ms;
+    double audio_ms;
+    double rss_mb;
     int rc;
     int keyboard_has_choice;
     int keyboard_toggle_trace;
@@ -790,13 +844,16 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
             }
             vm_set_choice_index(&session->vm, applied_choice);
 
+            t_frame_start = runtime_now_ms();
             vm_step(&session->vm, session->dt_ms);
+            t_after_vm = runtime_now_ms();
             state_from_vm(&session->state, &session->vm);
             fade_player_step(&session->fade_player, &session->vm, session->dt_ms);
             state_apply_fade(&session->state, &session->fade_player);
 
             op_count = 16u;
             rc = build_render_ops(&session->state, session->ops, &op_count);
+            t_after_build = runtime_now_ms();
             if (rc != VN_OK) {
                 (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n",
                               rc,
@@ -807,6 +864,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 renderer_begin_frame();
                 renderer_submit(session->ops, op_count);
                 renderer_end_frame();
+                t_after_raster = runtime_now_ms();
 
                 choice_serial_now = vm_choice_serial(&session->vm);
                 if (choice_serial_now != session->last_choice_serial) {
@@ -819,9 +877,22 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 session->frames_executed += 1u;
                 session->last_op_count = op_count;
 
+                vm_ms = t_after_vm - t_frame_start;
+                build_ms = t_after_build - t_after_vm;
+                raster_ms = t_after_raster - t_after_build;
+                frame_ms = t_after_raster - t_frame_start;
+                audio_ms = 0.0;
+                rss_mb = runtime_rss_mb();
+
                 if (session->trace != 0u && session->emit_logs != 0u) {
-                    (void)printf("frame=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
+                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
                                  (unsigned int)session->state.frame_index,
+                                 frame_ms,
+                                 vm_ms,
+                                 build_ms,
+                                 raster_ms,
+                                 audio_ms,
+                                 rss_mb,
                                  (unsigned int)session->state.text_id,
                                  (unsigned int)session->state.vm_waiting,
                                  (unsigned int)session->state.vm_ended,
@@ -835,10 +906,10 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)op_count);
                 }
 
-                if (session->state.vm_ended != 0u || session->state.vm_error != 0u) {
-                    if (session->state.vm_error != 0u) {
-                        session->exit_code = 1;
-                    }
+                if (session->state.vm_error != 0u) {
+                    session->exit_code = 1;
+                    session->done = VN_TRUE;
+                } else if (session->state.vm_ended != 0u && session->hold_on_end == 0u) {
                     session->done = VN_TRUE;
                 }
                 if (session->frames_executed >= session->frames_limit) {
@@ -1046,6 +1117,8 @@ int vn_runtime_run_cli(int argc, char** argv) {
             run_cfg.keyboard = 1u;
         } else if (strcmp(arg, "--trace") == 0) {
             run_cfg.trace = 1u;
+        } else if (strcmp(arg, "--hold-end") == 0) {
+            run_cfg.hold_on_end = 1u;
         } else if (strcmp(arg, "--quiet") == 0) {
             run_cfg.emit_logs = 0u;
         }

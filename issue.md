@@ -11,7 +11,7 @@
 2. `ISSUE-002`：Frontend 输出 `VNRenderOp[]`，且 VM -> IR 主路径已接通
 3. `ISSUE-003`：`scalar` 最小可运行闭环（`600x800`、`S0-S3`）
 4. `ISSUE-004`：`vnpak v2`（CRC32）+ `manifest.json` + 资源一致性校验 + `PNG -> RGBA16/CI8/IA8` 已落地
-5. `ISSUE-005`（部分）：`S0-S3` perf CSV 产出链路可复现
+5. `ISSUE-005`：`S0-S3` perf CSV + 热身窗口 + p95 汇总链路已落地
 6. `ISSUE-006`（部分）：C89 门禁脚本 + 头文件独立编译检查
 
 ### 进行中（当前主线）
@@ -22,10 +22,10 @@
 
 ### 下一步（短周期）
 
-1. `ISSUE-005` 补完：热身窗口与 p95 统计逻辑
-2. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
-3. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
-4. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
+1. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
+2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
+3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
+4. `ISSUE-008` 前置：建立性能回归基线门限文件
 
 ## 0. 适用原则
 
@@ -318,10 +318,10 @@ ctest --test-dir build --output-on-failure -R render_ops
 
 ### 任务清单
 
-- [ ] 固定场景 `S0/S1/S2/S3`
-- [ ] 输出字段：`scene,frame,frame_ms,vm_ms,build_ms,raster_ms,audio_ms,rss_mb`
-- [ ] 热身 20 秒规则
-- [ ] 报告模板（设备/参数/版本）
+- [x] 固定场景 `S0/S1/S2/S3`
+- [x] 输出字段：`scene,frame,frame_ms,vm_ms,build_ms,raster_ms,audio_ms,rss_mb`
+- [x] 热身 20 秒规则
+- [x] 报告模板（设备/参数/版本）
 
 ### 验收命令
 
@@ -331,9 +331,9 @@ ctest --test-dir build --output-on-failure -R render_ops
 
 ### DoD
 
-- [ ] 每场景输出 CSV
-- [ ] 可计算 p95
-- [ ] 可重复执行并复现实验结论
+- [x] 每场景输出 CSV
+- [x] 可计算 p95
+- [x] 可重复执行并复现实验结论
 
 ### 回退策略
 

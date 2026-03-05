@@ -16,6 +16,7 @@ typedef struct {
     vn_u32 trace;
     vn_u32 keyboard;
     vn_u32 emit_logs;
+    vn_u32 hold_on_end;
     vn_u8 choice_index;
     vn_u8 choice_seq[VN_RUNTIME_MAX_CHOICE_SEQ];
     vn_u32 choice_seq_count;

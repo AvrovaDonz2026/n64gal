@@ -206,10 +206,14 @@ ctest --test-dir build --output-on-failure
 ### Perf 脚本
 
 ```bash
-./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3
+./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
 ```
 
-会在 `tests/perf/` 下生成 `perf_*.csv`。
+会在 `tests/perf/` 下生成：
+
+1. `perf_<scene>.csv`
+2. `perf_summary.csv`（含每场景 `p95_frame_ms`）
+3. `perf_report_template.md`
 
 ## 后端支持状态
 
