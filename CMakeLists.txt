@@ -55,3 +55,7 @@ add_test(NAME unit_vm COMMAND test_vm)
 add_executable(test_runtime_api tests/unit/test_runtime_api.c)
 target_link_libraries(test_runtime_api PRIVATE vn_core)
 add_test(NAME unit_runtime_api COMMAND test_runtime_api)
+
+add_executable(test_runtime_session tests/unit/test_runtime_session.c)
+target_link_libraries(test_runtime_session PRIVATE vn_core)
+add_test(NAME unit_runtime_session COMMAND test_runtime_session)

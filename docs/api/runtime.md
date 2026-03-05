@@ -10,7 +10,8 @@
 
 1. 以库调用为主，不依赖 `vn_player` 二进制。
 2. 运行时接口保持 C89 兼容。
-3. 提供配置输入 + 结果输出的结构化 API。
+3. 提供“一次性运行 + 会话化运行”两套库 API。
+4. CLI 仅作为包装层，核心行为由运行时会话层统一承载。
 
 ## 3. 结构体
 
@@ -71,9 +72,35 @@
 1. `0`：成功
 2. 非 0：失败（参数错误、资源加载失败、渲染初始化失败、VM 错误等）
 
+### `int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_session)`
+
+创建运行时会话并完成初始化（加载 pack、加载脚本、初始化 VM、初始化渲染后端）。
+
+### `int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result)`
+
+推进一帧执行并返回最新状态快照。
+
+行为要点：
+
+1. 每次调用最多推进 1 帧。
+2. 支持 `choice_seq` 和 `vn_runtime_session_set_choice` 的分支注入。
+3. 当运行结束且 `vm_error != 0` 时返回非 0。
+
+### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
+
+查询会话是否结束（帧数到达、脚本结束、错误、或键盘退出）。
+
+### `int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index)`
+
+设置默认分支选择索引，供后续 `CHOICE` 指令消费。
+
+### `int vn_runtime_session_destroy(VNRuntimeSession* session)`
+
+销毁会话并释放资源（后端 shutdown、键盘状态恢复、脚本内存释放、pack 关闭）。
+
 ### `int vn_runtime_run_cli(int argc, char** argv)`
 
-CLI 包装入口，主要用于调试与脚本调用。
+CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 `vn_runtime_run`。
 
 ## 5. 最小示例（推荐集成方式）
 
@@ -106,7 +133,40 @@ int main(void) {
 }
 ```
 
-## 6. 键盘模式
+## 6. 会话化示例（宿主循环）
+
+```c
+#include "vn_runtime.h"
+
+int run_scene_once(void) {
+    VNRunConfig cfg;
+    VNRunResult res;
+    VNRuntimeSession* session;
+    int rc;
+
+    vn_run_config_init(&cfg);
+    cfg.scene_name = "S2";
+    cfg.frames = 300u;
+    cfg.emit_logs = 0u;
+
+    rc = vn_runtime_session_create(&cfg, &session);
+    if (rc != 0) {
+        return rc;
+    }
+
+    while (vn_runtime_session_is_done(session) == 0) {
+        rc = vn_runtime_session_step(session, &res);
+        if (rc != 0) {
+            break;
+        }
+    }
+
+    (void)vn_runtime_session_destroy(session);
+    return rc;
+}
+```
+
+## 7. 键盘模式
 
 仅在类 Unix TTY 环境下可用。
 
@@ -116,7 +176,8 @@ int main(void) {
 2. `t`：切换 trace
 3. `q`：退出运行循环
 
-## 7. 当前已知约束
+## 8. 当前已知约束
 
-1. 结构化 API 当前仍复用 CLI 核心执行路径。
-2. 会话化 API（`create/step/destroy`）尚未完成，计划在 `ISSUE-014` 落地。
+1. 运行时会话当前是单实例全局渲染后端模型，不支持并发多会话。
+2. Windows 平台暂未提供键盘非阻塞输入实现（会返回 `VN_E_UNSUPPORTED`）。
+3. `vn_runtime_run_cli` 保留进程级退出码语义（参数错误返回 `2`，运行失败返回 `1`）。

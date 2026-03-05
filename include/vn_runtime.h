@@ -38,8 +38,15 @@ typedef struct {
     const char* backend_name;
 } VNRunResult;
 
+typedef struct VNRuntimeSession VNRuntimeSession;
+
 void vn_run_config_init(VNRunConfig* cfg);
 int vn_runtime_run(const VNRunConfig* cfg, VNRunResult* out_result);
 int vn_runtime_run_cli(int argc, char** argv);
+int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_session);
+int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result);
+int vn_runtime_session_is_done(const VNRuntimeSession* session);
+int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index);
+int vn_runtime_session_destroy(VNRuntimeSession* session);
 
 #endif

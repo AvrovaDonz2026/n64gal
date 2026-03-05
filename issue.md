@@ -16,7 +16,7 @@
 
 ### 进行中（当前主线）
 
-1. Runtime API 化：`vn_runtime_run(config, result)` 已可用，正在推进会话化 API
+1. Runtime API 化：`vn_runtime_run(config, result)` + Session API（`create/step/destroy`）已可用
 2. 输入链路：CLI + 键盘输入并存，后续补统一输入抽象层
 3. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md` 已建立，后续随 API 变更持续维护
 
@@ -25,6 +25,7 @@
 1. `ISSUE-004` 补完：CRC32 + manifest + 资源一致性校验
 2. `ISSUE-005` 补完：热身窗口与 p95 统计逻辑
 3. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
+4. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
 
 ## 0. 适用原则
 
@@ -641,7 +642,7 @@ ctest --test-dir build --output-on-failure
 ## 6. 可选追加 Issue（建议）
 
 - `ISSUE-013`：`vnsave v1` 存档迁移器
-- `ISSUE-014`：Runtime Session API（`create/step/destroy`）与宿主循环对接
+- `ISSUE-014`（已完成，2026-03-06）：Runtime Session API（`create/step/destroy`）与宿主循环对接
 - `ISSUE-015`：API 文档集维护规范（`docs/api/*` + 变更日志）
-- `ISSUE-014`：错误码与日志可观测性升级（统一 trace id）
-- `ISSUE-015`：WebAssembly 实验性后端（非主线阻塞）
+- `ISSUE-016`：错误码与日志可观测性升级（统一 trace id）
+- `ISSUE-017`：WebAssembly 实验性后端（非主线阻塞）
