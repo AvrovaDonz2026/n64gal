@@ -25,6 +25,7 @@ typedef struct {
     vn_u8 external_choice_index;
     vn_u16 last_choice_text_id;
     vn_u32 choice_serial;
+    vn_u32 fade_serial;
     vn_u32 flags;
 } VNState;
 
@@ -61,5 +62,6 @@ vn_u8 vm_last_choice_count(const VNState* s);
 vn_u16 vm_last_choice_text_id(const VNState* s);
 vn_u8 vm_last_choice_selected_index(const VNState* s);
 vn_u32 vm_choice_serial(const VNState* s);
+vn_u32 vm_fade_serial(const VNState* s);
 
 #endif

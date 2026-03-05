@@ -23,6 +23,17 @@ typedef struct {
 } ChoiceFeed;
 
 typedef struct {
+    vn_u32 seen_serial;
+    vn_u8 active;
+    vn_u8 layer_mask;
+    vn_u8 alpha_current;
+    vn_u8 alpha_start;
+    vn_u8 alpha_target;
+    vn_u16 duration_ms;
+    vn_u32 elapsed_ms;
+} FadePlayer;
+
+typedef struct {
     int enabled;
     int active;
     int quit_requested;
@@ -164,6 +175,66 @@ static void keyboard_poll(KeyboardInput* kb,
         }
     }
 #endif
+}
+
+static void fade_player_init(FadePlayer* fade) {
+    if (fade == (FadePlayer*)0) {
+        return;
+    }
+    fade->seen_serial = 0u;
+    fade->active = 0u;
+    fade->layer_mask = 0u;
+    fade->alpha_current = 0u;
+    fade->alpha_start = 0u;
+    fade->alpha_target = 0u;
+    fade->duration_ms = 0u;
+    fade->elapsed_ms = 0u;
+}
+
+static void fade_player_step(FadePlayer* fade, const VNState* vm, vn_u32 dt_ms) {
+    vn_u32 serial_now;
+
+    if (fade == (FadePlayer*)0 || vm == (const VNState*)0) {
+        return;
+    }
+
+    serial_now = vm_fade_serial(vm);
+    if (serial_now != fade->seen_serial) {
+        fade->seen_serial = serial_now;
+        fade->layer_mask = vm_fade_layer_mask(vm);
+        fade->alpha_start = fade->alpha_current;
+        fade->alpha_target = vm_fade_target_alpha(vm);
+        fade->duration_ms = vm_fade_duration_ms(vm);
+        fade->elapsed_ms = 0u;
+        if (fade->duration_ms == 0u) {
+            fade->alpha_current = fade->alpha_target;
+            fade->active = 0u;
+        } else {
+            fade->active = 1u;
+        }
+    }
+
+    if (fade->active != 0u) {
+        vn_u32 next_elapsed;
+        if (dt_ms >= (vn_u32)fade->duration_ms - fade->elapsed_ms) {
+            fade->elapsed_ms = (vn_u32)fade->duration_ms;
+            fade->alpha_current = fade->alpha_target;
+            fade->active = 0u;
+        } else {
+            int diff;
+            int alpha_value;
+            next_elapsed = fade->elapsed_ms + dt_ms;
+            fade->elapsed_ms = next_elapsed;
+            diff = (int)fade->alpha_target - (int)fade->alpha_start;
+            alpha_value = (int)fade->alpha_start + (diff * (int)fade->elapsed_ms) / (int)fade->duration_ms;
+            if (alpha_value < 0) {
+                alpha_value = 0;
+            } else if (alpha_value > 255) {
+                alpha_value = 255;
+            }
+            fade->alpha_current = (vn_u8)alpha_value;
+        }
+    }
 }
 
 static int parse_u32_range(const char* text, long min_value, long max_value, vn_u32* out_value) {
@@ -376,16 +447,26 @@ static void state_from_vm(VNRuntimeState* state, VNState* vm) {
     state->vm_waiting = (vn_u32)vm_is_waiting(vm);
     state->vm_ended = (vn_u32)vm_is_ended(vm);
     state->vm_error = (vn_u32)vm_has_error(vm);
-    state->fade_layer_mask = (vn_u32)vm_fade_layer_mask(vm);
-    state->fade_alpha = (vn_u32)vm_fade_target_alpha(vm);
-    state->fade_duration_ms = (vn_u32)vm_fade_duration_ms(vm);
-    state->vm_fade_active = (state->fade_duration_ms > 0u || state->fade_alpha > 0u) ? 1u : 0u;
     state->bgm_id = (vn_u32)vm_current_bgm_id(vm);
     state->bgm_loop = (vn_u32)vm_current_bgm_loop(vm);
     state->se_id = (vn_u32)vm_take_se_id(vm);
     state->choice_count = (vn_u32)vm_last_choice_count(vm);
     state->choice_text_id = (vn_u32)vm_last_choice_text_id(vm);
     state->choice_selected_index = (vn_u32)vm_last_choice_selected_index(vm);
+}
+
+static void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade) {
+    if (state == (VNRuntimeState*)0 || fade == (const FadePlayer*)0) {
+        return;
+    }
+    state->fade_layer_mask = (vn_u32)fade->layer_mask;
+    state->fade_alpha = (vn_u32)fade->alpha_current;
+    if ((vn_u32)fade->duration_ms > fade->elapsed_ms) {
+        state->fade_duration_ms = (vn_u32)fade->duration_ms - fade->elapsed_ms;
+    } else {
+        state->fade_duration_ms = 0u;
+    }
+    state->vm_fade_active = (fade->active != 0 || fade->alpha_current != 0u) ? 1u : 0u;
 }
 
 static void state_init_defaults(VNRuntimeState* state) {
@@ -417,6 +498,7 @@ int main(int argc, char** argv) {
     VNPak pak;
     VNState vm;
     ChoiceFeed choice_feed;
+    FadePlayer fade_player;
     KeyboardInput keyboard;
     vn_u8* script_buf;
     vn_u32 script_size;
@@ -449,6 +531,7 @@ int main(int argc, char** argv) {
 
     choice_feed.count = 0u;
     choice_feed.cursor = 0u;
+    fade_player_init(&fade_player);
     keyboard_init(&keyboard);
 
     script_buf = (vn_u8*)0;
@@ -698,6 +781,8 @@ int main(int argc, char** argv) {
 
         vm_step(&vm, dt_ms);
         state_from_vm(&state, &vm);
+        fade_player_step(&fade_player, &vm, dt_ms);
+        state_apply_fade(&state, &fade_player);
 
         op_count = 16u;
         rc = build_render_ops(&state, ops, &op_count);
@@ -722,12 +807,13 @@ int main(int argc, char** argv) {
         frames_executed = frame + 1u;
 
         if (trace != 0u) {
-            (void)printf("frame=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
+            (void)printf("frame=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
                          (unsigned int)state.frame_index,
                          (unsigned int)state.text_id,
                          (unsigned int)state.vm_waiting,
                          (unsigned int)state.vm_ended,
                          (unsigned int)state.fade_alpha,
+                         (unsigned int)state.fade_duration_ms,
                          (unsigned int)state.bgm_id,
                          (unsigned int)state.se_id,
                          (unsigned int)state.choice_count,
@@ -745,7 +831,7 @@ int main(int argc, char** argv) {
     }
 
     if (exit_code == 0) {
-        (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u\n",
+        (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u\n",
                      renderer_backend_name(),
                      (unsigned int)cfg.width,
                      (unsigned int)cfg.height,
@@ -757,6 +843,7 @@ int main(int argc, char** argv) {
                      (unsigned int)state.vm_waiting,
                      (unsigned int)state.vm_ended,
                      (unsigned int)state.fade_alpha,
+                     (unsigned int)state.fade_duration_ms,
                      (unsigned int)state.bgm_id,
                      (unsigned int)state.se_id,
                      (unsigned int)state.choice_count,

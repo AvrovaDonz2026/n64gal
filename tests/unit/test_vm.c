@@ -40,6 +40,10 @@ int main(void) {
         (void)fprintf(stderr, "choice serial should be 1 after first choice\n");
         return 1;
     }
+    if (vm_fade_serial(&vm) != 1u) {
+        (void)fprintf(stderr, "fade serial should be 1 after first fade\n");
+        return 1;
+    }
     if (vm_current_bgm_id(&vm) != 0x1234u || vm_current_bgm_loop(&vm) != 1u) {
         (void)fprintf(stderr, "bgm state mismatch\n");
         return 1;
@@ -91,6 +95,10 @@ int main(void) {
     vm_step(&vm, 16u);
     if (vm_choice_serial(&vm) != 1u) {
         (void)fprintf(stderr, "choice serial should reset per vm_init\n");
+        return 1;
+    }
+    if (vm_fade_serial(&vm) != 0u) {
+        (void)fprintf(stderr, "second choice path should not execute fade\n");
         return 1;
     }
     if (vm_last_choice_selected_index(&vm) != 1u || vm_last_choice_text_id(&vm) != 0x0202u) {

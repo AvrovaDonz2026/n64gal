@@ -52,6 +52,7 @@ int vm_init(VNState* s, const vn_u8* script, vn_u32 script_size) {
     s->external_choice_index = 0u;
     s->last_choice_text_id = 0u;
     s->choice_serial = 0u;
+    s->fade_serial = 0u;
     s->flags = 0u;
     return VN_TRUE;
 }
@@ -253,6 +254,7 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
             s->fade_target_alpha = s->script_pc[1];
             s->fade_duration_ms = vm_read_u16_le(s->script_pc + 2);
             s->script_pc += 4;
+            s->fade_serial += 1u;
             continue;
         }
 
@@ -399,4 +401,11 @@ vn_u32 vm_choice_serial(const VNState* s) {
         return 0u;
     }
     return s->choice_serial;
+}
+
+vn_u32 vm_fade_serial(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->fade_serial;
 }
