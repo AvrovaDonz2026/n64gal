@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <errno.h>
+#endif
 
 #include "vn_renderer.h"
 #include "vn_frontend.h"
@@ -15,6 +21,150 @@ typedef struct {
     vn_u32 count;
     vn_u32 cursor;
 } ChoiceFeed;
+
+typedef struct {
+    int enabled;
+    int active;
+    int quit_requested;
+#if !defined(_WIN32)
+    struct termios old_termios;
+    int old_flags;
+#endif
+} KeyboardInput;
+
+static void keyboard_init(KeyboardInput* kb) {
+    if (kb == (KeyboardInput*)0) {
+        return;
+    }
+    kb->enabled = VN_FALSE;
+    kb->active = VN_FALSE;
+    kb->quit_requested = VN_FALSE;
+#if !defined(_WIN32)
+    kb->old_flags = 0;
+#endif
+}
+
+static int keyboard_enable(KeyboardInput* kb) {
+#if defined(_WIN32)
+    (void)kb;
+    return VN_E_UNSUPPORTED;
+#else
+    struct termios raw;
+    int flags;
+
+    if (kb == (KeyboardInput*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (kb->enabled == VN_FALSE) {
+        return VN_OK;
+    }
+    if (kb->active == VN_TRUE) {
+        return VN_OK;
+    }
+    if (isatty(0) == 0) {
+        return VN_E_UNSUPPORTED;
+    }
+    if (tcgetattr(0, &kb->old_termios) != 0) {
+        return VN_E_IO;
+    }
+
+    raw = kb->old_termios;
+    raw.c_lflag = (tcflag_t)(raw.c_lflag & (tcflag_t)(~(ICANON | ECHO)));
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 0;
+    if (tcsetattr(0, TCSANOW, &raw) != 0) {
+        return VN_E_IO;
+    }
+
+    flags = fcntl(0, F_GETFL, 0);
+    if (flags < 0) {
+        (void)tcsetattr(0, TCSANOW, &kb->old_termios);
+        return VN_E_IO;
+    }
+    kb->old_flags = flags;
+    if (fcntl(0, F_SETFL, flags | O_NONBLOCK) != 0) {
+        (void)tcsetattr(0, TCSANOW, &kb->old_termios);
+        return VN_E_IO;
+    }
+
+    kb->active = VN_TRUE;
+    return VN_OK;
+#endif
+}
+
+static void keyboard_disable(KeyboardInput* kb) {
+#if defined(_WIN32)
+    (void)kb;
+#else
+    if (kb == (KeyboardInput*)0 || kb->active == VN_FALSE) {
+        return;
+    }
+    (void)tcsetattr(0, TCSANOW, &kb->old_termios);
+    (void)fcntl(0, F_SETFL, kb->old_flags);
+    kb->active = VN_FALSE;
+#endif
+}
+
+static void keyboard_poll(KeyboardInput* kb,
+                          vn_u8* out_choice,
+                          int* out_has_choice,
+                          int* out_toggle_trace,
+                          int* out_quit) {
+    if (out_has_choice != (int*)0) {
+        *out_has_choice = VN_FALSE;
+    }
+    if (out_toggle_trace != (int*)0) {
+        *out_toggle_trace = VN_FALSE;
+    }
+    if (out_quit != (int*)0) {
+        *out_quit = VN_FALSE;
+    }
+
+    if (kb == (KeyboardInput*)0 || kb->active == VN_FALSE) {
+        return;
+    }
+
+#if !defined(_WIN32)
+    for (;;) {
+        unsigned char ch;
+        ssize_t read_count;
+
+        read_count = read(0, &ch, 1u);
+        if (read_count <= 0) {
+            if (read_count < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                kb->quit_requested = VN_TRUE;
+                if (out_quit != (int*)0) {
+                    *out_quit = VN_TRUE;
+                }
+            }
+            break;
+        }
+
+        if (ch >= (unsigned char)'1' && ch <= (unsigned char)'9') {
+            if (out_choice != (vn_u8*)0) {
+                *out_choice = (vn_u8)(ch - (unsigned char)'1');
+            }
+            if (out_has_choice != (int*)0) {
+                *out_has_choice = VN_TRUE;
+            }
+            continue;
+        }
+        if (ch == (unsigned char)'t' || ch == (unsigned char)'T') {
+            if (out_toggle_trace != (int*)0) {
+                *out_toggle_trace = VN_TRUE;
+            }
+            continue;
+        }
+        if (ch == (unsigned char)'q' || ch == (unsigned char)'Q') {
+            kb->quit_requested = VN_TRUE;
+            if (out_quit != (int*)0) {
+                *out_quit = VN_TRUE;
+            }
+            continue;
+        }
+    }
+#endif
+}
 
 static int parse_u32_range(const char* text, long min_value, long max_value, vn_u32* out_value) {
     long value;
@@ -267,6 +417,7 @@ int main(int argc, char** argv) {
     VNPak pak;
     VNState vm;
     ChoiceFeed choice_feed;
+    KeyboardInput keyboard;
     vn_u8* script_buf;
     vn_u32 script_size;
     const char* pack_path;
@@ -279,10 +430,16 @@ int main(int argc, char** argv) {
     vn_u32 op_count;
     vn_u32 last_choice_serial;
     vn_u32 rc_u32;
+    vn_u8 default_choice_index;
     int rc;
     int i;
     int pak_opened;
     int vm_ready;
+    int keyboard_has_choice;
+    int keyboard_toggle_trace;
+    int keyboard_quit;
+    int used_choice_seq;
+    int exit_code;
 
     cfg.width = 600;
     cfg.height = 800;
@@ -292,6 +449,7 @@ int main(int argc, char** argv) {
 
     choice_feed.count = 0u;
     choice_feed.cursor = 0u;
+    keyboard_init(&keyboard);
 
     script_buf = (vn_u8*)0;
     script_size = 0u;
@@ -309,6 +467,12 @@ int main(int argc, char** argv) {
     vm_ready = VN_FALSE;
     last_choice_serial = 0u;
     frames_executed = 0u;
+    default_choice_index = 0u;
+    keyboard_has_choice = VN_FALSE;
+    keyboard_toggle_trace = VN_FALSE;
+    keyboard_quit = VN_FALSE;
+    used_choice_seq = VN_FALSE;
+    exit_code = 0;
 
     for (i = 1; i < argc; ++i) {
         const char* arg;
@@ -385,14 +549,14 @@ int main(int argc, char** argv) {
                 (void)fprintf(stderr, "invalid --choice-index: %s\n", argv[i]);
                 return 2;
             }
-            state.choice_selected_index = rc_u32;
+            default_choice_index = (vn_u8)(rc_u32 & 0xFFu);
         } else if (strncmp(arg, "--choice-index=", 15) == 0) {
             rc = parse_u32_range(arg + 15, 0l, 255l, &rc_u32);
             if (rc != VN_OK) {
                 (void)fprintf(stderr, "invalid --choice-index: %s\n", arg + 15);
                 return 2;
             }
-            state.choice_selected_index = rc_u32;
+            default_choice_index = (vn_u8)(rc_u32 & 0xFFu);
         } else if (strcmp(arg, "--choice-seq") == 0) {
             if ((i + 1) >= argc) {
                 (void)fprintf(stderr, "missing value for --choice-seq\n");
@@ -444,6 +608,8 @@ int main(int argc, char** argv) {
                 (void)fprintf(stderr, "invalid --dt-ms: %s\n", arg + 8);
                 return 2;
             }
+        } else if (strcmp(arg, "--keyboard") == 0) {
+            keyboard.enabled = VN_TRUE;
         } else if (strcmp(arg, "--trace") == 0) {
             trace = 1u;
         }
@@ -489,6 +655,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    rc = keyboard_enable(&keyboard);
+    if (keyboard.enabled == VN_TRUE && rc != VN_OK) {
+        (void)fprintf(stderr, "keyboard init failed rc=%d (enable requires tty)\n", rc);
+        renderer_shutdown();
+        free(script_buf);
+        vnpak_close(&pak);
+        return 1;
+    }
+    if (keyboard.active == VN_TRUE) {
+        (void)printf("[keyboard] enabled: press 1-9 to select choice, t to toggle trace, q to quit\n");
+    }
+
     for (frame = 0u; frame < frames; ++frame) {
         vn_u32 choice_serial_now;
         vn_u8 applied_choice;
@@ -496,9 +674,25 @@ int main(int argc, char** argv) {
         state.frame_index = frame;
         state_reset_frame_events(&state);
 
-        applied_choice = (vn_u8)(state.choice_selected_index & 0xFFu);
-        if (choice_feed.count > 0u && choice_feed.cursor < choice_feed.count) {
+        applied_choice = default_choice_index;
+        used_choice_seq = VN_FALSE;
+        keyboard_poll(&keyboard,
+                      &applied_choice,
+                      &keyboard_has_choice,
+                      &keyboard_toggle_trace,
+                      &keyboard_quit);
+        if (keyboard_toggle_trace != VN_FALSE) {
+            trace = (trace == 0u) ? 1u : 0u;
+        }
+        if (keyboard_quit != VN_FALSE) {
+            break;
+        }
+
+        if (keyboard_has_choice != VN_FALSE) {
+            used_choice_seq = VN_FALSE;
+        } else if (choice_feed.count > 0u && choice_feed.cursor < choice_feed.count) {
             applied_choice = choice_feed.items[choice_feed.cursor];
+            used_choice_seq = VN_TRUE;
         }
         vm_set_choice_index(&vm, applied_choice);
 
@@ -509,10 +703,8 @@ int main(int argc, char** argv) {
         rc = build_render_ops(&state, ops, &op_count);
         if (rc != VN_OK) {
             (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n", rc, (unsigned int)frame);
-            renderer_shutdown();
-            free(script_buf);
-            vnpak_close(&pak);
-            return 1;
+            exit_code = 1;
+            break;
         }
 
         renderer_begin_frame();
@@ -522,7 +714,7 @@ int main(int argc, char** argv) {
         choice_serial_now = vm_choice_serial(&vm);
         if (choice_serial_now != last_choice_serial) {
             last_choice_serial = choice_serial_now;
-            if (choice_feed.cursor < choice_feed.count) {
+            if (used_choice_seq != VN_FALSE && choice_feed.cursor < choice_feed.count) {
                 choice_feed.cursor += 1u;
             }
         }
@@ -545,36 +737,43 @@ int main(int argc, char** argv) {
         }
 
         if (state.vm_ended != 0u || state.vm_error != 0u) {
+            if (state.vm_error != 0u) {
+                exit_code = 1;
+            }
             break;
         }
     }
 
-    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u\n",
-                 renderer_backend_name(),
-                 (unsigned int)cfg.width,
-                 (unsigned int)cfg.height,
-                 scene_name,
-                 (unsigned int)frames_executed,
-                 (unsigned int)dt_ms,
-                 (unsigned int)state.resource_count,
-                 (unsigned int)state.text_id,
-                 (unsigned int)state.vm_waiting,
-                 (unsigned int)state.vm_ended,
-                 (unsigned int)state.fade_alpha,
-                 (unsigned int)state.bgm_id,
-                 (unsigned int)state.se_id,
-                 (unsigned int)state.choice_count,
-                 (unsigned int)state.choice_selected_index,
-                 (unsigned int)state.choice_text_id,
-                 (unsigned int)state.vm_error,
-                 (unsigned int)op_count);
+    if (exit_code == 0) {
+        (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u\n",
+                     renderer_backend_name(),
+                     (unsigned int)cfg.width,
+                     (unsigned int)cfg.height,
+                     scene_name,
+                     (unsigned int)frames_executed,
+                     (unsigned int)dt_ms,
+                     (unsigned int)state.resource_count,
+                     (unsigned int)state.text_id,
+                     (unsigned int)state.vm_waiting,
+                     (unsigned int)state.vm_ended,
+                     (unsigned int)state.fade_alpha,
+                     (unsigned int)state.bgm_id,
+                     (unsigned int)state.se_id,
+                     (unsigned int)state.choice_count,
+                     (unsigned int)state.choice_selected_index,
+                     (unsigned int)state.choice_text_id,
+                     (unsigned int)state.vm_error,
+                     (unsigned int)op_count,
+                     (unsigned int)keyboard.active);
+    }
 
     renderer_shutdown();
+    keyboard_disable(&keyboard);
     if (vm_ready != VN_FALSE) {
         free(script_buf);
     }
     if (pak_opened == VN_TRUE) {
         vnpak_close(&pak);
     }
-    return 0;
+    return exit_code;
 }
