@@ -47,9 +47,20 @@ int vm_init(VNState* s, const vn_u8* script, vn_u32 script_size) {
     s->pending_se_id = 0u;
     s->pending_se_flag = 0u;
     s->last_choice_count = 0u;
+    s->last_choice_selected_index = 0u;
+    s->external_choice_valid = 0u;
+    s->external_choice_index = 0u;
     s->last_choice_text_id = 0u;
     s->flags = 0u;
     return VN_TRUE;
+}
+
+void vm_set_choice_index(VNState* s, vn_u8 choice_index) {
+    if (s == (VNState*)0) {
+        return;
+    }
+    s->external_choice_valid = 1u;
+    s->external_choice_index = choice_index;
 }
 
 void vm_step(VNState* s, vn_u32 delta_ms) {
@@ -123,6 +134,7 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
         if (op == VN_VM_OP_CHOICE) {
             vn_u8 count;
             vn_u8 i;
+            vn_u8 selected_index;
             vn_u16 selected_target;
             vn_u16 selected_text;
 
@@ -143,6 +155,13 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
 
             selected_target = 0u;
             selected_text = 0u;
+            selected_index = 0u;
+            if (s->external_choice_valid != 0u) {
+                if (s->external_choice_index < count) {
+                    selected_index = s->external_choice_index;
+                }
+                s->external_choice_valid = 0u;
+            }
             for (i = 0u; i < count; ++i) {
                 vn_u16 text_id;
                 vn_u16 target;
@@ -154,7 +173,7 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
                     vm_fail(s);
                     return;
                 }
-                if (i == 0u) {
+                if (i == selected_index) {
                     selected_target = target;
                     selected_text = text_id;
                 }
@@ -162,6 +181,7 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
 
             s->last_choice_count = count;
             s->last_choice_text_id = selected_text;
+            s->last_choice_selected_index = selected_index;
             s->script_pc = s->script_base + selected_target;
             continue;
         }
@@ -363,4 +383,11 @@ vn_u16 vm_last_choice_text_id(const VNState* s) {
         return 0u;
     }
     return s->last_choice_text_id;
+}
+
+vn_u8 vm_last_choice_selected_index(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->last_choice_selected_index;
 }

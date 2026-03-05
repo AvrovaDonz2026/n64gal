@@ -26,6 +26,8 @@ static int expect_scene(vn_u32 scene_id, vn_u32 expected_count, vn_u8 expected_l
     state.bgm_loop = 0u;
     state.se_id = 0u;
     state.choice_count = 0u;
+    state.choice_text_id = 0u;
+    state.choice_selected_index = 0u;
 
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
@@ -87,6 +89,8 @@ int main(void) {
     state.bgm_loop = 0u;
     state.se_id = 0u;
     state.choice_count = 0u;
+    state.choice_text_id = 0u;
+    state.choice_selected_index = 0u;
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_OK || count != 4u || ops[3].op != VN_OP_FADE || ops[3].flags != 1u) {
@@ -111,13 +115,15 @@ int main(void) {
     state.bgm_loop = 0u;
     state.se_id = 55u;
     state.choice_count = 2u;
+    state.choice_text_id = 500u;
+    state.choice_selected_index = 1u;
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_OK || count != 4u) {
         (void)fprintf(stderr, "vm fade active should produce 4 ops\n");
         return 1;
     }
-    if (ops[1].flags != 1u || ops[2].flags != 3u || ops[3].alpha != 200u || ops[3].flags != 2u || ops[3].tex_id != 3u) {
+    if (ops[1].flags != 1u || ops[2].flags != 11u || ops[3].alpha != 200u || ops[3].flags != 2u || ops[3].tex_id != 3u) {
         (void)fprintf(stderr, "vm fade/bgm/choice encoded flags mismatch\n");
         return 1;
     }
@@ -139,6 +145,8 @@ int main(void) {
     state.bgm_loop = 0u;
     state.se_id = 0u;
     state.choice_count = 0u;
+    state.choice_text_id = 0u;
+    state.choice_selected_index = 0u;
     count = 3u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_E_NOMEM) {

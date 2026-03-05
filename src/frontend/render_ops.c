@@ -55,6 +55,9 @@ static void vn_fill_text(VNRenderOp* op, const VNRuntimeState* state) {
     if (state->choice_count > 0u) {
         text_flags = (vn_u8)(text_flags | 2u);
     }
+    if (state->choice_selected_index > 0u) {
+        text_flags = (vn_u8)(text_flags | 8u);
+    }
     if (state->vm_error != 0u) {
         text_flags = (vn_u8)(text_flags | 4u);
     }

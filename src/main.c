@@ -137,6 +137,10 @@ static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* i
         return VN_E_FORMAT;
     }
 
+    if (io_state->choice_selected_index > 0u) {
+        vm_set_choice_index(&vm, (vn_u8)(io_state->choice_selected_index & 0xFFu));
+    }
+
     vm_step(&vm, 16u);
 
     io_state->text_id = vm_current_text_id(&vm);
@@ -152,9 +156,8 @@ static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* i
     io_state->bgm_loop = (vn_u32)vm_current_bgm_loop(&vm);
     io_state->se_id = (vn_u32)vm_take_se_id(&vm);
     io_state->choice_count = (vn_u32)vm_last_choice_count(&vm);
-    if (io_state->choice_count > 0u) {
-        io_state->text_id = vm_last_choice_text_id(&vm);
-    }
+    io_state->choice_text_id = (vn_u32)vm_last_choice_text_id(&vm);
+    io_state->choice_selected_index = (vn_u32)vm_last_choice_selected_index(&vm);
 
     free(script_buf);
     return VN_OK;
@@ -168,6 +171,8 @@ int main(int argc, char** argv) {
     const char* pack_path;
     const char* scene_name;
     vn_u32 op_count;
+    long choice_index_arg;
+    char* choice_end_ptr;
     int rc;
     int i;
     int pak_opened;
@@ -193,6 +198,10 @@ int main(int argc, char** argv) {
     state.bgm_loop = 0u;
     state.se_id = 0u;
     state.choice_count = 0u;
+    state.choice_text_id = 0u;
+    state.choice_selected_index = 0u;
+    choice_index_arg = 0l;
+    choice_end_ptr = (char*)0;
 
     pack_path = "assets/demo/demo.vnpak";
     scene_name = "S0";
@@ -266,6 +275,25 @@ int main(int argc, char** argv) {
             pack_path = argv[i];
         } else if (strncmp(arg, "--pack=", 7) == 0) {
             pack_path = arg + 7;
+        } else if (strcmp(arg, "--choice-index") == 0) {
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --choice-index\n");
+                return 2;
+            }
+            i += 1;
+            choice_index_arg = strtol(argv[i], &choice_end_ptr, 10);
+            if (choice_end_ptr == (char*)0 || *choice_end_ptr != '\0' || choice_index_arg < 0l || choice_index_arg > 255l) {
+                (void)fprintf(stderr, "invalid --choice-index: %s\n", argv[i]);
+                return 2;
+            }
+            state.choice_selected_index = (vn_u32)choice_index_arg;
+        } else if (strncmp(arg, "--choice-index=", 15) == 0) {
+            choice_index_arg = strtol(arg + 15, &choice_end_ptr, 10);
+            if (choice_end_ptr == (char*)0 || *choice_end_ptr != '\0' || choice_index_arg < 0l || choice_index_arg > 255l) {
+                (void)fprintf(stderr, "invalid --choice-index: %s\n", arg + 15);
+                return 2;
+            }
+            state.choice_selected_index = (vn_u32)choice_index_arg;
         }
     }
 
@@ -313,7 +341,7 @@ int main(int argc, char** argv) {
     renderer_submit(ops, op_count);
     renderer_end_frame();
 
-    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u err=%u ops=%u\n",
+    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u\n",
                  renderer_backend_name(),
                  (unsigned int)cfg.width,
                  (unsigned int)cfg.height,
@@ -326,6 +354,8 @@ int main(int argc, char** argv) {
                  (unsigned int)state.bgm_id,
                  (unsigned int)state.se_id,
                  (unsigned int)state.choice_count,
+                 (unsigned int)state.choice_selected_index,
+                 (unsigned int)state.choice_text_id,
                  (unsigned int)state.vm_error,
                  (unsigned int)op_count);
 

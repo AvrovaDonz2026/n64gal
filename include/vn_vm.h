@@ -20,6 +20,9 @@ typedef struct {
     vn_u16 pending_se_id;
     vn_u8 pending_se_flag;
     vn_u8 last_choice_count;
+    vn_u8 last_choice_selected_index;
+    vn_u8 external_choice_valid;
+    vn_u8 external_choice_index;
     vn_u16 last_choice_text_id;
     vn_u32 flags;
 } VNState;
@@ -40,6 +43,7 @@ typedef struct {
 #define VN_VM_OP_END  0xFFu
 
 int vm_init(VNState* s, const vn_u8* script, vn_u32 script_size);
+void vm_set_choice_index(VNState* s, vn_u8 choice_index);
 void vm_step(VNState* s, vn_u32 delta_ms);
 int vm_is_waiting(const VNState* s);
 int vm_is_ended(const VNState* s);
@@ -54,5 +58,6 @@ vn_u8 vm_current_bgm_loop(const VNState* s);
 vn_u16 vm_take_se_id(VNState* s);
 vn_u8 vm_last_choice_count(const VNState* s);
 vn_u16 vm_last_choice_text_id(const VNState* s);
+vn_u8 vm_last_choice_selected_index(const VNState* s);
 
 #endif

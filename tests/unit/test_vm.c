@@ -44,6 +44,10 @@ int main(void) {
         (void)fprintf(stderr, "choice state mismatch\n");
         return 1;
     }
+    if (vm_last_choice_selected_index(&vm) != 0u) {
+        (void)fprintf(stderr, "default choice should pick index 0\n");
+        return 1;
+    }
     if (vm_fade_layer_mask(&vm) != 3u || vm_fade_target_alpha(&vm) != 0x88u || vm_fade_duration_ms(&vm) != 0x0010u) {
         (void)fprintf(stderr, "fade state mismatch\n");
         return 1;
@@ -71,6 +75,22 @@ int main(void) {
     vm_step(&vm, 16u);
     if (vm_is_ended(&vm) != VN_TRUE || vm_has_error(&vm) != VN_FALSE) {
         (void)fprintf(stderr, "vm should end cleanly after second step\n");
+        return 1;
+    }
+
+    ok = vm_init(&vm, script_complex, (vn_u32)sizeof(script_complex));
+    if (ok != VN_TRUE) {
+        (void)fprintf(stderr, "vm_init failed for choice override script\n");
+        return 1;
+    }
+    vm_set_choice_index(&vm, 1u);
+    vm_step(&vm, 16u);
+    if (vm_last_choice_selected_index(&vm) != 1u || vm_last_choice_text_id(&vm) != 0x0202u) {
+        (void)fprintf(stderr, "choice override did not select second option\n");
+        return 1;
+    }
+    if (vm_current_text_id(&vm) != 0x00AAu) {
+        (void)fprintf(stderr, "second option text path not executed\n");
         return 1;
     }
 

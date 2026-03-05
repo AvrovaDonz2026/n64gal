@@ -22,6 +22,8 @@ typedef struct {
     vn_u32 bgm_loop;
     vn_u32 se_id;
     vn_u32 choice_count;
+    vn_u32 choice_text_id;
+    vn_u32 choice_selected_index;
 } VNRuntimeState;
 
 #define VN_SCENE_S0 0u
