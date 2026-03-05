@@ -51,6 +51,7 @@ int vm_init(VNState* s, const vn_u8* script, vn_u32 script_size) {
     s->external_choice_valid = 0u;
     s->external_choice_index = 0u;
     s->last_choice_text_id = 0u;
+    s->choice_serial = 0u;
     s->flags = 0u;
     return VN_TRUE;
 }
@@ -182,6 +183,7 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
             s->last_choice_count = count;
             s->last_choice_text_id = selected_text;
             s->last_choice_selected_index = selected_index;
+            s->choice_serial += 1u;
             s->script_pc = s->script_base + selected_target;
             continue;
         }
@@ -390,4 +392,11 @@ vn_u8 vm_last_choice_selected_index(const VNState* s) {
         return 0u;
     }
     return s->last_choice_selected_index;
+}
+
+vn_u32 vm_choice_serial(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->choice_serial;
 }

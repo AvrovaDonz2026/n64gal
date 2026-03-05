@@ -8,6 +8,31 @@
 #include "vn_vm.h"
 #include "vn_error.h"
 
+#define VN_MAX_CHOICE_SEQ 64u
+
+typedef struct {
+    vn_u8 items[VN_MAX_CHOICE_SEQ];
+    vn_u32 count;
+    vn_u32 cursor;
+} ChoiceFeed;
+
+static int parse_u32_range(const char* text, long min_value, long max_value, vn_u32* out_value) {
+    long value;
+    char* end_ptr;
+
+    if (text == (const char*)0 || out_value == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    value = strtol(text, &end_ptr, 10);
+    if (end_ptr == text || *end_ptr != '\0' || value < min_value || value > max_value) {
+        return VN_E_FORMAT;
+    }
+
+    *out_value = (vn_u32)value;
+    return VN_OK;
+}
+
 static int parse_resolution(const char* text, vn_u16* out_w, vn_u16* out_h) {
     const char* x_ptr;
     long w;
@@ -91,28 +116,81 @@ static vn_u32 scene_script_res_id(vn_u32 scene_id) {
     return 0u;
 }
 
-static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* io_state) {
+static int parse_choice_seq(const char* text, ChoiceFeed* out_feed) {
+    const char* p;
+
+    if (text == (const char*)0 || out_feed == (ChoiceFeed*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    out_feed->count = 0u;
+    out_feed->cursor = 0u;
+    p = text;
+
+    while (*p != '\0') {
+        const char* token_start;
+        const char* token_end;
+        long value;
+        char* parse_end;
+        char tmp[16];
+        vn_u32 len;
+
+        while (*p == ' ' || *p == ',') {
+            p += 1;
+        }
+        if (*p == '\0') {
+            break;
+        }
+
+        token_start = p;
+        while (*p != '\0' && *p != ',') {
+            p += 1;
+        }
+        token_end = p;
+
+        len = (vn_u32)(token_end - token_start);
+        if (len == 0u || len >= (vn_u32)sizeof(tmp)) {
+            return VN_E_FORMAT;
+        }
+
+        memcpy(tmp, token_start, len);
+        tmp[len] = '\0';
+        value = strtol(tmp, &parse_end, 10);
+        if (parse_end == tmp || *parse_end != '\0' || value < 0l || value > 255l) {
+            return VN_E_FORMAT;
+        }
+
+        if (out_feed->count >= VN_MAX_CHOICE_SEQ) {
+            return VN_E_NOMEM;
+        }
+        out_feed->items[out_feed->count] = (vn_u8)value;
+        out_feed->count += 1u;
+
+        if (*p == ',') {
+            p += 1;
+        }
+    }
+
+    return VN_OK;
+}
+
+static int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32* out_size) {
     vn_u32 res_id;
     const ResourceEntry* entry;
     vn_u8* script_buf;
     vn_u32 read_size;
     int rc;
-    VNState vm;
-    int inited;
 
-    if (pak == (const VNPak*)0 || io_state == (VNRuntimeState*)0) {
+    if (pak == (const VNPak*)0 || out_buf == (vn_u8**)0 || out_size == (vn_u32*)0) {
         return VN_E_INVALID_ARG;
     }
 
+    *out_buf = (vn_u8*)0;
+    *out_size = 0u;
+
     res_id = scene_script_res_id(scene_id);
     entry = vnpak_get(pak, res_id);
-    if (entry == (const ResourceEntry*)0) {
-        return VN_E_FORMAT;
-    }
-    if (entry->type != 2u) {
-        return VN_E_FORMAT;
-    }
-    if (entry->data_size == 0u) {
+    if (entry == (const ResourceEntry*)0 || entry->type != 2u || entry->data_size == 0u) {
         return VN_E_FORMAT;
     }
 
@@ -131,36 +209,55 @@ static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* i
         return VN_E_IO;
     }
 
-    inited = vm_init(&vm, script_buf, read_size);
-    if (inited != VN_TRUE) {
-        free(script_buf);
-        return VN_E_FORMAT;
-    }
-
-    if (io_state->choice_selected_index > 0u) {
-        vm_set_choice_index(&vm, (vn_u8)(io_state->choice_selected_index & 0xFFu));
-    }
-
-    vm_step(&vm, 16u);
-
-    io_state->text_id = vm_current_text_id(&vm);
-    io_state->text_speed_ms = vm_current_text_speed_ms(&vm);
-    io_state->vm_waiting = (vn_u32)vm_is_waiting(&vm);
-    io_state->vm_ended = (vn_u32)vm_is_ended(&vm);
-    io_state->vm_error = (vn_u32)vm_has_error(&vm);
-    io_state->fade_layer_mask = (vn_u32)vm_fade_layer_mask(&vm);
-    io_state->fade_alpha = (vn_u32)vm_fade_target_alpha(&vm);
-    io_state->fade_duration_ms = (vn_u32)vm_fade_duration_ms(&vm);
-    io_state->vm_fade_active = (io_state->fade_duration_ms > 0u || io_state->fade_alpha > 0u) ? 1u : 0u;
-    io_state->bgm_id = (vn_u32)vm_current_bgm_id(&vm);
-    io_state->bgm_loop = (vn_u32)vm_current_bgm_loop(&vm);
-    io_state->se_id = (vn_u32)vm_take_se_id(&vm);
-    io_state->choice_count = (vn_u32)vm_last_choice_count(&vm);
-    io_state->choice_text_id = (vn_u32)vm_last_choice_text_id(&vm);
-    io_state->choice_selected_index = (vn_u32)vm_last_choice_selected_index(&vm);
-
-    free(script_buf);
+    *out_buf = script_buf;
+    *out_size = read_size;
     return VN_OK;
+}
+
+static void state_reset_frame_events(VNRuntimeState* state) {
+    state->se_id = 0u;
+    state->choice_count = 0u;
+    state->choice_text_id = 0u;
+}
+
+static void state_from_vm(VNRuntimeState* state, VNState* vm) {
+    state->text_id = vm_current_text_id(vm);
+    state->text_speed_ms = vm_current_text_speed_ms(vm);
+    state->vm_waiting = (vn_u32)vm_is_waiting(vm);
+    state->vm_ended = (vn_u32)vm_is_ended(vm);
+    state->vm_error = (vn_u32)vm_has_error(vm);
+    state->fade_layer_mask = (vn_u32)vm_fade_layer_mask(vm);
+    state->fade_alpha = (vn_u32)vm_fade_target_alpha(vm);
+    state->fade_duration_ms = (vn_u32)vm_fade_duration_ms(vm);
+    state->vm_fade_active = (state->fade_duration_ms > 0u || state->fade_alpha > 0u) ? 1u : 0u;
+    state->bgm_id = (vn_u32)vm_current_bgm_id(vm);
+    state->bgm_loop = (vn_u32)vm_current_bgm_loop(vm);
+    state->se_id = (vn_u32)vm_take_se_id(vm);
+    state->choice_count = (vn_u32)vm_last_choice_count(vm);
+    state->choice_text_id = (vn_u32)vm_last_choice_text_id(vm);
+    state->choice_selected_index = (vn_u32)vm_last_choice_selected_index(vm);
+}
+
+static void state_init_defaults(VNRuntimeState* state) {
+    state->frame_index = 0u;
+    state->clear_color = 200u;
+    state->scene_id = VN_SCENE_S0;
+    state->resource_count = 0u;
+    state->text_id = 0u;
+    state->text_speed_ms = 0u;
+    state->vm_waiting = 0u;
+    state->vm_ended = 0u;
+    state->vm_error = 0u;
+    state->vm_fade_active = 0u;
+    state->fade_layer_mask = 0u;
+    state->fade_alpha = 0u;
+    state->fade_duration_ms = 0u;
+    state->bgm_id = 0u;
+    state->bgm_loop = 0u;
+    state->se_id = 0u;
+    state->choice_count = 0u;
+    state->choice_text_id = 0u;
+    state->choice_selected_index = 0u;
 }
 
 int main(int argc, char** argv) {
@@ -168,53 +265,55 @@ int main(int argc, char** argv) {
     VNRuntimeState state;
     VNRenderOp ops[16];
     VNPak pak;
+    VNState vm;
+    ChoiceFeed choice_feed;
+    vn_u8* script_buf;
+    vn_u32 script_size;
     const char* pack_path;
     const char* scene_name;
+    vn_u32 frames;
+    vn_u32 dt_ms;
+    vn_u32 frame;
+    vn_u32 frames_executed;
+    vn_u32 trace;
     vn_u32 op_count;
-    long choice_index_arg;
-    char* choice_end_ptr;
+    vn_u32 last_choice_serial;
+    vn_u32 rc_u32;
     int rc;
     int i;
     int pak_opened;
+    int vm_ready;
 
     cfg.width = 600;
     cfg.height = 800;
     cfg.flags = VN_RENDERER_FLAG_SIMD;
 
-    state.frame_index = 0u;
-    state.clear_color = 200u;
-    state.scene_id = VN_SCENE_S0;
-    state.resource_count = 0u;
-    state.text_id = 0u;
-    state.text_speed_ms = 0u;
-    state.vm_waiting = 0u;
-    state.vm_ended = 0u;
-    state.vm_error = 0u;
-    state.vm_fade_active = 0u;
-    state.fade_layer_mask = 0u;
-    state.fade_alpha = 0u;
-    state.fade_duration_ms = 0u;
-    state.bgm_id = 0u;
-    state.bgm_loop = 0u;
-    state.se_id = 0u;
-    state.choice_count = 0u;
-    state.choice_text_id = 0u;
-    state.choice_selected_index = 0u;
-    choice_index_arg = 0l;
-    choice_end_ptr = (char*)0;
+    state_init_defaults(&state);
 
+    choice_feed.count = 0u;
+    choice_feed.cursor = 0u;
+
+    script_buf = (vn_u8*)0;
+    script_size = 0u;
     pack_path = "assets/demo/demo.vnpak";
     scene_name = "S0";
+    frames = 1u;
+    dt_ms = 16u;
+    trace = 0u;
 
     pak.path = (const char*)0;
     pak.version = 0u;
     pak.resource_count = 0u;
     pak.entries = (ResourceEntry*)0;
     pak_opened = VN_FALSE;
+    vm_ready = VN_FALSE;
+    last_choice_serial = 0u;
+    frames_executed = 0u;
 
     for (i = 1; i < argc; ++i) {
         const char* arg;
         arg = argv[i];
+
         if (strcmp(arg, "--backend") == 0) {
             vn_u32 force_flag;
             if ((i + 1) >= argc) {
@@ -281,19 +380,72 @@ int main(int argc, char** argv) {
                 return 2;
             }
             i += 1;
-            choice_index_arg = strtol(argv[i], &choice_end_ptr, 10);
-            if (choice_end_ptr == (char*)0 || *choice_end_ptr != '\0' || choice_index_arg < 0l || choice_index_arg > 255l) {
+            rc = parse_u32_range(argv[i], 0l, 255l, &rc_u32);
+            if (rc != VN_OK) {
                 (void)fprintf(stderr, "invalid --choice-index: %s\n", argv[i]);
                 return 2;
             }
-            state.choice_selected_index = (vn_u32)choice_index_arg;
+            state.choice_selected_index = rc_u32;
         } else if (strncmp(arg, "--choice-index=", 15) == 0) {
-            choice_index_arg = strtol(arg + 15, &choice_end_ptr, 10);
-            if (choice_end_ptr == (char*)0 || *choice_end_ptr != '\0' || choice_index_arg < 0l || choice_index_arg > 255l) {
+            rc = parse_u32_range(arg + 15, 0l, 255l, &rc_u32);
+            if (rc != VN_OK) {
                 (void)fprintf(stderr, "invalid --choice-index: %s\n", arg + 15);
                 return 2;
             }
-            state.choice_selected_index = (vn_u32)choice_index_arg;
+            state.choice_selected_index = rc_u32;
+        } else if (strcmp(arg, "--choice-seq") == 0) {
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --choice-seq\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_choice_seq(argv[i], &choice_feed);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --choice-seq: %s\n", argv[i]);
+                return 2;
+            }
+        } else if (strncmp(arg, "--choice-seq=", 13) == 0) {
+            rc = parse_choice_seq(arg + 13, &choice_feed);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --choice-seq: %s\n", arg + 13);
+                return 2;
+            }
+        } else if (strcmp(arg, "--frames") == 0) {
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --frames\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_u32_range(argv[i], 1l, 1000000l, &frames);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --frames: %s\n", argv[i]);
+                return 2;
+            }
+        } else if (strncmp(arg, "--frames=", 9) == 0) {
+            rc = parse_u32_range(arg + 9, 1l, 1000000l, &frames);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --frames: %s\n", arg + 9);
+                return 2;
+            }
+        } else if (strcmp(arg, "--dt-ms") == 0) {
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --dt-ms\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_u32_range(argv[i], 0l, 1000l, &dt_ms);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --dt-ms: %s\n", argv[i]);
+                return 2;
+            }
+        } else if (strncmp(arg, "--dt-ms=", 8) == 0) {
+            rc = parse_u32_range(arg + 8, 0l, 1000l, &dt_ms);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --dt-ms: %s\n", arg + 8);
+                return 2;
+            }
+        } else if (strcmp(arg, "--trace") == 0) {
+            trace = 1u;
         }
     }
 
@@ -306,46 +458,104 @@ int main(int argc, char** argv) {
     state.clear_color = (vn_u32)(200u + (state.scene_id * 12u));
 
     rc = vnpak_open(&pak, pack_path);
-    if (rc == VN_OK) {
-        pak_opened = VN_TRUE;
-        state.resource_count = pak.resource_count;
-        rc = run_vm_from_pack(&pak, state.scene_id, &state);
-        if (rc != VN_OK) {
-            (void)fprintf(stderr, "warning: vm from pack failed rc=%d scene=%s\n", rc, scene_name);
-        }
-    } else {
-        (void)fprintf(stderr, "warning: vnpak_open failed rc=%d path=%s\n", rc, pack_path);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "vnpak_open failed rc=%d path=%s\n", rc, pack_path);
+        return 1;
     }
+    pak_opened = VN_TRUE;
+    state.resource_count = pak.resource_count;
+
+    rc = load_scene_script(&pak, state.scene_id, &script_buf, &script_size);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "load_scene_script failed rc=%d scene=%s\n", rc, scene_name);
+        vnpak_close(&pak);
+        return 1;
+    }
+
+    if (vm_init(&vm, script_buf, script_size) != VN_TRUE) {
+        (void)fprintf(stderr, "vm_init failed scene=%s\n", scene_name);
+        free(script_buf);
+        vnpak_close(&pak);
+        return 1;
+    }
+    vm_ready = VN_TRUE;
+    last_choice_serial = vm_choice_serial(&vm);
 
     rc = renderer_init(&cfg);
     if (rc != VN_OK) {
         (void)fprintf(stderr, "renderer_init failed rc=%d\n", rc);
-        if (pak_opened == VN_TRUE) {
-            vnpak_close(&pak);
-        }
+        free(script_buf);
+        vnpak_close(&pak);
         return 1;
     }
 
-    op_count = 16u;
-    rc = build_render_ops(&state, ops, &op_count);
-    if (rc != VN_OK) {
-        (void)fprintf(stderr, "build_render_ops failed rc=%d\n", rc);
-        renderer_shutdown();
-        if (pak_opened == VN_TRUE) {
-            vnpak_close(&pak);
+    for (frame = 0u; frame < frames; ++frame) {
+        vn_u32 choice_serial_now;
+        vn_u8 applied_choice;
+
+        state.frame_index = frame;
+        state_reset_frame_events(&state);
+
+        applied_choice = (vn_u8)(state.choice_selected_index & 0xFFu);
+        if (choice_feed.count > 0u && choice_feed.cursor < choice_feed.count) {
+            applied_choice = choice_feed.items[choice_feed.cursor];
         }
-        return 1;
+        vm_set_choice_index(&vm, applied_choice);
+
+        vm_step(&vm, dt_ms);
+        state_from_vm(&state, &vm);
+
+        op_count = 16u;
+        rc = build_render_ops(&state, ops, &op_count);
+        if (rc != VN_OK) {
+            (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n", rc, (unsigned int)frame);
+            renderer_shutdown();
+            free(script_buf);
+            vnpak_close(&pak);
+            return 1;
+        }
+
+        renderer_begin_frame();
+        renderer_submit(ops, op_count);
+        renderer_end_frame();
+
+        choice_serial_now = vm_choice_serial(&vm);
+        if (choice_serial_now != last_choice_serial) {
+            last_choice_serial = choice_serial_now;
+            if (choice_feed.cursor < choice_feed.count) {
+                choice_feed.cursor += 1u;
+            }
+        }
+
+        frames_executed = frame + 1u;
+
+        if (trace != 0u) {
+            (void)printf("frame=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
+                         (unsigned int)state.frame_index,
+                         (unsigned int)state.text_id,
+                         (unsigned int)state.vm_waiting,
+                         (unsigned int)state.vm_ended,
+                         (unsigned int)state.fade_alpha,
+                         (unsigned int)state.bgm_id,
+                         (unsigned int)state.se_id,
+                         (unsigned int)state.choice_count,
+                         (unsigned int)state.choice_selected_index,
+                         (unsigned int)state.choice_text_id,
+                         (unsigned int)op_count);
+        }
+
+        if (state.vm_ended != 0u || state.vm_error != 0u) {
+            break;
+        }
     }
 
-    renderer_begin_frame();
-    renderer_submit(ops, op_count);
-    renderer_end_frame();
-
-    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u\n",
+    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u\n",
                  renderer_backend_name(),
                  (unsigned int)cfg.width,
                  (unsigned int)cfg.height,
                  scene_name,
+                 (unsigned int)frames_executed,
+                 (unsigned int)dt_ms,
                  (unsigned int)state.resource_count,
                  (unsigned int)state.text_id,
                  (unsigned int)state.vm_waiting,
@@ -360,6 +570,9 @@ int main(int argc, char** argv) {
                  (unsigned int)op_count);
 
     renderer_shutdown();
+    if (vm_ready != VN_FALSE) {
+        free(script_buf);
+    }
     if (pak_opened == VN_TRUE) {
         vnpak_close(&pak);
     }
