@@ -3,6 +3,29 @@
 基于 [`dream.md`](./dream.md) `v1.6-executable-c89-single-api` 整理。  
 目标：将白皮书转为可直接执行的 GitHub issue 工单体系。
 
+## 0.1 落地状态快照（2026-03-06）
+
+### 已完成（代码已合入 main）
+
+1. `ISSUE-001`：前后端单一 API 基本冻结（`vn_backend.h` + 注册/选择链）
+2. `ISSUE-002`：Frontend 输出 `VNRenderOp[]`，且 VM -> IR 主路径已接通
+3. `ISSUE-003`：`scalar` 最小可运行闭环（`600x800`、`S0-S3`）
+4. `ISSUE-004`（部分）：`vnpak` 头表解析、脚本编译器、demo 打包链路
+5. `ISSUE-005`（部分）：`S0-S3` perf CSV 产出链路可复现
+6. `ISSUE-006`（部分）：C89 门禁脚本 + 头文件独立编译检查
+
+### 进行中（当前主线）
+
+1. Runtime API 化：`vn_runtime_run(config, result)` 已可用，正在推进会话化 API
+2. 输入链路：CLI + 键盘输入并存，后续补统一输入抽象层
+3. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md` 已建立，后续随 API 变更持续维护
+
+### 下一步（短周期）
+
+1. `ISSUE-004` 补完：CRC32 + manifest + 资源一致性校验
+2. `ISSUE-005` 补完：热身窗口与 p95 统计逻辑
+3. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
+
 ## 0. 适用原则
 
 1. 单一前后端 API：`vn_backend.h` 是唯一跨架构契约。
@@ -618,5 +641,7 @@ ctest --test-dir build --output-on-failure
 ## 6. 可选追加 Issue（建议）
 
 - `ISSUE-013`：`vnsave v1` 存档迁移器
+- `ISSUE-014`：Runtime Session API（`create/step/destroy`）与宿主循环对接
+- `ISSUE-015`：API 文档集维护规范（`docs/api/*` + 变更日志）
 - `ISSUE-014`：错误码与日志可观测性升级（统一 trace id）
 - `ISSUE-015`：WebAssembly 实验性后端（非主线阻塞）
