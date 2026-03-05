@@ -13,6 +13,10 @@ static int expect_scene(vn_u32 scene_id, vn_u32 expected_count, vn_u8 expected_l
     state.clear_color = 220u;
     state.scene_id = scene_id;
     state.resource_count = 2u;
+    state.text_id = 300u;
+    state.text_speed_ms = 20u;
+    state.vm_waiting = 0u;
+    state.vm_ended = 0u;
 
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
@@ -43,7 +47,7 @@ static int expect_scene(vn_u32 scene_id, vn_u32 expected_count, vn_u8 expected_l
 
 int main(void) {
     VNRuntimeState state;
-    VNRenderOp ops[3];
+    VNRenderOp ops[8];
     vn_u32 count;
     int rc;
 
@@ -57,10 +61,29 @@ int main(void) {
         return 1;
     }
 
+    state.frame_index = 9u;
+    state.clear_color = 0u;
+    state.scene_id = VN_SCENE_S0;
+    state.resource_count = 0u;
+    state.text_id = 111u;
+    state.text_speed_ms = 18u;
+    state.vm_waiting = 1u;
+    state.vm_ended = 0u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || count != 4u || ops[3].op != VN_OP_FADE || ops[3].flags != 1u) {
+        (void)fprintf(stderr, "vm waiting should force fade op\n");
+        return 1;
+    }
+
     state.frame_index = 0u;
     state.clear_color = 0u;
     state.scene_id = VN_SCENE_S3;
     state.resource_count = 0u;
+    state.text_id = 0u;
+    state.text_speed_ms = 0u;
+    state.vm_waiting = 0u;
+    state.vm_ended = 0u;
     count = 3u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_E_NOMEM) {

@@ -30,6 +30,8 @@ int main(void) {
     VNPak pak;
     const ResourceEntry* e0;
     const ResourceEntry* e1;
+    vn_u8 buf[8];
+    vn_u32 read_count;
     int rc;
 
     path = "/tmp/test_demo.vnpak";
@@ -78,6 +80,37 @@ int main(void) {
 
     if (vnpak_get(&pak, 2u) != (const ResourceEntry*)0) {
         (void)fprintf(stderr, "expected null for out-of-range id\n");
+        vnpak_close(&pak);
+        return 1;
+    }
+
+    rc = vnpak_read_resource(&pak, 0u, buf, 3u, &read_count);
+    if (rc != VN_E_NOMEM) {
+        (void)fprintf(stderr, "expected VN_E_NOMEM for small buffer rc=%d\n", rc);
+        vnpak_close(&pak);
+        return 1;
+    }
+
+    rc = vnpak_read_resource(&pak, 0u, buf, 8u, &read_count);
+    if (rc != VN_OK || read_count != 4u) {
+        (void)fprintf(stderr, "read entry0 failed rc=%d read=%u\n", rc, (unsigned int)read_count);
+        vnpak_close(&pak);
+        return 1;
+    }
+    if (buf[0] != 0x00u || buf[1] != 0x11u || buf[2] != 0x22u || buf[3] != 0x33u) {
+        (void)fprintf(stderr, "entry0 payload mismatch\n");
+        vnpak_close(&pak);
+        return 1;
+    }
+
+    rc = vnpak_read_resource(&pak, 1u, buf, 8u, &read_count);
+    if (rc != VN_OK || read_count != 8u) {
+        (void)fprintf(stderr, "read entry1 failed rc=%d read=%u\n", rc, (unsigned int)read_count);
+        vnpak_close(&pak);
+        return 1;
+    }
+    if (buf[0] != 0xaau || buf[1] != 0xbbu || buf[7] != 0x20u) {
+        (void)fprintf(stderr, "entry1 payload mismatch\n");
         vnpak_close(&pak);
         return 1;
     }

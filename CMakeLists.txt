@@ -44,3 +44,7 @@ add_test(NAME unit_vnpak COMMAND test_vnpak)
 add_executable(test_renderer_fallback tests/unit/test_renderer_fallback.c)
 target_link_libraries(test_renderer_fallback PRIVATE vn_core)
 add_test(NAME unit_renderer_fallback COMMAND test_renderer_fallback)
+
+add_executable(test_vm tests/unit/test_vm.c)
+target_link_libraries(test_vm PRIVATE vn_core)
+add_test(NAME unit_vm COMMAND test_vm)

@@ -2,7 +2,7 @@
 #include "vn_error.h"
 
 static vn_u32 vn_scene_required_ops(vn_u32 scene_id) {
-    if (scene_id == VN_SCENE_S3) {
+    if (scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
         return 4u;
     }
     return 3u;
@@ -39,20 +39,26 @@ static void vn_fill_sprite(VNRenderOp* op, const VNRuntimeState* state) {
 }
 
 static void vn_fill_text(VNRenderOp* op, const VNRuntimeState* state) {
+    vn_u16 text_tex_id;
+    text_tex_id = (vn_u16)(100u + (vn_u16)state->scene_id);
+    if (state->text_id != 0u) {
+        text_tex_id = state->text_id;
+    }
+
     op->op = VN_OP_TEXT;
     op->layer = 2;
-    op->tex_id = (vn_u16)(100u + (vn_u16)state->scene_id);
+    op->tex_id = text_tex_id;
     op->x = 24;
     op->y = (vn_i16)(40 + (vn_i16)(state->scene_id * 18u));
     op->w = 320u;
     op->h = 36u;
-    op->alpha = 255u;
-    op->flags = (vn_u8)(state->resource_count > 1u ? 1u : 0u);
+    op->alpha = (vn_u8)(state->vm_ended != 0u ? 180u : 255u);
+    op->flags = (vn_u8)(state->text_speed_ms > 0u ? 1u : 0u);
 }
 
 static void vn_fill_fade(VNRenderOp* op, const VNRuntimeState* state) {
     vn_u32 phase;
-    phase = state->frame_index & 0x7Fu;
+    phase = state->frame_index & 0x3Fu;
 
     op->op = VN_OP_FADE;
     op->layer = 3;
@@ -61,8 +67,8 @@ static void vn_fill_fade(VNRenderOp* op, const VNRuntimeState* state) {
     op->y = 0;
     op->w = 0;
     op->h = 0;
-    op->alpha = (vn_u8)(phase * 2u);
-    op->flags = 0;
+    op->alpha = (vn_u8)(state->vm_waiting != 0u ? (120u + phase) : (phase * 3u));
+    op->flags = (vn_u8)(state->vm_waiting != 0u ? 1u : 0u);
 }
 
 int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* io_count) {
@@ -89,7 +95,7 @@ int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* i
     vn_fill_text(&out_ops[2], state);
 
     write_count = 3u;
-    if (state->scene_id == VN_SCENE_S1 || state->scene_id == VN_SCENE_S3) {
+    if (state->vm_waiting != 0u || state->scene_id == VN_SCENE_S1 || state->scene_id == VN_SCENE_S3) {
         vn_fill_fade(&out_ops[write_count], state);
         write_count += 1u;
     }

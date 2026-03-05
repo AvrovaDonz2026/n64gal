@@ -9,6 +9,10 @@ typedef struct {
     vn_u32 clear_color;
     vn_u32 scene_id;
     vn_u32 resource_count;
+    vn_u16 text_id;
+    vn_u16 text_speed_ms;
+    vn_u32 vm_waiting;
+    vn_u32 vm_ended;
 } VNRuntimeState;
 
 #define VN_SCENE_S0 0u

@@ -1,0 +1,6 @@
+loop:
+TEXT 120 16
+WAIT 180
+TEXT 121 16
+WAIT 180
+GOTO loop

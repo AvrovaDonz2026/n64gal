@@ -5,6 +5,7 @@
 #include "vn_renderer.h"
 #include "vn_frontend.h"
 #include "vn_pack.h"
+#include "vn_vm.h"
 #include "vn_error.h"
 
 static int parse_resolution(const char* text, vn_u16* out_w, vn_u16* out_h) {
@@ -77,6 +78,76 @@ static int parse_scene_id(const char* value, vn_u32* out_scene_id) {
     return VN_E_FORMAT;
 }
 
+static vn_u32 scene_script_res_id(vn_u32 scene_id) {
+    if (scene_id == VN_SCENE_S1) {
+        return 1u;
+    }
+    if (scene_id == VN_SCENE_S2) {
+        return 2u;
+    }
+    if (scene_id == VN_SCENE_S3) {
+        return 3u;
+    }
+    return 0u;
+}
+
+static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* io_state) {
+    vn_u32 res_id;
+    const ResourceEntry* entry;
+    vn_u8* script_buf;
+    vn_u32 read_size;
+    int rc;
+    VNState vm;
+    int inited;
+
+    if (pak == (const VNPak*)0 || io_state == (VNRuntimeState*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    res_id = scene_script_res_id(scene_id);
+    entry = vnpak_get(pak, res_id);
+    if (entry == (const ResourceEntry*)0) {
+        return VN_E_FORMAT;
+    }
+    if (entry->type != 2u) {
+        return VN_E_FORMAT;
+    }
+    if (entry->data_size == 0u) {
+        return VN_E_FORMAT;
+    }
+
+    script_buf = (vn_u8*)malloc((size_t)entry->data_size);
+    if (script_buf == (vn_u8*)0) {
+        return VN_E_NOMEM;
+    }
+
+    rc = vnpak_read_resource(pak, res_id, script_buf, entry->data_size, &read_size);
+    if (rc != VN_OK) {
+        free(script_buf);
+        return rc;
+    }
+    if (read_size != entry->data_size) {
+        free(script_buf);
+        return VN_E_IO;
+    }
+
+    inited = vm_init(&vm, script_buf, read_size);
+    if (inited != VN_TRUE) {
+        free(script_buf);
+        return VN_E_FORMAT;
+    }
+
+    vm_step(&vm, 16u);
+
+    io_state->text_id = vm_current_text_id(&vm);
+    io_state->text_speed_ms = vm_current_text_speed_ms(&vm);
+    io_state->vm_waiting = (vn_u32)vm_is_waiting(&vm);
+    io_state->vm_ended = (vn_u32)vm_is_ended(&vm);
+
+    free(script_buf);
+    return VN_OK;
+}
+
 int main(int argc, char** argv) {
     RendererConfig cfg;
     VNRuntimeState state;
@@ -92,8 +163,19 @@ int main(int argc, char** argv) {
     cfg.width = 600;
     cfg.height = 800;
     cfg.flags = VN_RENDERER_FLAG_SIMD;
+
+    state.frame_index = 0u;
+    state.clear_color = 200u;
+    state.scene_id = VN_SCENE_S0;
+    state.resource_count = 0u;
+    state.text_id = 0u;
+    state.text_speed_ms = 0u;
+    state.vm_waiting = 0u;
+    state.vm_ended = 0u;
+
     pack_path = "assets/demo/demo.vnpak";
     scene_name = "S0";
+
     pak.path = (const char*)0;
     pak.version = 0u;
     pak.resource_count = 0u;
@@ -172,9 +254,16 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    state.clear_color = (vn_u32)(200u + (state.scene_id * 12u));
+
     rc = vnpak_open(&pak, pack_path);
     if (rc == VN_OK) {
         pak_opened = VN_TRUE;
+        state.resource_count = pak.resource_count;
+        rc = run_vm_from_pack(&pak, state.scene_id, &state);
+        if (rc != VN_OK) {
+            (void)fprintf(stderr, "warning: vm from pack failed rc=%d scene=%s\n", rc, scene_name);
+        }
     } else {
         (void)fprintf(stderr, "warning: vnpak_open failed rc=%d path=%s\n", rc, pack_path);
     }
@@ -188,11 +277,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    state.frame_index = 0;
-    state.clear_color = (vn_u32)(200u + (state.scene_id * 12u));
-    state.resource_count = (pak_opened == VN_TRUE) ? pak.resource_count : 0u;
     op_count = 16u;
-
     rc = build_render_ops(&state, ops, &op_count);
     if (rc != VN_OK) {
         (void)fprintf(stderr, "build_render_ops failed rc=%d\n", rc);
@@ -207,12 +292,15 @@ int main(int argc, char** argv) {
     renderer_submit(ops, op_count);
     renderer_end_frame();
 
-    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u ops=%u\n",
+    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u ops=%u\n",
                  renderer_backend_name(),
                  (unsigned int)cfg.width,
                  (unsigned int)cfg.height,
                  scene_name,
                  (unsigned int)state.resource_count,
+                 (unsigned int)state.text_id,
+                 (unsigned int)state.vm_waiting,
+                 (unsigned int)state.vm_ended,
                  (unsigned int)op_count);
 
     renderer_shutdown();

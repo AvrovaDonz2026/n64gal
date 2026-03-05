@@ -125,6 +125,53 @@ const ResourceEntry* vnpak_get(const VNPak* pak, vn_u32 id) {
     return &pak->entries[id];
 }
 
+int vnpak_read_resource(const VNPak* pak, vn_u32 id, vn_u8* out_buf, vn_u32 out_size, vn_u32* out_read) {
+    const ResourceEntry* entry;
+    FILE* fp;
+    long seek_rc;
+    size_t got;
+
+    if (out_read != (vn_u32*)0) {
+        *out_read = 0u;
+    }
+    if (pak == (const VNPak*)0 || out_buf == (vn_u8*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    entry = vnpak_get(pak, id);
+    if (entry == (const ResourceEntry*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (entry->data_size > out_size) {
+        return VN_E_NOMEM;
+    }
+    if (pak->path == (const char*)0) {
+        return VN_E_FORMAT;
+    }
+
+    fp = fopen(pak->path, "rb");
+    if (fp == (FILE*)0) {
+        return VN_E_IO;
+    }
+
+    seek_rc = fseek(fp, (long)entry->data_off, SEEK_SET);
+    if (seek_rc != 0) {
+        (void)fclose(fp);
+        return VN_E_IO;
+    }
+
+    got = fread(out_buf, 1u, (size_t)entry->data_size, fp);
+    (void)fclose(fp);
+    if (got != (size_t)entry->data_size) {
+        return VN_E_IO;
+    }
+
+    if (out_read != (vn_u32*)0) {
+        *out_read = (vn_u32)got;
+    }
+    return VN_OK;
+}
+
 void vnpak_close(VNPak* pak) {
     if (pak == (VNPak*)0) {
         return;

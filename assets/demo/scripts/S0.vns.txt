@@ -1,0 +1,4 @@
+loop:
+TEXT 100 24
+WAIT 320
+GOTO loop

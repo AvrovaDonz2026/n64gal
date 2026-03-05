@@ -21,6 +21,7 @@ typedef struct {
 
 int vnpak_open(VNPak* pak, const char* path);
 const ResourceEntry* vnpak_get(const VNPak* pak, vn_u32 id);
+int vnpak_read_resource(const VNPak* pak, vn_u32 id, vn_u8* out_buf, vn_u32 out_size, vn_u32* out_read);
 void vnpak_close(VNPak* pak);
 
 #endif
