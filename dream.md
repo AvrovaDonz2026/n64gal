@@ -25,6 +25,8 @@
 13. 工程治理补充规范
 14. 性能深度优化路线
 15. 结论与立即行动项
+16. 开工实施手册（Day0-Day2）
+17. 首周并行执行计划（可直接派工）
 
 ---
 
@@ -868,7 +870,146 @@ N64-RDP 思路对视觉小说引擎是成立的，但必须以“可验证交付
 
 ---
 
-**文档版本**：v1.6-executable-c89-single-api  
+## 16. 开工实施手册（Day0-Day2）
+
+### 16.1 Day0 启动检查（2 小时内完成）
+
+启动前必须全部满足：
+
+1. 仓库主干可构建（至少空工程可通过）
+2. `vn_backend.h` 接口冻结（字段与函数签名不再变更）
+3. C89 门禁接入本地构建命令
+4. 目录结构按 `src/frontend` 与 `src/backend/*` 建好
+5. Issue 看板创建完成并关联 Milestone
+
+建议执行命令：
+
+```bash
+cmake -S . -B build -DCMAKE_C_STANDARD=90 -DCMAKE_C_EXTENSIONS=OFF
+cmake --build build -j
+```
+
+### 16.2 最小目录落地（一次性建齐）
+
+```text
+include/
+  vn_types.h
+  vn_backend.h
+  vn_renderer.h
+  vn_vm.h
+  vn_pack.h
+  vn_error.h
+src/
+  frontend/
+  backend/common/
+  backend/scalar/
+  backend/avx2/
+  backend/neon/
+  backend/rvv/
+tests/
+  unit/
+  perf/
+  golden/
+```
+
+说明：`avx2/neon/rvv` 目录可先放空实现桩，但目录必须先存在，便于并行开发。
+
+### 16.3 首批代码骨架（必须先有）
+
+首批必须落地的符号（未实现可返回 `VN_E_UNSUPPORTED`）：
+
+1. `vn_backend_register`
+2. `vn_backend_select`
+3. `renderer_init/begin_frame/submit/end_frame/shutdown`
+4. `build_render_ops`
+5. `scalar` 后端 `init/submit_ops`
+
+强约束：
+
+1. Frontend 只能依赖 `include/*.h`
+2. Backend 私有头文件不得被 Frontend include
+3. 所有新文件默认开启 `-std=c89 -pedantic-errors`
+
+### 16.4 Definition of Ready（DoR）
+
+Issue 进入开发前必须满足：
+
+1. 有明确输入与输出文件路径
+2. 有验收命令（可在本地执行）
+3. 有回退策略（失败时如何降级）
+4. 有依赖 issue 并已确认状态
+5. 有预计工时（1-5 天）
+
+### 16.5 Definition of Done（统一补充）
+
+除 issue 自身 DoD 外，还必须满足：
+
+1. 单测新增或更新
+2. `scalar` 对照验证不退化
+3. 日志包含关键字段（模块、错误码、帧号）
+4. 文档同步（至少更新 `issue.md` 进度）
+
+---
+
+## 17. 首周并行执行计划（可直接派工）
+
+### 17.1 角色与责任边界
+
+建议最小 4 角色并行：
+
+1. `Owner-A (Frontend/VM)`：`ISSUE-002`
+2. `Owner-B (Backend-Scalar/AVX2)`：`ISSUE-003`, `ISSUE-007`
+3. `Owner-C (Tools/Pack)`：`ISSUE-004`
+4. `Owner-D (QA/Perf/CI)`：`ISSUE-005`, `ISSUE-006`
+
+规则：各 Owner 只能修改自己责任目录，跨目录改动必须先发 RFC 评论。
+
+### 17.2 首周日程（W1）
+
+| 日期 | 目标 | 责任人 | 验收输出 |
+|---|---|---|---|
+| D1 | 冻结 `vn_backend.h` + 建目录 | A/B | 接口头文件 + 空实现可编译 |
+| D2 | `build_render_ops` 与 scalar 骨架 | A/B | S0 首帧可显示 |
+| D3 | `vnpak` 读取 + demo 资源加载 | C | 可加载外部包 |
+| D4 | C89 门禁 + perf 脚手架 | D | CI 本地跑通 |
+| D5 | S0-S3 场景初版 | D + A | `perf_*.csv` 首版 |
+| D6 | AVX2 原型接入 | B | `--backend=avx2` 可运行 |
+| D7 | 周验收与回归修复 | 全员 | 周报 + 风险清单 |
+
+### 17.3 首批 PR 切分（建议）
+
+1. `PR-001`: `include/vn_backend.h` + 后端注册器（对应 ISSUE-001）
+2. `PR-002`: Frontend Render IR 输出（对应 ISSUE-002）
+3. `PR-003`: Scalar 后端最小实现（对应 ISSUE-003）
+4. `PR-004`: Packer 与脚本编译最小链路（对应 ISSUE-004）
+5. `PR-005`: C89 门禁与 perf 脚手架（对应 ISSUE-005/006）
+6. `PR-006`: AVX2 原型与切换开关（对应 ISSUE-007）
+
+每个 PR 限制：
+
+1. 变更文件建议 <=12 个
+2. 说明中必须附验收命令与输出摘要
+3. 未附回退策略的 PR 不进入 review
+
+### 17.4 每日站会模板（10 分钟）
+
+每人仅汇报三项：
+
+1. 昨天完成了什么（对应 issue 编号）
+2. 今天要提交什么（目标 PR 编号）
+3. 当前阻塞是什么（需要谁决策）
+
+### 17.5 首周验收出口（必须达成）
+
+1. `M0` 相关 issue 至少完成 4/6
+2. `scalar` 后端可运行 `S0`
+3. `vn_backend.h` 未发生破坏性变更
+4. C89 门禁已默认开启
+5. 已产出首份 `perf` CSV
+
+---
+
+**文档版本**：v1.7-executable-start-ready  
 **日期**：2026-03-06  
 **作者**：基于原始白皮书修订  
 **许可**：CC BY-SA 4.0

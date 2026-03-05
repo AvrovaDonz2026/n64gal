@@ -67,6 +67,44 @@ ISSUE-007 + ISSUE-008 -> ISSUE-009 -> ISSUE-010 -> ISSUE-011 -> ISSUE-012
 
 ---
 
+## 5. 开工看板（W1 可直接执行）
+
+### 5.1 今天就做（Day0）
+
+1. 创建 Milestone：`M0-core-scalar` 到 `M3-riscv64-rvv`
+2. 创建标签：`type:*`、`arch:*`、`priority:*`
+3. 新建 Issue：至少先建 `ISSUE-001` 到 `ISSUE-006`
+4. 建立项目看板列：`Todo / In Progress / Review / Done / Blocked`
+5. 把 `ISSUE-001`、`ISSUE-002`、`ISSUE-003` 拖入 `In Progress`
+
+### 5.2 首批并行分配（建议）
+
+| 角色 | 领取 Issue | 目标产物 |
+|---|---|---|
+| Owner-A（Frontend） | ISSUE-002 | `build_render_ops` 可跑通 |
+| Owner-B（Backend） | ISSUE-001 + ISSUE-003 | `vn_backend.h` + scalar 首帧 |
+| Owner-C（Tools） | ISSUE-004 | `demo.vnpak` 可生成 |
+| Owner-D（QA/CI） | ISSUE-005 + ISSUE-006 | `perf.csv` + C89 门禁 |
+
+### 5.3 首周 PR 顺序（建议）
+
+1. `PR-001`：接口冻结（ISSUE-001）
+2. `PR-002`：Frontend IR 输出（ISSUE-002）
+3. `PR-003`：Scalar 后端（ISSUE-003）
+4. `PR-004`：资源链路（ISSUE-004）
+5. `PR-005`：Perf + C89 门禁（ISSUE-005/006）
+6. `PR-006`：AVX2 原型（ISSUE-007）
+
+### 5.4 每日收口标准
+
+每天结束前必须满足：
+
+1. 至少 1 条 issue 状态前进（Todo -> In Progress 或 In Progress -> Review）
+2. 至少 1 条可复现命令写入 issue 评论
+3. Blocker 在当日明确 owner 和截止时间
+
+---
+
 ## ISSUE-001 冻结单一前后端 API（`vn_backend.h`）
 
 - Labels: `type:epic`, `type:feature`, `priority:P0`
@@ -577,7 +615,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## 5. 可选追加 Issue（建议）
+## 6. 可选追加 Issue（建议）
 
 - `ISSUE-013`：`vnsave v1` 存档迁移器
 - `ISSUE-014`：错误码与日志可观测性升级（统一 trace id）
