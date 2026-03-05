@@ -65,7 +65,10 @@ docs/api/       API 文档
 ./tools/packer/make_demo_pack.sh
 ```
 
-输出默认为：`assets/demo/demo.vnpak`。
+输出默认为：
+
+1. `assets/demo/demo.vnpak`
+2. `assets/demo/manifest.json`
 
 ## 构建
 
@@ -212,7 +215,8 @@ ctest --test-dir build --output-on-failure
 
 1. Runtime API：[`docs/api/runtime.md`](./docs/api/runtime.md)
 2. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
-3. API 索引：[`docs/api/README.md`](./docs/api/README.md)
+3. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
+4. API 索引：[`docs/api/README.md`](./docs/api/README.md)
 
 ## 开发约束
 

@@ -13,9 +13,13 @@
    - 前后端统一契约 API（`vn_backend.h`）
    - 后端注册、选择、回退规则
    - Render IR 字段约束
+3. `pack.md`
+   - 资源包 API（`vn_pack.h`）
+   - `vnpak` v1/v2 格式与兼容策略
+   - CRC32 与一致性校验行为
 
 ## 维护规则
 
-1. 每次改动 `include/vn_runtime.h` 或 `include/vn_backend.h`，必须同步更新本目录文档。
+1. 每次改动 `include/vn_runtime.h`、`include/vn_backend.h` 或 `include/vn_pack.h`，必须同步更新本目录文档。
 2. API 语义变更必须追加“兼容性说明”，不能只改代码不改文档。
 3. 文档示例默认使用 C89 语法。

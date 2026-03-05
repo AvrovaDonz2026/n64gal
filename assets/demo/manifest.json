@@ -1,0 +1,54 @@
+{
+  "entry_size": 18,
+  "pack_crc32": "e6e2811e",
+  "pack_size": 206,
+  "resource_count": 4,
+  "resources": [
+    {
+      "crc32": "4b871eb5",
+      "data_off": 80,
+      "data_size": 15,
+      "flags": 0,
+      "height": 0,
+      "id": 0,
+      "name": "S0.vns.bin",
+      "type": 2,
+      "width": 0
+    },
+    {
+      "crc32": "9e736849",
+      "data_off": 95,
+      "data_size": 31,
+      "flags": 0,
+      "height": 0,
+      "id": 1,
+      "name": "S1.vns.bin",
+      "type": 2,
+      "width": 0
+    },
+    {
+      "crc32": "46d272c3",
+      "data_off": 126,
+      "data_size": 55,
+      "flags": 0,
+      "height": 0,
+      "id": 2,
+      "name": "S2.vns.bin",
+      "type": 2,
+      "width": 0
+    },
+    {
+      "crc32": "62994cd4",
+      "data_off": 181,
+      "data_size": 25,
+      "flags": 0,
+      "height": 0,
+      "id": 3,
+      "name": "S3.vns.bin",
+      "type": 2,
+      "width": 0
+    }
+  ],
+  "vnpak_magic": "VNPK",
+  "vnpak_version": 2
+}

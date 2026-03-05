@@ -10,12 +10,16 @@ typedef struct {
     vn_u16 height;
     vn_u32 data_off;
     vn_u32 data_size;
+    vn_u32 crc32;
 } ResourceEntry;
 
 typedef struct {
     const char* path;
     vn_u16 version;
     vn_u32 resource_count;
+    vn_u32 header_size;
+    vn_u32 entry_size;
+    vn_u32 file_size;
     ResourceEntry* entries;
 } VNPak;
 
