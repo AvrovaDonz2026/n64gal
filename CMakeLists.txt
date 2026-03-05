@@ -51,3 +51,7 @@ add_test(NAME unit_renderer_fallback COMMAND test_renderer_fallback)
 add_executable(test_vm tests/unit/test_vm.c)
 target_link_libraries(test_vm PRIVATE vn_core)
 add_test(NAME unit_vm COMMAND test_vm)
+
+add_executable(test_runtime_api tests/unit/test_runtime_api.c)
+target_link_libraries(test_runtime_api PRIVATE vn_core)
+add_test(NAME unit_runtime_api COMMAND test_runtime_api)

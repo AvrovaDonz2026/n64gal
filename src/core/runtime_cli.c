@@ -44,6 +44,43 @@ typedef struct {
 #endif
 } KeyboardInput;
 
+static VNRunResult g_last_run_result;
+
+void vn_run_config_init(VNRunConfig* cfg) {
+    if (cfg == (VNRunConfig*)0) {
+        return;
+    }
+    cfg->pack_path = "assets/demo/demo.vnpak";
+    cfg->scene_name = "S0";
+    cfg->backend_name = "auto";
+    cfg->width = 600u;
+    cfg->height = 800u;
+    cfg->frames = 1u;
+    cfg->dt_ms = 16u;
+    cfg->trace = 0u;
+    cfg->keyboard = 0u;
+    cfg->emit_logs = 1u;
+    cfg->choice_index = 0u;
+    cfg->choice_seq_count = 0u;
+}
+
+static void runtime_result_reset(void) {
+    g_last_run_result.frames_executed = 0u;
+    g_last_run_result.text_id = 0u;
+    g_last_run_result.vm_waiting = 0u;
+    g_last_run_result.vm_ended = 0u;
+    g_last_run_result.vm_error = 0u;
+    g_last_run_result.fade_alpha = 0u;
+    g_last_run_result.fade_remain_ms = 0u;
+    g_last_run_result.bgm_id = 0u;
+    g_last_run_result.se_id = 0u;
+    g_last_run_result.choice_count = 0u;
+    g_last_run_result.choice_selected_index = 0u;
+    g_last_run_result.choice_text_id = 0u;
+    g_last_run_result.op_count = 0u;
+    g_last_run_result.backend_name = "none";
+}
+
 static void keyboard_init(KeyboardInput* kb) {
     if (kb == (KeyboardInput*)0) {
         return;
@@ -510,6 +547,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
     vn_u32 frame;
     vn_u32 frames_executed;
     vn_u32 trace;
+    vn_u32 emit_logs;
     vn_u32 op_count;
     vn_u32 last_choice_serial;
     vn_u32 rc_u32;
@@ -551,12 +589,15 @@ int vn_runtime_run_cli(int argc, char** argv) {
     vm_ready = VN_FALSE;
     last_choice_serial = 0u;
     frames_executed = 0u;
+    op_count = 0u;
     default_choice_index = 0u;
     keyboard_has_choice = VN_FALSE;
     keyboard_toggle_trace = VN_FALSE;
     keyboard_quit = VN_FALSE;
     used_choice_seq = VN_FALSE;
     exit_code = 0;
+    emit_logs = 1u;
+    runtime_result_reset();
 
     for (i = 1; i < argc; ++i) {
         const char* arg;
@@ -696,6 +737,8 @@ int vn_runtime_run_cli(int argc, char** argv) {
             keyboard.enabled = VN_TRUE;
         } else if (strcmp(arg, "--trace") == 0) {
             trace = 1u;
+        } else if (strcmp(arg, "--quiet") == 0) {
+            emit_logs = 0u;
         }
     }
 
@@ -747,7 +790,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
         vnpak_close(&pak);
         return 1;
     }
-    if (keyboard.active == VN_TRUE) {
+    if (keyboard.active == VN_TRUE && emit_logs != 0u) {
         (void)printf("[keyboard] enabled: press 1-9 to select choice, t to toggle trace, q to quit\n");
     }
 
@@ -807,7 +850,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
 
         frames_executed = frame + 1u;
 
-        if (trace != 0u) {
+        if (trace != 0u && emit_logs != 0u) {
             (void)printf("frame=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
                          (unsigned int)state.frame_index,
                          (unsigned int)state.text_id,
@@ -831,7 +874,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
         }
     }
 
-    if (exit_code == 0) {
+    if (exit_code == 0 && emit_logs != 0u) {
         (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u\n",
                      renderer_backend_name(),
                      (unsigned int)cfg.width,
@@ -855,6 +898,21 @@ int vn_runtime_run_cli(int argc, char** argv) {
                      (unsigned int)keyboard.active);
     }
 
+    g_last_run_result.frames_executed = frames_executed;
+    g_last_run_result.text_id = state.text_id;
+    g_last_run_result.vm_waiting = state.vm_waiting;
+    g_last_run_result.vm_ended = state.vm_ended;
+    g_last_run_result.vm_error = state.vm_error;
+    g_last_run_result.fade_alpha = state.fade_alpha;
+    g_last_run_result.fade_remain_ms = state.fade_duration_ms;
+    g_last_run_result.bgm_id = state.bgm_id;
+    g_last_run_result.se_id = state.se_id;
+    g_last_run_result.choice_count = state.choice_count;
+    g_last_run_result.choice_selected_index = state.choice_selected_index;
+    g_last_run_result.choice_text_id = state.choice_text_id;
+    g_last_run_result.op_count = op_count;
+    g_last_run_result.backend_name = renderer_backend_name();
+
     renderer_shutdown();
     keyboard_disable(&keyboard);
     if (vm_ready != VN_FALSE) {
@@ -864,4 +922,104 @@ int vn_runtime_run_cli(int argc, char** argv) {
         vnpak_close(&pak);
     }
     return exit_code;
+}
+
+int vn_runtime_run(const VNRunConfig* run_cfg, VNRunResult* out_result) {
+    VNRunConfig cfg_local;
+    const VNRunConfig* cfg;
+    char arg_backend[64];
+    char arg_scene[64];
+    char arg_pack[512];
+    char arg_resolution[64];
+    char arg_frames[64];
+    char arg_dt[64];
+    char arg_choice_index[64];
+    char arg_choice_seq[256];
+    char* argv[16];
+    int argc;
+    int rc;
+
+    cfg = run_cfg;
+    if (cfg == (const VNRunConfig*)0) {
+        vn_run_config_init(&cfg_local);
+        cfg = &cfg_local;
+    }
+
+    argc = 0;
+    argv[argc++] = (char*)"vn_runtime";
+
+    if (cfg->backend_name != (const char*)0 && cfg->backend_name[0] != '\0' &&
+        strcmp(cfg->backend_name, "auto") != 0) {
+        (void)sprintf(arg_backend, "--backend=%s", cfg->backend_name);
+        argv[argc++] = arg_backend;
+    }
+
+    if (cfg->scene_name != (const char*)0 && cfg->scene_name[0] != '\0') {
+        (void)sprintf(arg_scene, "--scene=%s", cfg->scene_name);
+        argv[argc++] = arg_scene;
+    }
+
+    if (cfg->pack_path != (const char*)0 && cfg->pack_path[0] != '\0') {
+        (void)sprintf(arg_pack, "--pack=%s", cfg->pack_path);
+        argv[argc++] = arg_pack;
+    }
+
+    (void)sprintf(arg_resolution, "--resolution=%ux%u",
+                  (unsigned int)cfg->width,
+                  (unsigned int)cfg->height);
+    argv[argc++] = arg_resolution;
+
+    (void)sprintf(arg_frames, "--frames=%u", (unsigned int)cfg->frames);
+    argv[argc++] = arg_frames;
+
+    (void)sprintf(arg_dt, "--dt-ms=%u", (unsigned int)cfg->dt_ms);
+    argv[argc++] = arg_dt;
+
+    (void)sprintf(arg_choice_index, "--choice-index=%u", (unsigned int)cfg->choice_index);
+    argv[argc++] = arg_choice_index;
+
+    if (cfg->choice_seq_count > 0u) {
+        vn_u32 i;
+        int offset;
+        offset = 0;
+        arg_choice_seq[0] = '\0';
+        for (i = 0u; i < cfg->choice_seq_count; ++i) {
+            char tmp[8];
+            (void)sprintf(tmp, "%u", (unsigned int)cfg->choice_seq[i]);
+            if (offset != 0) {
+                if (offset + 1 >= (int)sizeof(arg_choice_seq)) {
+                    break;
+                }
+                arg_choice_seq[offset] = ',';
+                offset += 1;
+                arg_choice_seq[offset] = '\0';
+            }
+            if (offset + (int)strlen(tmp) >= (int)sizeof(arg_choice_seq)) {
+                break;
+            }
+            (void)strcat(arg_choice_seq, tmp);
+            offset += (int)strlen(tmp);
+        }
+        if (arg_choice_seq[0] != '\0') {
+            static char arg_choice_seq_wrap[272];
+            (void)sprintf(arg_choice_seq_wrap, "--choice-seq=%s", arg_choice_seq);
+            argv[argc++] = arg_choice_seq_wrap;
+        }
+    }
+
+    if (cfg->trace != 0u) {
+        argv[argc++] = (char*)"--trace";
+    }
+    if (cfg->keyboard != 0u) {
+        argv[argc++] = (char*)"--keyboard";
+    }
+    if (cfg->emit_logs == 0u) {
+        argv[argc++] = (char*)"--quiet";
+    }
+
+    rc = vn_runtime_run_cli(argc, argv);
+    if (out_result != (VNRunResult*)0) {
+        *out_result = g_last_run_result;
+    }
+    return rc;
 }
