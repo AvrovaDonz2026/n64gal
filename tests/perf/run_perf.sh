@@ -39,17 +39,18 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/renderer.c \
   src/core/vm.c \
   src/core/pack.c \
+  src/core/runtime_cli.c \
   src/frontend/render_ops.c \
   src/backend/avx2/avx2_backend.c \
   src/backend/scalar/scalar_backend.c \
-  -o ./vn_player
+  -o /tmp/n64gal_perf_runner
 
 IFS=',' read -r -a SCENE_ARRAY <<< "$SCENES"
 
 for SCENE in "${SCENE_ARRAY[@]}"; do
   OUT_CSV="$OUT_DIR/perf_${SCENE}.csv"
   START_NS="$(date +%s%N)"
-  ./vn_player --backend="$BACKEND" --scene="$SCENE" >/tmp/vn_player_perf.out
+  /tmp/n64gal_perf_runner --backend="$BACKEND" --scene="$SCENE" >/tmp/vn_player_perf.out
   END_NS="$(date +%s%N)"
   FRAME_MS="$(awk "BEGIN { print ($END_NS - $START_NS) / 1000000.0 }")"
 
@@ -61,5 +62,5 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   echo "[perf] wrote $OUT_CSV"
 done
 
-rm -f ./vn_player
+rm -f /tmp/n64gal_perf_runner
 echo "[perf] done backend=$BACKEND scenes=$SCENES"

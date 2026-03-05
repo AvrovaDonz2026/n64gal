@@ -12,6 +12,7 @@ add_library(vn_core
     src/core/renderer.c
     src/core/vm.c
     src/core/pack.c
+    src/core/runtime_cli.c
     src/frontend/render_ops.c
     src/backend/avx2/avx2_backend.c
     src/backend/scalar/scalar_backend.c
@@ -19,15 +20,17 @@ add_library(vn_core
 
 target_include_directories(vn_core PUBLIC include)
 
-add_executable(vn_player
-    src/main.c
-)
-
-target_link_libraries(vn_player PRIVATE vn_core)
-
 enable_testing()
-add_test(NAME smoke_scalar COMMAND vn_player --backend=scalar --scene S0)
-add_test(NAME smoke_auto COMMAND vn_player --scene S0)
+
+option(VN_BUILD_PLAYER "Build vn_player demo executable" OFF)
+if(VN_BUILD_PLAYER)
+    add_executable(vn_player
+        src/main.c
+    )
+    target_link_libraries(vn_player PRIVATE vn_core)
+    add_test(NAME smoke_scalar COMMAND vn_player --backend=scalar --scene S0)
+    add_test(NAME smoke_auto COMMAND vn_player --scene S0)
+endif()
 
 add_executable(test_backend_registry tests/unit/test_backend_registry.c)
 target_link_libraries(test_backend_registry PRIVATE vn_core)
