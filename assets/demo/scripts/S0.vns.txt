@@ -1,3 +1,4 @@
+BGM 100 1
 loop:
 TEXT 100 24
 WAIT 320

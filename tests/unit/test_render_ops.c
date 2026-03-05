@@ -17,6 +17,15 @@ static int expect_scene(vn_u32 scene_id, vn_u32 expected_count, vn_u8 expected_l
     state.text_speed_ms = 20u;
     state.vm_waiting = 0u;
     state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 0u;
+    state.fade_layer_mask = 0u;
+    state.fade_alpha = 0u;
+    state.fade_duration_ms = 0u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 0u;
+    state.choice_count = 0u;
 
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
@@ -69,10 +78,47 @@ int main(void) {
     state.text_speed_ms = 18u;
     state.vm_waiting = 1u;
     state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 0u;
+    state.fade_layer_mask = 0u;
+    state.fade_alpha = 0u;
+    state.fade_duration_ms = 0u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 0u;
+    state.choice_count = 0u;
     count = 8u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_OK || count != 4u || ops[3].op != VN_OP_FADE || ops[3].flags != 1u) {
         (void)fprintf(stderr, "vm waiting should force fade op\n");
+        return 1;
+    }
+
+    state.frame_index = 0u;
+    state.clear_color = 0u;
+    state.scene_id = VN_SCENE_S0;
+    state.resource_count = 0u;
+    state.text_id = 111u;
+    state.text_speed_ms = 18u;
+    state.vm_waiting = 0u;
+    state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 1u;
+    state.fade_layer_mask = 3u;
+    state.fade_alpha = 200u;
+    state.fade_duration_ms = 90u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 55u;
+    state.choice_count = 2u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || count != 4u) {
+        (void)fprintf(stderr, "vm fade active should produce 4 ops\n");
+        return 1;
+    }
+    if (ops[1].flags != 1u || ops[2].flags != 3u || ops[3].alpha != 200u || ops[3].flags != 2u || ops[3].tex_id != 3u) {
+        (void)fprintf(stderr, "vm fade/bgm/choice encoded flags mismatch\n");
         return 1;
     }
 
@@ -84,6 +130,15 @@ int main(void) {
     state.text_speed_ms = 0u;
     state.vm_waiting = 0u;
     state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 0u;
+    state.fade_layer_mask = 0u;
+    state.fade_alpha = 0u;
+    state.fade_duration_ms = 0u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 0u;
+    state.choice_count = 0u;
     count = 3u;
     rc = build_render_ops(&state, ops, &count);
     if (rc != VN_E_NOMEM) {

@@ -143,6 +143,18 @@ static int run_vm_from_pack(const VNPak* pak, vn_u32 scene_id, VNRuntimeState* i
     io_state->text_speed_ms = vm_current_text_speed_ms(&vm);
     io_state->vm_waiting = (vn_u32)vm_is_waiting(&vm);
     io_state->vm_ended = (vn_u32)vm_is_ended(&vm);
+    io_state->vm_error = (vn_u32)vm_has_error(&vm);
+    io_state->fade_layer_mask = (vn_u32)vm_fade_layer_mask(&vm);
+    io_state->fade_alpha = (vn_u32)vm_fade_target_alpha(&vm);
+    io_state->fade_duration_ms = (vn_u32)vm_fade_duration_ms(&vm);
+    io_state->vm_fade_active = (io_state->fade_duration_ms > 0u || io_state->fade_alpha > 0u) ? 1u : 0u;
+    io_state->bgm_id = (vn_u32)vm_current_bgm_id(&vm);
+    io_state->bgm_loop = (vn_u32)vm_current_bgm_loop(&vm);
+    io_state->se_id = (vn_u32)vm_take_se_id(&vm);
+    io_state->choice_count = (vn_u32)vm_last_choice_count(&vm);
+    if (io_state->choice_count > 0u) {
+        io_state->text_id = vm_last_choice_text_id(&vm);
+    }
 
     free(script_buf);
     return VN_OK;
@@ -172,6 +184,15 @@ int main(int argc, char** argv) {
     state.text_speed_ms = 0u;
     state.vm_waiting = 0u;
     state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 0u;
+    state.fade_layer_mask = 0u;
+    state.fade_alpha = 0u;
+    state.fade_duration_ms = 0u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 0u;
+    state.choice_count = 0u;
 
     pack_path = "assets/demo/demo.vnpak";
     scene_name = "S0";
@@ -292,7 +313,7 @@ int main(int argc, char** argv) {
     renderer_submit(ops, op_count);
     renderer_end_frame();
 
-    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u ops=%u\n",
+    (void)printf("vn_player ok backend=%s resolution=%ux%u scene=%s resources=%u text=%u wait=%u end=%u fade=%u bgm=%u se=%u choice=%u err=%u ops=%u\n",
                  renderer_backend_name(),
                  (unsigned int)cfg.width,
                  (unsigned int)cfg.height,
@@ -301,6 +322,11 @@ int main(int argc, char** argv) {
                  (unsigned int)state.text_id,
                  (unsigned int)state.vm_waiting,
                  (unsigned int)state.vm_ended,
+                 (unsigned int)state.fade_alpha,
+                 (unsigned int)state.bgm_id,
+                 (unsigned int)state.se_id,
+                 (unsigned int)state.choice_count,
+                 (unsigned int)state.vm_error,
                  (unsigned int)op_count);
 
     renderer_shutdown();

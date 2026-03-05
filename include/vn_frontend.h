@@ -13,6 +13,15 @@ typedef struct {
     vn_u16 text_speed_ms;
     vn_u32 vm_waiting;
     vn_u32 vm_ended;
+    vn_u32 vm_error;
+    vn_u32 vm_fade_active;
+    vn_u32 fade_layer_mask;
+    vn_u32 fade_alpha;
+    vn_u32 fade_duration_ms;
+    vn_u32 bgm_id;
+    vn_u32 bgm_loop;
+    vn_u32 se_id;
+    vn_u32 choice_count;
 } VNRuntimeState;
 
 #define VN_SCENE_S0 0u

@@ -6,7 +6,13 @@ import sys
 
 OP_TEXT = 0x03
 OP_WAIT = 0x04
+OP_CHOICE = 0x05
 OP_GOTO = 0x06
+OP_CALL = 0x07
+OP_RETURN = 0x08
+OP_FADE = 0x09
+OP_BGM = 0x0A
+OP_SE = 0x0B
 OP_END = 0xFF
 
 
@@ -31,15 +37,58 @@ def parse_number(text):
     return int(text, base)
 
 
+def resolve_target(token, labels):
+    if token in labels:
+        return labels[token]
+    return parse_number(token)
+
+
 def insn_size(parts):
     op = parts[0].upper()
+    argc = len(parts) - 1
+
     if op == "TEXT":
+        if argc != 2:
+            raise CompileError("TEXT needs 2 args")
         return 5
     if op == "WAIT":
+        if argc != 1:
+            raise CompileError("WAIT needs 1 arg")
         return 3
+    if op == "CHOICE":
+        if argc < 2 or (argc % 2) != 0:
+            raise CompileError("CHOICE needs str/target pairs")
+        count = argc // 2
+        if count > 255:
+            raise CompileError("CHOICE count > 255")
+        return 2 + (count * 4)
     if op == "GOTO":
+        if argc != 1:
+            raise CompileError("GOTO needs 1 arg")
+        return 3
+    if op == "CALL":
+        if argc != 1:
+            raise CompileError("CALL needs 1 arg")
+        return 3
+    if op == "RETURN":
+        if argc != 0:
+            raise CompileError("RETURN has no args")
+        return 1
+    if op == "FADE":
+        if argc != 3:
+            raise CompileError("FADE needs 3 args")
+        return 5
+    if op == "BGM":
+        if argc != 2:
+            raise CompileError("BGM needs 2 args")
+        return 4
+    if op == "SE":
+        if argc != 1:
+            raise CompileError("SE needs 1 arg")
         return 3
     if op == "END":
+        if argc != 0:
+            raise CompileError("END has no args")
         return 1
     raise CompileError(f"unknown opcode: {parts[0]}")
 
@@ -65,7 +114,10 @@ def parse_source(text):
         parts = payload
         if not parts:
             continue
-        size = insn_size(parts)
+        try:
+            size = insn_size(parts)
+        except CompileError as exc:
+            raise CompileError(f"line {lineno}: {exc}")
         insns.append((lineno, parts, pc))
         pc += size
 
@@ -77,9 +129,8 @@ def encode(labels, insns):
 
     for lineno, parts, _pc in insns:
         op = parts[0].upper()
+
         if op == "TEXT":
-            if len(parts) != 3:
-                raise CompileError(f"line {lineno}: TEXT needs 2 args")
             text_id = parse_number(parts[1])
             speed = parse_number(parts[2])
             if not (0 <= text_id <= 0xFFFF and 0 <= speed <= 0xFFFF):
@@ -89,8 +140,6 @@ def encode(labels, insns):
             continue
 
         if op == "WAIT":
-            if len(parts) != 2:
-                raise CompileError(f"line {lineno}: WAIT needs 1 arg")
             ms = parse_number(parts[1])
             if not (0 <= ms <= 0xFFFF):
                 raise CompileError(f"line {lineno}: WAIT out of range")
@@ -98,23 +147,68 @@ def encode(labels, insns):
             out.extend(struct.pack("<H", ms))
             continue
 
+        if op == "CHOICE":
+            count = (len(parts) - 1) // 2
+            i = 0
+            out.append(OP_CHOICE)
+            out.append(count)
+            while i < count:
+                text_id = parse_number(parts[1 + i * 2])
+                target = resolve_target(parts[2 + i * 2], labels)
+                if not (0 <= text_id <= 0xFFFF and 0 <= target <= 0xFFFF):
+                    raise CompileError(f"line {lineno}: CHOICE args out of range")
+                out.extend(struct.pack("<HH", text_id, target))
+                i += 1
+            continue
+
         if op == "GOTO":
-            if len(parts) != 2:
-                raise CompileError(f"line {lineno}: GOTO needs 1 arg")
-            target = parts[1]
-            if target in labels:
-                off = labels[target]
-            else:
-                off = parse_number(target)
-            if not (0 <= off <= 0xFFFF):
+            target = resolve_target(parts[1], labels)
+            if not (0 <= target <= 0xFFFF):
                 raise CompileError(f"line {lineno}: GOTO target out of range")
             out.append(OP_GOTO)
-            out.extend(struct.pack("<H", off))
+            out.extend(struct.pack("<H", target))
+            continue
+
+        if op == "CALL":
+            target = resolve_target(parts[1], labels)
+            if not (0 <= target <= 0xFFFF):
+                raise CompileError(f"line {lineno}: CALL target out of range")
+            out.append(OP_CALL)
+            out.extend(struct.pack("<H", target))
+            continue
+
+        if op == "RETURN":
+            out.append(OP_RETURN)
+            continue
+
+        if op == "FADE":
+            layer_mask = parse_number(parts[1])
+            alpha = parse_number(parts[2])
+            duration = parse_number(parts[3])
+            if not (0 <= layer_mask <= 0xFF and 0 <= alpha <= 0xFF and 0 <= duration <= 0xFFFF):
+                raise CompileError(f"line {lineno}: FADE args out of range")
+            out.append(OP_FADE)
+            out.extend(struct.pack("<BBH", layer_mask, alpha, duration))
+            continue
+
+        if op == "BGM":
+            audio_id = parse_number(parts[1])
+            loop = parse_number(parts[2])
+            if not (0 <= audio_id <= 0xFFFF and 0 <= loop <= 0xFF):
+                raise CompileError(f"line {lineno}: BGM args out of range")
+            out.append(OP_BGM)
+            out.extend(struct.pack("<HB", audio_id, loop))
+            continue
+
+        if op == "SE":
+            audio_id = parse_number(parts[1])
+            if not (0 <= audio_id <= 0xFFFF):
+                raise CompileError(f"line {lineno}: SE arg out of range")
+            out.append(OP_SE)
+            out.extend(struct.pack("<H", audio_id))
             continue
 
         if op == "END":
-            if len(parts) != 1:
-                raise CompileError(f"line {lineno}: END has no args")
             out.append(OP_END)
             continue
 

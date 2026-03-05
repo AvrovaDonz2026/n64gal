@@ -1,8 +1,11 @@
 #include "vn_frontend.h"
 #include "vn_error.h"
 
-static vn_u32 vn_scene_required_ops(vn_u32 scene_id) {
-    if (scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
+static vn_u32 vn_scene_required_ops(const VNRuntimeState* state) {
+    if (state->vm_fade_active != 0u || state->vm_waiting != 0u) {
+        return 4u;
+    }
+    if (state->scene_id == VN_SCENE_S1 || state->scene_id == VN_SCENE_S3) {
         return 4u;
     }
     return 3u;
@@ -35,14 +38,25 @@ static void vn_fill_sprite(VNRenderOp* op, const VNRuntimeState* state) {
     op->w = 128u;
     op->h = 128u;
     op->alpha = 255u;
-    op->flags = 0u;
+    op->flags = (vn_u8)(state->se_id != 0u ? 1u : 0u);
 }
 
 static void vn_fill_text(VNRenderOp* op, const VNRuntimeState* state) {
+    vn_u8 text_flags;
     vn_u16 text_tex_id;
     text_tex_id = (vn_u16)(100u + (vn_u16)state->scene_id);
     if (state->text_id != 0u) {
         text_tex_id = state->text_id;
+    }
+    text_flags = 0u;
+    if (state->text_speed_ms > 0u) {
+        text_flags = (vn_u8)(text_flags | 1u);
+    }
+    if (state->choice_count > 0u) {
+        text_flags = (vn_u8)(text_flags | 2u);
+    }
+    if (state->vm_error != 0u) {
+        text_flags = (vn_u8)(text_flags | 4u);
     }
 
     op->op = VN_OP_TEXT;
@@ -53,7 +67,7 @@ static void vn_fill_text(VNRenderOp* op, const VNRuntimeState* state) {
     op->w = 320u;
     op->h = 36u;
     op->alpha = (vn_u8)(state->vm_ended != 0u ? 180u : 255u);
-    op->flags = (vn_u8)(state->text_speed_ms > 0u ? 1u : 0u);
+    op->flags = text_flags;
 }
 
 static void vn_fill_fade(VNRenderOp* op, const VNRuntimeState* state) {
@@ -67,8 +81,14 @@ static void vn_fill_fade(VNRenderOp* op, const VNRuntimeState* state) {
     op->y = 0;
     op->w = 0;
     op->h = 0;
-    op->alpha = (vn_u8)(state->vm_waiting != 0u ? (120u + phase) : (phase * 3u));
-    op->flags = (vn_u8)(state->vm_waiting != 0u ? 1u : 0u);
+    if (state->vm_fade_active != 0u) {
+        op->tex_id = (vn_u16)(state->fade_layer_mask & 0xFFFFu);
+        op->alpha = (vn_u8)(state->fade_alpha & 0xFFu);
+        op->flags = 2u;
+    } else {
+        op->alpha = (vn_u8)(state->vm_waiting != 0u ? (120u + phase) : (phase * 3u));
+        op->flags = (vn_u8)(state->vm_waiting != 0u ? 1u : 0u);
+    }
 }
 
 int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* io_count) {
@@ -81,7 +101,7 @@ int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* i
     }
 
     max_count = *io_count;
-    required = vn_scene_required_ops(state->scene_id);
+    required = vn_scene_required_ops(state);
     if (max_count < required) {
         *io_count = required;
         return VN_E_NOMEM;
@@ -95,7 +115,7 @@ int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* i
     vn_fill_text(&out_ops[2], state);
 
     write_count = 3u;
-    if (state->vm_waiting != 0u || state->scene_id == VN_SCENE_S1 || state->scene_id == VN_SCENE_S3) {
+    if (required > 3u) {
         vn_fill_fade(&out_ops[write_count], state);
         write_count += 1u;
     }

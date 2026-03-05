@@ -1,8 +1,22 @@
-loop:
+BGM 220 1
+start:
+CALL branch
 TEXT 140 12
 WAIT 120
+GOTO start
+
+branch:
+CHOICE 500 option_a 501 option_b
+RETURN
+
+option_a:
 TEXT 141 12
+FADE 1 96 90
 WAIT 120
+RETURN
+
+option_b:
 TEXT 142 12
+SE 302
 WAIT 120
-GOTO loop
+RETURN
