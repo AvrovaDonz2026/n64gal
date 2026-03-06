@@ -25,8 +25,6 @@ static vn_u32* g_rvv_framebuffer = (vn_u32*)0;
 static vn_u32 g_rvv_stride = 0u;
 static vn_u32 g_rvv_height = 0u;
 static vn_u32 g_rvv_pixels = 0u;
-static vn_u32* g_rvv_row_colors = (vn_u32*)0;
-static vn_u32 g_rvv_row_colors_cap = 0u;
 static vn_u32* g_rvv_u_lut = (vn_u32*)0;
 static vn_u32* g_rvv_v_lut = (vn_u32*)0;
 static vn_u32 g_rvv_u_lut_cap = 0u;
@@ -110,162 +108,211 @@ static vuint32m4_t vn_rvv_hash32(vuint32m4_t value, size_t vl) {
     return value;
 }
 
-static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id, vn_u8 layer, vn_u8 flags, vn_u8 op) {
-    vn_u32 i;
+typedef struct VN_RVVTexturedRowParams {
     vn_u32 tex_mul;
     vn_u32 tex_hi;
     vn_u32 tex_lo3;
+    vn_u32 v8;
     vn_u32 v5;
     int layer_r;
     int layer_g;
     int layer_b;
     int text_blue_bias;
+    vn_u8 flags;
+    vn_u8 op;
+} VN_RVVTexturedRowParams;
 
-    tex_mul = ((vn_u32)tex_id * 2654435761u);
-    tex_hi = ((vn_u32)tex_id << 16);
-    tex_lo3 = ((vn_u32)tex_id & 7u);
-    v8 &= 0xFFu;
-    v5 = (v8 >> 5) & 0xFFu;
-    layer_r = (int)layer * 7;
-    layer_g = (int)layer * 5;
-    layer_b = (int)layer * 3;
-    text_blue_bias = 24 + (int)layer * 6;
+static void vn_rvv_init_textured_row_params(VN_RVVTexturedRowParams* params,
+                                            vn_u32 v8,
+                                            vn_u16 tex_id,
+                                            vn_u8 layer,
+                                            vn_u8 flags,
+                                            vn_u8 op) {
+    if (params == (VN_RVVTexturedRowParams*)0) {
+        return;
+    }
+
+    params->tex_mul = ((vn_u32)tex_id * 2654435761u);
+    params->tex_hi = ((vn_u32)tex_id << 16);
+    params->tex_lo3 = ((vn_u32)tex_id & 7u);
+    params->v8 = (v8 & 0xFFu);
+    params->v5 = ((params->v8 >> 5) & 0xFFu);
+    params->layer_r = (int)layer * 7;
+    params->layer_g = (int)layer * 5;
+    params->layer_b = (int)layer * 3;
+    params->text_blue_bias = 24 + (int)layer * 6;
+    params->flags = flags;
+    params->op = op;
+}
+
+static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u32* u_lut,
+                                               vn_u32 offset,
+                                               const VN_RVVTexturedRowParams* params,
+                                               size_t vl) {
+    vuint32m4_t u;
+    vuint32m4_t seed;
+    vuint32m4_t h;
+    vuint32m4_t ur;
+    vuint32m4_t ug;
+    vuint32m4_t ub;
+    vuint32m4_t checker;
+    vuint32m4_t alt;
+    vbool8_t mask_checker;
+    vbool8_t mask_alt;
+    vint32m4_t r;
+    vint32m4_t g;
+    vint32m4_t b;
+    vint32m4_t r_dark;
+    vint32m4_t g_dark;
+    vint32m4_t b_dark;
+    vint32m4_t r_bright;
+    vint32m4_t g_bright;
+    vint32m4_t b_bright;
+    vuint32m4_t out;
+
+    u = __riscv_vle32_v_u32m4(u_lut + offset, vl);
+    u = __riscv_vand_vx_u32m4(u, 0xFFu, vl);
+
+    seed = __riscv_vsll_vx_u32m4(u, (size_t)8, vl);
+    seed = __riscv_vxor_vx_u32m4(seed, params->tex_mul, vl);
+    seed = __riscv_vxor_vx_u32m4(seed, params->v8, vl);
+    seed = __riscv_vxor_vx_u32m4(seed, params->tex_hi, vl);
+    h = vn_rvv_hash32(seed, vl);
+
+    ur = __riscv_vand_vx_u32m4(h, 0xFFu, vl);
+    ug = __riscv_vsrl_vx_u32m4(h, (size_t)8, vl);
+    ug = __riscv_vand_vx_u32m4(ug, 0xFFu, vl);
+    ub = __riscv_vsrl_vx_u32m4(h, (size_t)16, vl);
+    ub = __riscv_vand_vx_u32m4(ub, 0xFFu, vl);
+
+    checker = __riscv_vsrl_vx_u32m4(u, (size_t)5, vl);
+    checker = __riscv_vxor_vx_u32m4(checker, params->v5, vl);
+    checker = __riscv_vxor_vx_u32m4(checker, params->tex_lo3, vl);
+    checker = __riscv_vand_vx_u32m4(checker, 1u, vl);
+    mask_checker = __riscv_vmsne_vx_u32m4_b8(checker, 0u, vl);
+
+    alt = __riscv_vadd_vx_u32m4(u, params->v8, vl);
+    alt = __riscv_vand_vx_u32m4(alt, 0x20u, vl);
+    mask_alt = __riscv_vmsne_vx_u32m4_b8(alt, 0u, vl);
+
+    r = __riscv_vreinterpret_v_u32m4_i32m4(ur);
+    g = __riscv_vreinterpret_v_u32m4_i32m4(ug);
+    b = __riscv_vreinterpret_v_u32m4_i32m4(ub);
+
+    r_dark = __riscv_vsub_vx_i32m4(r, 16, vl);
+    g_dark = __riscv_vsub_vx_i32m4(g, 10, vl);
+    b_dark = __riscv_vsub_vx_i32m4(b, 16, vl);
+    r_bright = __riscv_vadd_vx_i32m4(r, 24, vl);
+    g_bright = __riscv_vadd_vx_i32m4(g, 24, vl);
+    b_bright = __riscv_vadd_vx_i32m4(b, 24, vl);
+
+    r = __riscv_vmerge_vvm_i32m4(r, r_dark, mask_alt, vl);
+    g = __riscv_vmerge_vvm_i32m4(g, g_dark, mask_alt, vl);
+    b = __riscv_vmerge_vvm_i32m4(b, b_dark, mask_alt, vl);
+    r = __riscv_vmerge_vvm_i32m4(r, r_bright, mask_checker, vl);
+    g = __riscv_vmerge_vvm_i32m4(g, g_bright, mask_checker, vl);
+    b = __riscv_vmerge_vvm_i32m4(b, b_bright, mask_checker, vl);
+
+    r = __riscv_vmax_vx_i32m4(r, 0, vl);
+    r = __riscv_vmin_vx_i32m4(r, 255, vl);
+    g = __riscv_vmax_vx_i32m4(g, 0, vl);
+    g = __riscv_vmin_vx_i32m4(g, 255, vl);
+    b = __riscv_vmax_vx_i32m4(b, 0, vl);
+    b = __riscv_vmin_vx_i32m4(b, 255, vl);
+
+    r = __riscv_vadd_vx_i32m4(r, params->layer_r, vl);
+    g = __riscv_vadd_vx_i32m4(g, params->layer_g, vl);
+    b = __riscv_vadd_vx_i32m4(b, params->layer_b, vl);
+
+    if ((params->flags & 1u) != 0u) {
+        g = __riscv_vadd_vx_i32m4(g, 14, vl);
+    }
+    if ((params->flags & 2u) != 0u) {
+        b = __riscv_vadd_vx_i32m4(b, 20, vl);
+    }
+    if ((params->flags & 4u) != 0u) {
+        r = __riscv_vadd_vx_i32m4(r, 28, vl);
+        g = __riscv_vsub_vx_i32m4(g, 12, vl);
+    }
+    if ((params->flags & 8u) != 0u) {
+        r = __riscv_vadd_vx_i32m4(r, 12, vl);
+        g = __riscv_vadd_vx_i32m4(g, 12, vl);
+        b = __riscv_vsub_vx_i32m4(b, 8, vl);
+    }
+
+    if (params->op == VN_OP_TEXT) {
+        vint32m4_t y;
+
+        y = __riscv_vmul_vx_i32m4(r, 54, vl);
+        y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(g, 183, vl), vl);
+        y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(b, 19, vl), vl);
+        y = __riscv_vsra_vx_i32m4(y, (size_t)8, vl);
+        r = __riscv_vadd_vx_i32m4(y, 52, vl);
+        g = __riscv_vadd_vx_i32m4(y, 44, vl);
+        b = __riscv_vadd_vx_i32m4(y, params->text_blue_bias, vl);
+    } else if (params->op == VN_OP_SPRITE) {
+        b = __riscv_vadd_vx_i32m4(b, 10, vl);
+    }
+
+    r = __riscv_vmax_vx_i32m4(r, 0, vl);
+    r = __riscv_vmin_vx_i32m4(r, 255, vl);
+    g = __riscv_vmax_vx_i32m4(g, 0, vl);
+    g = __riscv_vmin_vx_i32m4(g, 255, vl);
+    b = __riscv_vmax_vx_i32m4(b, 0, vl);
+    b = __riscv_vmin_vx_i32m4(b, 255, vl);
+
+    ur = __riscv_vreinterpret_v_i32m4_u32m4(r);
+    ug = __riscv_vreinterpret_v_i32m4_u32m4(g);
+    ub = __riscv_vreinterpret_v_i32m4_u32m4(b);
+    ur = __riscv_vsll_vx_u32m4(ur, (size_t)16, vl);
+    ug = __riscv_vsll_vx_u32m4(ug, (size_t)8, vl);
+    out = __riscv_vor_vv_u32m4(ur, ug, vl);
+    out = __riscv_vor_vv_u32m4(out, ub, vl);
+    out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
+    return out;
+}
+
+static void vn_rvv_sample_texels_row(vn_u32* colors,
+                                     const vn_u32* u_lut,
+                                     vn_u32 count,
+                                     vn_u32 v8,
+                                     vn_u16 tex_id,
+                                     vn_u8 layer,
+                                     vn_u8 flags,
+                                     vn_u8 op) {
+    vn_u32 i;
+    VN_RVVTexturedRowParams params;
+
+    vn_rvv_init_textured_row_params(&params, v8, tex_id, layer, flags, op);
 
     i = 0u;
     while (i < count) {
         size_t vl;
-        vuint32m4_t u;
-        vuint32m4_t seed;
-        vuint32m4_t h;
-        vuint32m4_t ur;
-        vuint32m4_t ug;
-        vuint32m4_t ub;
-        vuint32m4_t checker;
-        vuint32m4_t alt;
-        vbool8_t mask_checker;
-        vbool8_t mask_alt;
-        vint32m4_t r;
-        vint32m4_t g;
-        vint32m4_t b;
-        vint32m4_t r_dark;
-        vint32m4_t g_dark;
-        vint32m4_t b_dark;
-        vint32m4_t r_bright;
-        vint32m4_t g_bright;
-        vint32m4_t b_bright;
         vuint32m4_t out;
 
         vl = __riscv_vsetvl_e32m4((size_t)(count - i));
-        u = __riscv_vle32_v_u32m4(u_lut + i, vl);
-        u = __riscv_vand_vx_u32m4(u, 0xFFu, vl);
-
-        seed = __riscv_vsll_vx_u32m4(u, (size_t)8, vl);
-        seed = __riscv_vxor_vx_u32m4(seed, tex_mul, vl);
-        seed = __riscv_vxor_vx_u32m4(seed, v8, vl);
-        seed = __riscv_vxor_vx_u32m4(seed, tex_hi, vl);
-        h = vn_rvv_hash32(seed, vl);
-
-        ur = __riscv_vand_vx_u32m4(h, 0xFFu, vl);
-        ug = __riscv_vsrl_vx_u32m4(h, (size_t)8, vl);
-        ug = __riscv_vand_vx_u32m4(ug, 0xFFu, vl);
-        ub = __riscv_vsrl_vx_u32m4(h, (size_t)16, vl);
-        ub = __riscv_vand_vx_u32m4(ub, 0xFFu, vl);
-
-        checker = __riscv_vsrl_vx_u32m4(u, (size_t)5, vl);
-        checker = __riscv_vxor_vx_u32m4(checker, v5, vl);
-        checker = __riscv_vxor_vx_u32m4(checker, tex_lo3, vl);
-        checker = __riscv_vand_vx_u32m4(checker, 1u, vl);
-        mask_checker = __riscv_vmsne_vx_u32m4_b8(checker, 0u, vl);
-
-        alt = __riscv_vadd_vx_u32m4(u, v8, vl);
-        alt = __riscv_vand_vx_u32m4(alt, 0x20u, vl);
-        mask_alt = __riscv_vmsne_vx_u32m4_b8(alt, 0u, vl);
-
-        r = __riscv_vreinterpret_v_u32m4_i32m4(ur);
-        g = __riscv_vreinterpret_v_u32m4_i32m4(ug);
-        b = __riscv_vreinterpret_v_u32m4_i32m4(ub);
-
-        r_dark = __riscv_vsub_vx_i32m4(r, 16, vl);
-        g_dark = __riscv_vsub_vx_i32m4(g, 10, vl);
-        b_dark = __riscv_vsub_vx_i32m4(b, 16, vl);
-        r_bright = __riscv_vadd_vx_i32m4(r, 24, vl);
-        g_bright = __riscv_vadd_vx_i32m4(g, 24, vl);
-        b_bright = __riscv_vadd_vx_i32m4(b, 24, vl);
-
-        r = __riscv_vmerge_vvm_i32m4(r, r_dark, mask_alt, vl);
-        g = __riscv_vmerge_vvm_i32m4(g, g_dark, mask_alt, vl);
-        b = __riscv_vmerge_vvm_i32m4(b, b_dark, mask_alt, vl);
-        r = __riscv_vmerge_vvm_i32m4(r, r_bright, mask_checker, vl);
-        g = __riscv_vmerge_vvm_i32m4(g, g_bright, mask_checker, vl);
-        b = __riscv_vmerge_vvm_i32m4(b, b_bright, mask_checker, vl);
-
-        r = __riscv_vmax_vx_i32m4(r, 0, vl);
-        r = __riscv_vmin_vx_i32m4(r, 255, vl);
-        g = __riscv_vmax_vx_i32m4(g, 0, vl);
-        g = __riscv_vmin_vx_i32m4(g, 255, vl);
-        b = __riscv_vmax_vx_i32m4(b, 0, vl);
-        b = __riscv_vmin_vx_i32m4(b, 255, vl);
-
-        r = __riscv_vadd_vx_i32m4(r, layer_r, vl);
-        g = __riscv_vadd_vx_i32m4(g, layer_g, vl);
-        b = __riscv_vadd_vx_i32m4(b, layer_b, vl);
-
-        if ((flags & 1u) != 0u) {
-            g = __riscv_vadd_vx_i32m4(g, 14, vl);
-        }
-        if ((flags & 2u) != 0u) {
-            b = __riscv_vadd_vx_i32m4(b, 20, vl);
-        }
-        if ((flags & 4u) != 0u) {
-            r = __riscv_vadd_vx_i32m4(r, 28, vl);
-            g = __riscv_vsub_vx_i32m4(g, 12, vl);
-        }
-        if ((flags & 8u) != 0u) {
-            r = __riscv_vadd_vx_i32m4(r, 12, vl);
-            g = __riscv_vadd_vx_i32m4(g, 12, vl);
-            b = __riscv_vsub_vx_i32m4(b, 8, vl);
-        }
-
-        if (op == VN_OP_TEXT) {
-            vint32m4_t y;
-
-            y = __riscv_vmul_vx_i32m4(r, 54, vl);
-            y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(g, 183, vl), vl);
-            y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(b, 19, vl), vl);
-            y = __riscv_vsra_vx_i32m4(y, (size_t)8, vl);
-            r = __riscv_vadd_vx_i32m4(y, 52, vl);
-            g = __riscv_vadd_vx_i32m4(y, 44, vl);
-            b = __riscv_vadd_vx_i32m4(y, text_blue_bias, vl);
-        } else if (op == VN_OP_SPRITE) {
-            b = __riscv_vadd_vx_i32m4(b, 10, vl);
-        }
-
-        r = __riscv_vmax_vx_i32m4(r, 0, vl);
-        r = __riscv_vmin_vx_i32m4(r, 255, vl);
-        g = __riscv_vmax_vx_i32m4(g, 0, vl);
-        g = __riscv_vmin_vx_i32m4(g, 255, vl);
-        b = __riscv_vmax_vx_i32m4(b, 0, vl);
-        b = __riscv_vmin_vx_i32m4(b, 255, vl);
-
-        ur = __riscv_vreinterpret_v_i32m4_u32m4(r);
-        ug = __riscv_vreinterpret_v_i32m4_u32m4(g);
-        ub = __riscv_vreinterpret_v_i32m4_u32m4(b);
-        ur = __riscv_vsll_vx_u32m4(ur, (size_t)16, vl);
-        ug = __riscv_vsll_vx_u32m4(ug, (size_t)8, vl);
-        out = __riscv_vor_vv_u32m4(ur, ug, vl);
-        out = __riscv_vor_vv_u32m4(out, ub, vl);
-        out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
-
+        out = vn_rvv_sample_combine_chunk(u_lut, i, &params, vl);
         __riscv_vse32_v_u32m4(colors + i, out, vl);
         i += (vn_u32)vl;
     }
 }
 
-static void vn_rvv_blend_u32(vn_u32* dst, const vn_u32* src, vn_u32 count, vn_u8 alpha) {
+static void vn_rvv_sample_blend_texels_row(vn_u32* dst,
+                                           const vn_u32* u_lut,
+                                           vn_u32 count,
+                                           vn_u32 v8,
+                                           vn_u16 tex_id,
+                                           vn_u8 layer,
+                                           vn_u8 flags,
+                                           vn_u8 op,
+                                           vn_u8 alpha) {
     vn_u32 i;
     vn_u32 inv;
+    VN_RVVTexturedRowParams params;
 
+    vn_rvv_init_textured_row_params(&params, v8, tex_id, layer, flags, op);
     inv = (vn_u32)(255u - alpha);
+
     i = 0u;
     while (i < count) {
         size_t vl;
@@ -284,7 +331,7 @@ static void vn_rvv_blend_u32(vn_u32* dst, const vn_u32* src, vn_u32 count, vn_u8
 
         vl = __riscv_vsetvl_e32m4((size_t)(count - i));
         dst_px = __riscv_vle32_v_u32m4(dst + i, vl);
-        src_px = __riscv_vle32_v_u32m4(src + i, vl);
+        src_px = vn_rvv_sample_combine_chunk(u_lut, i, &params, vl);
 
         dr = __riscv_vsrl_vx_u32m4(dst_px, (size_t)16, vl);
         dr = __riscv_vand_vx_u32m4(dr, 0xFFu, vl);
@@ -387,7 +434,14 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     }
 }
 
-static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id, vn_u8 layer, vn_u8 flags, vn_u8 op) {
+static void vn_rvv_sample_texels_row(vn_u32* colors,
+                                     const vn_u32* u_lut,
+                                     vn_u32 count,
+                                     vn_u32 v8,
+                                     vn_u16 tex_id,
+                                     vn_u8 layer,
+                                     vn_u8 flags,
+                                     vn_u8 op) {
     vn_u32 i;
 
     i = 0u;
@@ -397,12 +451,22 @@ static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32
     }
 }
 
-static void vn_rvv_blend_u32(vn_u32* dst, const vn_u32* src, vn_u32 count, vn_u8 alpha) {
+static void vn_rvv_sample_blend_texels_row(vn_u32* dst,
+                                           const vn_u32* u_lut,
+                                           vn_u32 count,
+                                           vn_u32 v8,
+                                           vn_u16 tex_id,
+                                           vn_u8 layer,
+                                           vn_u8 flags,
+                                           vn_u8 op,
+                                           vn_u8 alpha) {
     vn_u32 i;
 
     i = 0u;
     while (i < count) {
-        dst[i] = vn_pp_blend_rgb(dst[i], src[i], alpha);
+        dst[i] = vn_pp_blend_rgb(dst[i],
+                                 vn_pp_combine_texel(vn_pp_sample_texel(tex_id, u_lut[i], v8), layer, flags, op),
+                                 alpha);
         i += 1u;
     }
 }
@@ -512,10 +576,10 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
     if (vis_w == 0u || vis_h == 0u) {
         return;
     }
-    if (g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0 || g_rvv_row_colors == (vn_u32*)0) {
+    if (g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0) {
         return;
     }
-    if (vis_w > g_rvv_u_lut_cap || vis_h > g_rvv_v_lut_cap || vis_w > g_rvv_row_colors_cap) {
+    if (vis_w > g_rvv_u_lut_cap || vis_h > g_rvv_v_lut_cap) {
         return;
     }
 
@@ -552,24 +616,22 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
                                      op->flags,
                                      op->op);
         } else {
-            /* Keep the translucent path batched so sample/combine and alpha blend still run per row. */
-            vn_rvv_sample_texels_row(g_rvv_row_colors,
-                                     g_rvv_u_lut,
-                                     vis_w,
-                                     v8,
-                                     op->tex_id,
-                                     op->layer,
-                                     op->flags,
-                                     op->op);
-            /* Batch the framebuffer writeback so alpha blend and store run in RVV-width chunks. */
-            vn_rvv_blend_u32(row_ptr, g_rvv_row_colors, vis_w, op->alpha);
+            /* Translucent textured rows stay in one RVV-width loop: sample/combine, blend, then store. */
+            vn_rvv_sample_blend_texels_row(row_ptr,
+                                           g_rvv_u_lut,
+                                           vis_w,
+                                           v8,
+                                           op->tex_id,
+                                           op->layer,
+                                           op->flags,
+                                           op->op,
+                                           op->alpha);
         }
     }
 }
 
 static int rvv_init(const RendererConfig* cfg) {
     vn_u32 pixels;
-    size_t row_colors_bytes;
     size_t u_lut_bytes;
     size_t v_lut_bytes;
 
@@ -589,23 +651,17 @@ static int rvv_init(const RendererConfig* cfg) {
     if (g_rvv_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
-    row_colors_bytes = (size_t)cfg->width * sizeof(vn_u32);
     u_lut_bytes = (size_t)cfg->width * sizeof(vn_u32);
     v_lut_bytes = (size_t)cfg->height * sizeof(vn_u32);
-    g_rvv_row_colors = (vn_u32*)malloc(row_colors_bytes);
     g_rvv_u_lut = (vn_u32*)malloc(u_lut_bytes);
     g_rvv_v_lut = (vn_u32*)malloc(v_lut_bytes);
-    if (g_rvv_row_colors == (vn_u32*)0 || g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0) {
-        if (g_rvv_row_colors != (vn_u32*)0) {
-            free(g_rvv_row_colors);
-        }
+    if (g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0) {
         if (g_rvv_u_lut != (vn_u32*)0) {
             free(g_rvv_u_lut);
         }
         if (g_rvv_v_lut != (vn_u32*)0) {
             free(g_rvv_v_lut);
         }
-        g_rvv_row_colors = (vn_u32*)0;
         g_rvv_u_lut = (vn_u32*)0;
         g_rvv_v_lut = (vn_u32*)0;
         free(g_rvv_framebuffer);
@@ -618,7 +674,6 @@ static int rvv_init(const RendererConfig* cfg) {
     g_rvv_stride = (vn_u32)cfg->width;
     g_rvv_height = (vn_u32)cfg->height;
     g_rvv_pixels = pixels;
-    g_rvv_row_colors_cap = (vn_u32)cfg->width;
     g_rvv_u_lut_cap = (vn_u32)cfg->width;
     g_rvv_v_lut_cap = (vn_u32)cfg->height;
     g_rvv_ready = VN_TRUE;
@@ -629,9 +684,6 @@ static void rvv_shutdown(void) {
     if (g_rvv_framebuffer != (vn_u32*)0) {
         free(g_rvv_framebuffer);
     }
-    if (g_rvv_row_colors != (vn_u32*)0) {
-        free(g_rvv_row_colors);
-    }
     if (g_rvv_u_lut != (vn_u32*)0) {
         free(g_rvv_u_lut);
     }
@@ -639,13 +691,11 @@ static void rvv_shutdown(void) {
         free(g_rvv_v_lut);
     }
     g_rvv_framebuffer = (vn_u32*)0;
-    g_rvv_row_colors = (vn_u32*)0;
     g_rvv_u_lut = (vn_u32*)0;
     g_rvv_v_lut = (vn_u32*)0;
     g_rvv_stride = 0u;
     g_rvv_height = 0u;
     g_rvv_pixels = 0u;
-    g_rvv_row_colors_cap = 0u;
     g_rvv_u_lut_cap = 0u;
     g_rvv_v_lut_cap = 0u;
     g_rvv_cfg.width = 0u;

@@ -81,7 +81,7 @@ Render IR 单条指令。
 4. 当强制选择 `avx2` 但当前 CPU 不支持时，渲染器会自动回退到 `scalar`。
 5. `SPRITE/TEXT` 走统一的 `tex -> combine` 采样链路（共享 `pixel_pipeline`），保证 `scalar/avx2` 输出语义一致。
 6. `SPRITE/TEXT` 纹理坐标映射使用 UV LUT（每帧按可见区域构建）以减少逐像素除法开销。
-7. `rvv` 当前已将 `tex/hash` 采样与 `combine` 融合成单次行内向量流水，`alpha=255` 时直接写 framebuffer，`alpha<255` 时继续走批量向量混合；后续优化重点转为更进一步的 translucent 单循环化与更轻量的 UV/seed 热路径。
+7. `rvv` 当前已将 `tex/hash` 采样与 `combine` 融合成单次行内向量流水，`alpha=255` 时直接写 framebuffer，`alpha<255` 时也已切到单循环 `sample -> combine -> blend/store`；后续优化重点转为 `8-bit` UV LUT、seed 热路径瘦身与可重复 perf 证据沉淀。
 
 ## 6. 后端能力位约定
 
