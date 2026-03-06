@@ -8,6 +8,7 @@
 #include "../common/pixel_pipeline.h"
 
 #if defined(__riscv) && defined(__riscv_vector)
+#include <riscv_vector.h>
 #define VN_RVV_IMPL_AVAILABLE 1
 #else
 #define VN_RVV_IMPL_AVAILABLE 0
@@ -74,6 +75,22 @@ static int vn_rvv_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_
     return VN_TRUE;
 }
 
+#if VN_RVV_IMPL_AVAILABLE
+static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    vn_u32 i;
+
+    i = 0u;
+    while (i < count) {
+        size_t vl;
+        vuint32m4_t vec;
+
+        vl = __riscv_vsetvl_e32m4((size_t)(count - i));
+        vec = __riscv_vmv_v_x_u32m4(value, vl);
+        __riscv_vse32_v_u32m4(dst + i, vec, vl);
+        i += (vn_u32)vl;
+    }
+}
+#else
 static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     vn_u32 i;
 
@@ -83,6 +100,7 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
         i += 1u;
     }
 }
+#endif
 
 static void vn_rvv_clear_frame(vn_u8 gray) {
     if (g_rvv_framebuffer == (vn_u32*)0 || g_rvv_pixels == 0u) {

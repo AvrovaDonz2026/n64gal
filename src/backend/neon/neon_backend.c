@@ -8,6 +8,7 @@
 #include "../common/pixel_pipeline.h"
 
 #if defined(__aarch64__) || defined(__ARM_NEON)
+#include <arm_neon.h>
 #define VN_NEON_IMPL_AVAILABLE 1
 #else
 #define VN_NEON_IMPL_AVAILABLE 0
@@ -74,6 +75,23 @@ static int vn_neon_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out
     return VN_TRUE;
 }
 
+#if VN_NEON_IMPL_AVAILABLE
+static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    uint32x4_t vec;
+    vn_u32 i;
+
+    vec = vdupq_n_u32((uint32_t)value);
+    i = 0u;
+    while ((i + 4u) <= count) {
+        vst1q_u32((uint32_t*)(void*)(dst + i), vec);
+        i += 4u;
+    }
+    while (i < count) {
+        dst[i] = value;
+        i += 1u;
+    }
+}
+#else
 static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     vn_u32 i;
 
@@ -83,6 +101,7 @@ static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
         i += 1u;
     }
 }
+#endif
 
 static void vn_neon_clear_frame(vn_u8 gray) {
     if (g_neon_framebuffer == (vn_u32*)0 || g_neon_pixels == 0u) {
