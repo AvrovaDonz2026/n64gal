@@ -4,8 +4,9 @@
 #include "vn_types.h"
 
 #define VN_RUNTIME_MAX_CHOICE_SEQ 64u
-#define VN_RUNTIME_PERF_OP_CACHE  (1u << 0)
-#define VN_RUNTIME_PERF_DEFAULT_FLAGS VN_RUNTIME_PERF_OP_CACHE
+#define VN_RUNTIME_PERF_OP_CACHE    (1u << 0)
+#define VN_RUNTIME_PERF_FRAME_REUSE (1u << 1)
+#define VN_RUNTIME_PERF_DEFAULT_FLAGS (VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE)
 
 typedef struct {
     const char* pack_path;
@@ -52,6 +53,8 @@ typedef struct {
     vn_u32 op_count;
     const char* backend_name;
     vn_u32 perf_flags_effective;
+    vn_u32 frame_reuse_hits;
+    vn_u32 frame_reuse_misses;
     vn_u32 op_cache_hits;
     vn_u32 op_cache_misses;
 } VNRunResult;

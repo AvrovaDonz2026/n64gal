@@ -1351,6 +1351,8 @@ static void preview_json_write_result(FILE* fp, const VNRunResult* result) {
     (void)fprintf(fp, "\"choice_text_id\":%u,", (unsigned int)result->choice_text_id);
     (void)fprintf(fp, "\"op_count\":%u,", (unsigned int)result->op_count);
     (void)fprintf(fp, "\"perf_flags_effective\":%u,", (unsigned int)result->perf_flags_effective);
+    (void)fprintf(fp, "\"frame_reuse_hits\":%u,", (unsigned int)result->frame_reuse_hits);
+    (void)fprintf(fp, "\"frame_reuse_misses\":%u,", (unsigned int)result->frame_reuse_misses);
     (void)fprintf(fp, "\"op_cache_hits\":%u,", (unsigned int)result->op_cache_hits);
     (void)fprintf(fp, "\"op_cache_misses\":%u,", (unsigned int)result->op_cache_misses);
     (void)fprintf(fp, "\"backend_name\":");

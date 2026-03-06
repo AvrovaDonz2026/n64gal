@@ -2,15 +2,19 @@
 
 #include "vn_runtime.h"
 
-static int run_cached_scene(vn_u32 perf_flags, VNRunResult* out_result) {
+static int run_perf_scene(const char* scene_name,
+                          vn_u32 frames,
+                          vn_u32 hold_on_end,
+                          vn_u32 perf_flags,
+                          VNRunResult* out_result) {
     VNRunConfig cfg;
     int rc;
 
     vn_run_config_init(&cfg);
-    cfg.scene_name = "S0";
-    cfg.frames = 64u;
+    cfg.scene_name = scene_name;
+    cfg.frames = frames;
     cfg.dt_ms = 16u;
-    cfg.hold_on_end = 1u;
+    cfg.hold_on_end = hold_on_end;
     cfg.trace = 0u;
     cfg.keyboard = 0u;
     cfg.emit_logs = 0u;
@@ -19,13 +23,14 @@ static int run_cached_scene(vn_u32 perf_flags, VNRunResult* out_result) {
     rc = vn_runtime_run(&cfg, out_result);
     if (rc != 0) {
         (void)fprintf(stderr,
-                      "cached scene run failed rc=%d perf_flags=0x%X\n",
+                      "perf scene run failed rc=%d scene=%s perf_flags=0x%X\n",
                       rc,
+                      scene_name,
                       (unsigned int)perf_flags);
         return 1;
     }
     if (out_result->frames_executed == 0u) {
-        (void)fprintf(stderr, "cached scene executed no frames\n");
+        (void)fprintf(stderr, "perf scene executed no frames scene=%s\n", scene_name);
         return 1;
     }
     return 0;
@@ -34,7 +39,8 @@ static int run_cached_scene(vn_u32 perf_flags, VNRunResult* out_result) {
 int main(void) {
     VNRunConfig cfg;
     VNRunResult res;
-    VNRunResult cached_res;
+    VNRunResult reuse_res;
+    VNRunResult cache_res;
     int rc;
 
     vn_run_config_init(&cfg);
@@ -69,20 +75,50 @@ int main(void) {
         (void)fprintf(stderr, "expected default op cache perf flag\n");
         return 1;
     }
-
-    if (run_cached_scene(VN_RUNTIME_PERF_OP_CACHE, &cached_res) != 0) {
+    if ((res.perf_flags_effective & VN_RUNTIME_PERF_FRAME_REUSE) == 0u) {
+        (void)fprintf(stderr, "expected default frame reuse perf flag\n");
         return 1;
     }
-    if (cached_res.op_cache_hits == 0u) {
+
+    if (run_perf_scene("S0", 64u, 1u, VN_RUNTIME_PERF_FRAME_REUSE, &reuse_res) != 0) {
+        return 1;
+    }
+    if (reuse_res.frame_reuse_hits == 0u) {
+        (void)fprintf(stderr, "expected frame reuse hits, got 0\n");
+        return 1;
+    }
+    if (reuse_res.frame_reuse_misses == 0u) {
+        (void)fprintf(stderr, "expected frame reuse misses, got 0\n");
+        return 1;
+    }
+    if (reuse_res.op_cache_hits != 0u || reuse_res.op_cache_misses != 0u) {
+        (void)fprintf(stderr,
+                      "expected zero op cache stats for frame reuse only hits=%u misses=%u\n",
+                      (unsigned int)reuse_res.op_cache_hits,
+                      (unsigned int)reuse_res.op_cache_misses);
+        return 1;
+    }
+
+    if (run_perf_scene("S0", 64u, 1u, VN_RUNTIME_PERF_OP_CACHE, &cache_res) != 0) {
+        return 1;
+    }
+    if (cache_res.op_cache_hits == 0u) {
         (void)fprintf(stderr, "expected op cache hits, got 0\n");
         return 1;
     }
-    if (cached_res.op_cache_misses == 0u) {
+    if (cache_res.op_cache_misses == 0u) {
         (void)fprintf(stderr, "expected op cache misses, got 0\n");
         return 1;
     }
+    if (cache_res.frame_reuse_hits != 0u || cache_res.frame_reuse_misses != 0u) {
+        (void)fprintf(stderr,
+                      "expected zero frame reuse stats for op cache only hits=%u misses=%u\n",
+                      (unsigned int)cache_res.frame_reuse_hits,
+                      (unsigned int)cache_res.frame_reuse_misses);
+        return 1;
+    }
 
-    if (run_cached_scene(0u, &res) != 0) {
+    if (run_perf_scene("S0", 64u, 1u, 0u, &res) != 0) {
         return 1;
     }
     if (res.perf_flags_effective != 0u) {
@@ -91,17 +127,22 @@ int main(void) {
                       (unsigned int)res.perf_flags_effective);
         return 1;
     }
-    if (res.op_cache_hits != 0u || res.op_cache_misses != 0u) {
+    if (res.frame_reuse_hits != 0u || res.frame_reuse_misses != 0u ||
+        res.op_cache_hits != 0u || res.op_cache_misses != 0u) {
         (void)fprintf(stderr,
-                      "expected zero cache stats when disabled hits=%u misses=%u\n",
+                      "expected zero perf stats when disabled reuse=%u/%u cache=%u/%u\n",
+                      (unsigned int)res.frame_reuse_hits,
+                      (unsigned int)res.frame_reuse_misses,
                       (unsigned int)res.op_cache_hits,
                       (unsigned int)res.op_cache_misses);
         return 1;
     }
 
-    (void)printf("test_runtime_api ok backend=%s cache_hits=%u cache_misses=%u\n",
-                 cached_res.backend_name,
-                 (unsigned int)cached_res.op_cache_hits,
-                 (unsigned int)cached_res.op_cache_misses);
+    (void)printf("test_runtime_api ok backend=%s reuse_hits=%u reuse_misses=%u cache_hits=%u cache_misses=%u\n",
+                 reuse_res.backend_name,
+                 (unsigned int)reuse_res.frame_reuse_hits,
+                 (unsigned int)reuse_res.frame_reuse_misses,
+                 (unsigned int)cache_res.op_cache_hits,
+                 (unsigned int)cache_res.op_cache_misses);
     return 0;
 }

@@ -47,8 +47,11 @@
 12. `perf_flags`
    - 运行时性能特性开关位图
    - 默认值为 `VN_RUNTIME_PERF_DEFAULT_FLAGS`
+   - 当前已公开：`VN_RUNTIME_PERF_FRAME_REUSE`（静态帧短路 / frame reuse）
+   - 当状态签名稳定且无 active fade / 新 SE 时，直接复用上一帧 framebuffer，跳过本帧 `build_render_ops + renderer_submit`
+   - 当前实现会折叠 `frame_index` 派生的前端占位动画，因此命中后会冻结这类占位动画，优先换取稳定帧的 CPU 收益
    - 当前已公开：`VN_RUNTIME_PERF_OP_CACHE`（Frontend `VNRenderOp[]` LRU 命令缓存）
-   - 当前实现会折叠 `frame_index` 派生的前端伪动画键值，并在命中时按当前帧回写 `SPRITE/FADE` 动态字段，避免因占位动画导致缓存长期 0 hit
+   - 命中时跳过命令构建，但仍会按当前帧回写 `SPRITE/FADE` 动态字段，避免命令缓存路径因占位动画长期 0 hit
 
 ### `VNInputEvent`
 
@@ -87,7 +90,8 @@
 7. `op_count`
 8. `backend_name`
 9. `perf_flags_effective`
-10. `op_cache_hits`, `op_cache_misses`
+10. `frame_reuse_hits`, `frame_reuse_misses`
+11. `op_cache_hits`, `op_cache_misses`
 
 ## 4. API 函数
 
@@ -123,7 +127,8 @@
 2. 支持 `choice_seq`、`vn_runtime_session_set_choice` 与 `vn_runtime_session_inject_input` 的输入注入。
 3. `vn_runtime_session_inject_input` 注入的事件会在下一次 `step` 时消费。
 4. 当运行结束且 `vm_error != 0` 时返回非 0。
-5. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
+5. 若启用 `VN_RUNTIME_PERF_FRAME_REUSE`，则会在状态签名稳定时直接复用上一帧 framebuffer，并在 `VNRunResult` 中回传 `frame_reuse_hits/misses`。
+6. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 
@@ -167,7 +172,10 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
 1. `--hold-end`
    - 对应 `VNRunConfig.hold_on_end=1`
    - 用于场景脚本提前结束时仍持续输出帧采样数据
-2. `--perf-op-cache=<on|off>`
+2. `--perf-frame-reuse=<on|off>`
+   - 切换 `VN_RUNTIME_PERF_FRAME_REUSE`
+   - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
+3. `--perf-op-cache=<on|off>`
    - 切换 `VN_RUNTIME_PERF_OP_CACHE`
    - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
 
@@ -264,6 +272,8 @@ int run_scene_once(void) {
 5. `raster_ms`
 6. `audio_ms`
 7. `rss_mb`
+8. `frame_reuse_hit`, `frame_reuse_hits`, `frame_reuse_misses`（附加诊断字段）
+9. `op_cache_hit`, `op_cache_hits`, `op_cache_misses`（附加诊断字段）
 
 `tests/perf/run_perf.sh` 基于这些字段生成 `perf_<scene>.csv` 与 `perf_summary.csv`。
 

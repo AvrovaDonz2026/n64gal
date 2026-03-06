@@ -165,8 +165,10 @@
 8. `op_count`
 9. `backend_name`
 10. `perf_flags_effective`
-11. `op_cache_hits`
-12. `op_cache_misses`
+11. `frame_reuse_hits`
+12. `frame_reuse_misses`
+13. `op_cache_hits`
+14. `op_cache_misses`
 
 这些字段足以支撑：
 
@@ -174,7 +176,8 @@
 2. 自动化检查
 3. 基本 perf 采样
 4. 场景结束判断
-5. 命令缓存命中率诊断与 perf 回归定位
+5. 静态帧短路命中率诊断与 perf 回归定位
+6. 命令缓存命中率诊断与 perf 回归定位
 
 ## Version Negotiation Matrix
 

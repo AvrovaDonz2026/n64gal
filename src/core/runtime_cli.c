@@ -88,6 +88,10 @@ struct VNRuntimeSession {
     vn_u32 emit_logs;
     vn_u32 hold_on_end;
     vn_u32 perf_flags;
+    vn_u32 frame_reuse_valid;
+    RenderOpCacheKey frame_reuse_key;
+    vn_u32 frame_reuse_hits;
+    vn_u32 frame_reuse_misses;
     vn_u32 op_cache_stamp;
     vn_u32 op_cache_hits;
     vn_u32 op_cache_misses;
@@ -176,6 +180,8 @@ static void runtime_result_reset(void) {
     g_last_run_result.op_count = 0u;
     g_last_run_result.backend_name = "none";
     g_last_run_result.perf_flags_effective = 0u;
+    g_last_run_result.frame_reuse_hits = 0u;
+    g_last_run_result.frame_reuse_misses = 0u;
     g_last_run_result.op_cache_hits = 0u;
     g_last_run_result.op_cache_misses = 0u;
 }
@@ -185,7 +191,7 @@ static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
 }
 
 static vn_u32 runtime_supported_perf_flags(void) {
-    return VN_RUNTIME_PERF_OP_CACHE;
+    return VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE;
 }
 
 static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) {
@@ -339,6 +345,64 @@ static int runtime_render_key_equal(const RenderOpCacheKey* a, const RenderOpCac
             a->text_alpha == b->text_alpha &&
             a->fade_flags == b->fade_flags &&
             a->fade_mask == b->fade_mask) ? VN_TRUE : VN_FALSE;
+}
+
+static int runtime_frame_reuse_eligible(const VNRuntimeState* state) {
+    if (state == (const VNRuntimeState*)0) {
+        return VN_FALSE;
+    }
+    if (state->vm_fade_active != 0u) {
+        return VN_FALSE;
+    }
+    if (state->se_id != 0u) {
+        return VN_FALSE;
+    }
+    return VN_TRUE;
+}
+
+static int runtime_prepare_frame_reuse(VNRuntimeSession* session,
+                                       const VNRuntimeState* state,
+                                       RenderOpCacheKey* out_key,
+                                       int* out_reuse_hit) {
+    if (out_reuse_hit != (int*)0) {
+        *out_reuse_hit = VN_FALSE;
+    }
+    if (session == (VNRuntimeSession*)0 ||
+        state == (const VNRuntimeState*)0 ||
+        out_key == (RenderOpCacheKey*)0) {
+        return VN_FALSE;
+    }
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_FRAME_REUSE) == VN_FALSE) {
+        session->frame_reuse_valid = 0u;
+        return VN_FALSE;
+    }
+    if (runtime_frame_reuse_eligible(state) == VN_FALSE) {
+        session->frame_reuse_valid = 0u;
+        return VN_FALSE;
+    }
+
+    runtime_render_key_init(out_key, state);
+    if (session->frame_reuse_valid != 0u &&
+        runtime_render_key_equal(&session->frame_reuse_key, out_key) != VN_FALSE) {
+        session->frame_reuse_hits += 1u;
+        if (out_reuse_hit != (int*)0) {
+            *out_reuse_hit = VN_TRUE;
+        }
+        return VN_TRUE;
+    }
+
+    session->frame_reuse_valid = 0u;
+    session->frame_reuse_misses += 1u;
+    return VN_TRUE;
+}
+
+static void runtime_commit_frame_reuse(VNRuntimeSession* session,
+                                       const RenderOpCacheKey* key_data) {
+    if (session == (VNRuntimeSession*)0 || key_data == (const RenderOpCacheKey*)0) {
+        return;
+    }
+    session->frame_reuse_key = *key_data;
+    session->frame_reuse_valid = 1u;
 }
 
 static int runtime_build_render_ops_cached(VNRuntimeSession* session,
@@ -1056,6 +1120,8 @@ static void runtime_result_write(const VNRuntimeSession* session, VNRunResult* o
     out_result->op_count = session->last_op_count;
     out_result->backend_name = renderer_backend_name();
     out_result->perf_flags_effective = session->perf_flags;
+    out_result->frame_reuse_hits = session->frame_reuse_hits;
+    out_result->frame_reuse_misses = session->frame_reuse_misses;
     out_result->op_cache_hits = session->op_cache_hits;
     out_result->op_cache_misses = session->op_cache_misses;
 }
@@ -1237,10 +1303,13 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
     double rss_mb;
     int rc;
     int build_cache_hit;
+    int frame_reuse_active;
+    int frame_reuse_hit;
     int keyboard_has_choice;
     int keyboard_toggle_trace;
     int keyboard_quit;
     int used_choice_seq;
+    RenderOpCacheKey frame_reuse_key;
 
     if (session == (VNRuntimeSession*)0) {
         return VN_E_INVALID_ARG;
@@ -1287,25 +1356,41 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
             state_apply_fade(&session->state, &session->fade_player);
 
             build_cache_hit = VN_FALSE;
-            op_count = 16u;
-            rc = runtime_build_render_ops_cached(session,
-                                                 &session->state,
-                                                 session->ops,
-                                                 &op_count,
-                                                 &build_cache_hit);
-            t_after_build = runtime_now_ms();
-            if (rc != VN_OK) {
-                (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n",
-                              rc,
-                              (unsigned int)session->state.frame_index);
-                session->exit_code = 1;
-                session->done = VN_TRUE;
+            frame_reuse_hit = VN_FALSE;
+            frame_reuse_active = runtime_prepare_frame_reuse(session,
+                                                             &session->state,
+                                                             &frame_reuse_key,
+                                                             &frame_reuse_hit);
+            if (frame_reuse_hit != VN_FALSE) {
+                op_count = session->last_op_count;
+                rc = VN_OK;
+                t_after_build = runtime_now_ms();
+                t_after_raster = t_after_build;
             } else {
-                renderer_begin_frame();
-                renderer_submit(session->ops, op_count);
-                renderer_end_frame();
-                t_after_raster = runtime_now_ms();
-
+                op_count = 16u;
+                rc = runtime_build_render_ops_cached(session,
+                                                     &session->state,
+                                                     session->ops,
+                                                     &op_count,
+                                                     &build_cache_hit);
+                t_after_build = runtime_now_ms();
+                if (rc != VN_OK) {
+                    (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n",
+                                  rc,
+                                  (unsigned int)session->state.frame_index);
+                    session->exit_code = 1;
+                    session->done = VN_TRUE;
+                } else {
+                    renderer_begin_frame();
+                    renderer_submit(session->ops, op_count);
+                    renderer_end_frame();
+                    t_after_raster = runtime_now_ms();
+                    if (frame_reuse_active != VN_FALSE) {
+                        runtime_commit_frame_reuse(session, &frame_reuse_key);
+                    }
+                }
+            }
+            if (rc == VN_OK) {
                 choice_serial_now = vm_choice_serial(&session->vm);
                 if (choice_serial_now != session->last_choice_serial) {
                     session->last_choice_serial = choice_serial_now;
@@ -1325,7 +1410,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 rss_mb = runtime_rss_mb();
 
                 if (session->trace != 0u && session->emit_logs != 0u) {
-                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u\n",
+                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u frame_reuse_hit=%u frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u\n",
                                  (unsigned int)session->state.frame_index,
                                  frame_ms,
                                  vm_ms,
@@ -1344,6 +1429,9 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)session->state.choice_selected_index,
                                  (unsigned int)session->state.choice_text_id,
                                  (unsigned int)op_count,
+                                 (unsigned int)(frame_reuse_hit != VN_FALSE),
+                                 (unsigned int)session->frame_reuse_hits,
+                                 (unsigned int)session->frame_reuse_misses,
                                  (unsigned int)(build_cache_hit != VN_FALSE),
                                  (unsigned int)session->op_cache_hits,
                                  (unsigned int)session->op_cache_misses);
@@ -1368,7 +1456,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         session->summary_emitted == VN_FALSE &&
         session->exit_code == 0 &&
         session->emit_logs != 0u) {
-        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X op_cache_hits=%u op_cache_misses=%u\n",
+        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hits=%u op_cache_misses=%u\n",
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
                      (unsigned int)session->renderer_cfg.height,
@@ -1390,6 +1478,8 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      (unsigned int)session->last_op_count,
                      (unsigned int)session->keyboard.active,
                      (unsigned int)session->perf_flags,
+                     (unsigned int)session->frame_reuse_hits,
+                     (unsigned int)session->frame_reuse_misses,
                      (unsigned int)session->op_cache_hits,
                      (unsigned int)session->op_cache_misses);
         session->summary_emitted = VN_TRUE;
@@ -1613,6 +1703,27 @@ int vn_runtime_run_cli(int argc, char** argv) {
                 return 2;
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
+        } else if (strcmp(arg, "--perf-frame-reuse") == 0) {
+            int enabled;
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --perf-frame-reuse\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_toggle_value(argv[i], &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-frame-reuse: %s\n", argv[i]);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_FRAME_REUSE, enabled);
+        } else if (strncmp(arg, "--perf-frame-reuse=", 19) == 0) {
+            int enabled;
+            rc = parse_toggle_value(arg + 19, &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-frame-reuse: %s\n", arg + 19);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_FRAME_REUSE, enabled);
         } else if (strcmp(arg, "--quiet") == 0) {
             run_cfg.emit_logs = 0u;
         }

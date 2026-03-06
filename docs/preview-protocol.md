@@ -245,9 +245,11 @@ response=tests/integration/preview_protocol_response.tmp.json
 12. `choice_text_id`
 13. `op_count`
 14. `perf_flags_effective`
-15. `op_cache_hits`
-16. `op_cache_misses`
-17. `backend_name`
+15. `frame_reuse_hits`
+16. `frame_reuse_misses`
+17. `op_cache_hits`
+18. `op_cache_misses`
+19. `backend_name`
 
 ### `events`
 
