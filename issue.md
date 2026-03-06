@@ -615,6 +615,7 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] `scripts/ci/run_riscv64_qemu_suite.sh --require-rvv` 已验证 `vn_player_rvv` 在 `qemu-user` 下实际落到 `backend=rvv`
 - [x] `test_backend_consistency_rvv` 已验证 `scalar vs rvv` framebuffer CRC 一致
 - [x] RVV `fill` 核心算子（向量填充）
+- [x] RVV 统一色半透明 `fade/fill` 路径已向量化
 - [ ] RVV `blend/tex/combine` 核心算子
 - [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
 - [ ] riscv64 Linux 原生运行验证

@@ -71,7 +71,7 @@ Render IR 单条指令。
 1. `scalar`：完整基线实现，可作为默认回退后端。
 2. `avx2`：已实现最小可运行链路。
 3. `neon`：已接入最小可运行链路，`fill` 与不透明矩形填充路径使用 NEON 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。
-4. `rvv`：已接入最小可运行链路，`fill` 与不透明矩形填充路径使用 RVV 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建与 `qemu-user` 冒烟已在本地验证。
+4. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充以及统一颜色半透明 `fade/fill` 路径使用 RVV 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
 
 实现说明：
 
@@ -93,4 +93,4 @@ Render IR 单条指令。
 
 1. 新增 `test_backend_consistency`：同一组 `VNRenderOp` 在 `scalar` 与 `avx2` 下渲染后比较 framebuffer CRC32。
 2. 当机器不支持 AVX2 时，该测试会输出 `skipped (no avx2 support)` 并通过。
-3. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链与 `rvv` 冒烟执行。
+3. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行以及 `scalar vs rvv` framebuffer CRC 一致性。
