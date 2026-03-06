@@ -26,6 +26,7 @@ add_library(vn_core
     src/core/platform.c
     src/core/runtime_cli.c
     src/frontend/render_ops.c
+    src/frontend/dirty_tiles.c
     src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
     src/backend/neon/neon_backend.c
@@ -65,6 +66,10 @@ add_test(NAME unit_backend_registry COMMAND test_backend_registry)
 add_executable(test_render_ops tests/unit/test_render_ops.c)
 target_link_libraries(test_render_ops PRIVATE vn_core)
 add_test(NAME unit_render_ops COMMAND test_render_ops)
+
+add_executable(test_dirty_tiles tests/unit/test_dirty_tiles.c)
+target_link_libraries(test_dirty_tiles PRIVATE vn_core)
+add_test(NAME unit_dirty_tiles COMMAND test_dirty_tiles)
 
 add_executable(test_vnpak tests/unit/test_vnpak.c)
 target_link_libraries(test_vnpak PRIVATE vn_core)
@@ -118,6 +123,7 @@ endif()
 set_tests_properties(
     unit_backend_registry
     unit_render_ops
+    unit_dirty_tiles
     unit_vnpak
     unit_renderer_fallback
     unit_backend_consistency

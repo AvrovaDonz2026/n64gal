@@ -12,6 +12,7 @@
 
 #include "vn_renderer.h"
 #include "vn_frontend.h"
+#include "../frontend/dirty_tiles.h"
 #include "vn_pack.h"
 #include "vn_vm.h"
 #include "vn_runtime.h"
@@ -95,6 +96,15 @@ struct VNRuntimeSession {
     vn_u32 op_cache_stamp;
     vn_u32 op_cache_hits;
     vn_u32 op_cache_misses;
+    VNDirtyPlannerState dirty_planner;
+    vn_u32* dirty_bits;
+    vn_u32 dirty_tile_count;
+    vn_u32 dirty_rect_count;
+    vn_u32 dirty_full_redraw;
+    vn_u32 dirty_tile_frames;
+    vn_u32 dirty_tile_total;
+    vn_u32 dirty_rect_total;
+    vn_u32 dirty_full_redraws;
     vn_u32 frames_executed;
     vn_u32 last_op_count;
     vn_u32 last_choice_serial;
@@ -184,6 +194,13 @@ static void runtime_result_reset(void) {
     g_last_run_result.frame_reuse_misses = 0u;
     g_last_run_result.op_cache_hits = 0u;
     g_last_run_result.op_cache_misses = 0u;
+    g_last_run_result.dirty_tile_count = 0u;
+    g_last_run_result.dirty_rect_count = 0u;
+    g_last_run_result.dirty_full_redraw = 0u;
+    g_last_run_result.dirty_tile_frames = 0u;
+    g_last_run_result.dirty_tile_total = 0u;
+    g_last_run_result.dirty_rect_total = 0u;
+    g_last_run_result.dirty_full_redraws = 0u;
 }
 
 static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
@@ -191,7 +208,7 @@ static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
 }
 
 static vn_u32 runtime_supported_perf_flags(void) {
-    return VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE;
+    return VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE | VN_RUNTIME_PERF_DIRTY_TILE;
 }
 
 static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) {
@@ -203,6 +220,65 @@ static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) 
     } else {
         *perf_flags &= ~flag;
     }
+}
+
+static void runtime_dirty_stats_reset(VNRuntimeSession* session) {
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+    session->dirty_tile_count = 0u;
+    session->dirty_rect_count = 0u;
+    session->dirty_full_redraw = 0u;
+}
+
+static void runtime_dirty_planner_invalidate(VNRuntimeSession* session) {
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+    vn_dirty_planner_invalidate(&session->dirty_planner);
+    runtime_dirty_stats_reset(session);
+}
+
+static void runtime_prepare_dirty_plan(VNRuntimeSession* session,
+                                       const VNRenderOp* ops,
+                                       vn_u32 op_count) {
+    VNDirtyPlan plan;
+    int rc;
+
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+    runtime_dirty_stats_reset(session);
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) == VN_FALSE) {
+        return;
+    }
+    rc = vn_dirty_planner_build(&session->dirty_planner, ops, op_count, &plan);
+    if (rc != VN_OK) {
+        runtime_dirty_planner_invalidate(session);
+        return;
+    }
+    session->dirty_tile_count = plan.dirty_tile_count;
+    session->dirty_rect_count = plan.dirty_rect_count;
+    session->dirty_full_redraw = plan.full_redraw;
+    session->dirty_tile_frames += 1u;
+    session->dirty_tile_total += plan.dirty_tile_count;
+    session->dirty_rect_total += plan.dirty_rect_count;
+    if (plan.full_redraw != 0u) {
+        session->dirty_full_redraws += 1u;
+    }
+}
+
+static void runtime_commit_dirty_plan(VNRuntimeSession* session,
+                                      const VNRenderOp* ops,
+                                      vn_u32 op_count) {
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) == VN_FALSE) {
+        runtime_dirty_planner_invalidate(session);
+        return;
+    }
+    vn_dirty_planner_commit(&session->dirty_planner, ops, op_count);
 }
 
 static vn_u32 runtime_render_sprite_phase(const VNRuntimeState* state) {
@@ -1124,6 +1200,13 @@ static void runtime_result_write(const VNRuntimeSession* session, VNRunResult* o
     out_result->frame_reuse_misses = session->frame_reuse_misses;
     out_result->op_cache_hits = session->op_cache_hits;
     out_result->op_cache_misses = session->op_cache_misses;
+    out_result->dirty_tile_count = session->dirty_tile_count;
+    out_result->dirty_rect_count = session->dirty_rect_count;
+    out_result->dirty_full_redraw = session->dirty_full_redraw;
+    out_result->dirty_tile_frames = session->dirty_tile_frames;
+    out_result->dirty_tile_total = session->dirty_tile_total;
+    out_result->dirty_rect_total = session->dirty_rect_total;
+    out_result->dirty_full_redraws = session->dirty_full_redraws;
 }
 
 static void runtime_result_publish(const VNRuntimeSession* session) {
@@ -1139,6 +1222,10 @@ static void runtime_session_cleanup(VNRuntimeSession* session) {
         session->renderer_ready = VN_FALSE;
     }
     keyboard_disable(&session->keyboard);
+    if (session->dirty_bits != (vn_u32*)0) {
+        free(session->dirty_bits);
+        session->dirty_bits = (vn_u32*)0;
+    }
     if (session->vm_ready != VN_FALSE) {
         free(session->script_buf);
         session->script_buf = (vn_u8*)0;
@@ -1233,6 +1320,27 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     session->done = VN_FALSE;
     session->exit_code = 0;
     session->summary_emitted = VN_FALSE;
+    runtime_dirty_stats_reset(session);
+    {
+        vn_u32 dirty_word_count;
+
+        dirty_word_count = vn_dirty_word_count(active_cfg->width, active_cfg->height);
+        if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) != VN_FALSE &&
+            dirty_word_count != 0u) {
+            session->dirty_bits = (vn_u32*)malloc((size_t)dirty_word_count * sizeof(vn_u32));
+            if (session->dirty_bits == (vn_u32*)0) {
+                runtime_perf_flag_set(&session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, VN_FALSE);
+                if (session->emit_logs != 0u) {
+                    (void)fprintf(stderr, "dirty tile planner disabled: scratch alloc failed\n");
+                }
+            }
+        }
+        vn_dirty_planner_init(&session->dirty_planner,
+                              active_cfg->width,
+                              active_cfg->height,
+                              session->dirty_bits,
+                              dirty_word_count);
+    }
     for (i = 0u; i < active_cfg->choice_seq_count; ++i) {
         session->choice_feed.items[i] = active_cfg->choice_seq[i];
     }
@@ -1316,6 +1424,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
     }
 
     if (session->done == VN_FALSE && session->frames_executed < session->frames_limit) {
+        runtime_dirty_stats_reset(session);
         session->state.frame_index = session->frames_executed;
         state_reset_frame_events(&session->state);
 
@@ -1383,10 +1492,12 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                     session->exit_code = 1;
                     session->done = VN_TRUE;
                 } else {
+                    runtime_prepare_dirty_plan(session, session->ops, op_count);
                     renderer_begin_frame();
                     renderer_submit(session->ops, op_count);
                     renderer_end_frame();
                     t_after_raster = runtime_now_ms();
+                    runtime_commit_dirty_plan(session, session->ops, op_count);
                     if (frame_reuse_active != VN_FALSE) {
                         runtime_commit_frame_reuse(session, &frame_reuse_key);
                     }
@@ -1412,7 +1523,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 rss_mb = runtime_rss_mb();
 
                 if (session->trace != 0u && session->emit_logs != 0u) {
-                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u frame_reuse_hit=%u frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u\n",
+                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u frame_reuse_hit=%u frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u\n",
                                  (unsigned int)session->state.frame_index,
                                  frame_ms,
                                  vm_ms,
@@ -1436,7 +1547,14 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)session->frame_reuse_misses,
                                  (unsigned int)(build_cache_hit != VN_FALSE),
                                  (unsigned int)session->op_cache_hits,
-                                 (unsigned int)session->op_cache_misses);
+                                 (unsigned int)session->op_cache_misses,
+                                 (unsigned int)session->dirty_tile_count,
+                                 (unsigned int)session->dirty_rect_count,
+                                 (unsigned int)session->dirty_full_redraw,
+                                 (unsigned int)session->dirty_tile_frames,
+                                 (unsigned int)session->dirty_tile_total,
+                                 (unsigned int)session->dirty_rect_total,
+                                 (unsigned int)session->dirty_full_redraws);
                 }
 
                 if (session->state.vm_error != 0u) {
@@ -1458,7 +1576,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         session->summary_emitted == VN_FALSE &&
         session->exit_code == 0 &&
         session->emit_logs != 0u) {
-        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hits=%u op_cache_misses=%u\n",
+        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hits=%u op_cache_misses=%u dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u\n",
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
                      (unsigned int)session->renderer_cfg.height,
@@ -1483,7 +1601,14 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      (unsigned int)session->frame_reuse_hits,
                      (unsigned int)session->frame_reuse_misses,
                      (unsigned int)session->op_cache_hits,
-                     (unsigned int)session->op_cache_misses);
+                     (unsigned int)session->op_cache_misses,
+                     (unsigned int)session->dirty_tile_count,
+                     (unsigned int)session->dirty_rect_count,
+                     (unsigned int)session->dirty_full_redraw,
+                     (unsigned int)session->dirty_tile_frames,
+                     (unsigned int)session->dirty_tile_total,
+                     (unsigned int)session->dirty_rect_total,
+                     (unsigned int)session->dirty_full_redraws);
         session->summary_emitted = VN_TRUE;
     }
 
@@ -1705,6 +1830,27 @@ int vn_runtime_run_cli(int argc, char** argv) {
                 return 2;
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
+        } else if (strcmp(arg, "--perf-dirty-tile") == 0) {
+            int enabled;
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --perf-dirty-tile\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_toggle_value(argv[i], &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-dirty-tile: %s\n", argv[i]);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
+        } else if (strncmp(arg, "--perf-dirty-tile=", 18) == 0) {
+            int enabled;
+            rc = parse_toggle_value(arg + 18, &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-dirty-tile: %s\n", arg + 18);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
         } else if (strcmp(arg, "--perf-frame-reuse") == 0) {
             int enabled;
             if ((i + 1) >= argc) {

@@ -19,13 +19,13 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
    - Golden 基线收口：`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。
-   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；`Dirty-Tile` 的设计/API 草案已冻结到 `docs/api/dirty-tile-draft.md`，当前规划为“frame reuse miss -> 当前帧最终 ops -> dirty plan -> renderer dirty submit”；动态分辨率仍排在其后。
+   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；`Dirty-Tile` 的第一阶段已落地：`VN_RUNTIME_PERF_DIRTY_TILE`、`VNRunResult` 统计字段、CLI 开关与内部 dirty planner 已接入 runtime/preview；当前 planner 只产出 dirty plan/统计，渲染提交仍保持全帧路径，下一步再接 `renderer dirty submit` 与后端 clip 提交。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，arm64 Linux/Windows CI 已通过；下一步转向补算子、golden 阈值与性能门限。
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案与当前第一阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。
 
 ## 目标平台矩阵
 
@@ -131,6 +131,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/platform.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
+  src/frontend/dirty_tiles.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
   src/backend/neon/neon_backend.c \
@@ -152,6 +153,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/platform.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
+  src/frontend/dirty_tiles.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
   src/backend/neon/neon_backend.c \
@@ -312,7 +314,7 @@ baseline/candidate 对照：
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 6. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 已可通过 `--perf-dirty-tile=<on|off>` 观察 dirty plan 统计，但当前默认仍为 `off`，且暂未接入 partial submit。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 

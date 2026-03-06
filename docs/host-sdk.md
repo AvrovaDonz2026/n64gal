@@ -169,6 +169,8 @@
 12. `frame_reuse_misses`
 13. `op_cache_hits`
 14. `op_cache_misses`
+15. `dirty_tile_count`, `dirty_rect_count`, `dirty_full_redraw`
+16. `dirty_tile_frames`, `dirty_tile_total`, `dirty_rect_total`, `dirty_full_redraws`
 
 这些字段足以支撑：
 

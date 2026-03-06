@@ -6,6 +6,7 @@
 #define VN_RUNTIME_MAX_CHOICE_SEQ 64u
 #define VN_RUNTIME_PERF_OP_CACHE    (1u << 0)
 #define VN_RUNTIME_PERF_FRAME_REUSE (1u << 1)
+#define VN_RUNTIME_PERF_DIRTY_TILE  (1u << 2)
 #define VN_RUNTIME_PERF_DEFAULT_FLAGS (VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE)
 
 typedef struct {
@@ -57,6 +58,13 @@ typedef struct {
     vn_u32 frame_reuse_misses;
     vn_u32 op_cache_hits;
     vn_u32 op_cache_misses;
+    vn_u32 dirty_tile_count;
+    vn_u32 dirty_rect_count;
+    vn_u32 dirty_full_redraw;
+    vn_u32 dirty_tile_frames;
+    vn_u32 dirty_tile_total;
+    vn_u32 dirty_rect_total;
+    vn_u32 dirty_full_redraws;
 } VNRunResult;
 
 typedef struct VNRuntimeSession VNRuntimeSession;

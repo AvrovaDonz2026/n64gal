@@ -41,6 +41,7 @@ int main(void) {
     VNRunResult res;
     VNRunResult reuse_res;
     VNRunResult cache_res;
+    VNRunResult dirty_res;
     int rc;
 
     vn_run_config_init(&cfg);
@@ -79,6 +80,10 @@ int main(void) {
         (void)fprintf(stderr, "expected default frame reuse perf flag\n");
         return 1;
     }
+    if ((res.perf_flags_effective & VN_RUNTIME_PERF_DIRTY_TILE) != 0u) {
+        (void)fprintf(stderr, "dirty tile perf flag should be off by default\n");
+        return 1;
+    }
 
     if (run_perf_scene("S0", 64u, 1u, VN_RUNTIME_PERF_FRAME_REUSE, &reuse_res) != 0) {
         return 1;
@@ -91,11 +96,14 @@ int main(void) {
         (void)fprintf(stderr, "expected frame reuse misses, got 0\n");
         return 1;
     }
-    if (reuse_res.op_cache_hits != 0u || reuse_res.op_cache_misses != 0u) {
+    if (reuse_res.op_cache_hits != 0u || reuse_res.op_cache_misses != 0u ||
+        reuse_res.dirty_tile_frames != 0u || reuse_res.dirty_tile_total != 0u) {
         (void)fprintf(stderr,
-                      "expected zero op cache stats for frame reuse only hits=%u misses=%u\n",
+                      "expected isolated frame reuse stats cache=%u/%u dirty=%u/%u\n",
                       (unsigned int)reuse_res.op_cache_hits,
-                      (unsigned int)reuse_res.op_cache_misses);
+                      (unsigned int)reuse_res.op_cache_misses,
+                      (unsigned int)reuse_res.dirty_tile_frames,
+                      (unsigned int)reuse_res.dirty_tile_total);
         return 1;
     }
 
@@ -110,11 +118,47 @@ int main(void) {
         (void)fprintf(stderr, "expected op cache misses, got 0\n");
         return 1;
     }
-    if (cache_res.frame_reuse_hits != 0u || cache_res.frame_reuse_misses != 0u) {
+    if (cache_res.frame_reuse_hits != 0u || cache_res.frame_reuse_misses != 0u ||
+        cache_res.dirty_tile_frames != 0u || cache_res.dirty_tile_total != 0u) {
         (void)fprintf(stderr,
-                      "expected zero frame reuse stats for op cache only hits=%u misses=%u\n",
+                      "expected isolated op cache stats reuse=%u/%u dirty=%u/%u\n",
                       (unsigned int)cache_res.frame_reuse_hits,
-                      (unsigned int)cache_res.frame_reuse_misses);
+                      (unsigned int)cache_res.frame_reuse_misses,
+                      (unsigned int)cache_res.dirty_tile_frames,
+                      (unsigned int)cache_res.dirty_tile_total);
+        return 1;
+    }
+
+    if (run_perf_scene("S0", 64u, 1u, VN_RUNTIME_PERF_DIRTY_TILE, &dirty_res) != 0) {
+        return 1;
+    }
+    if ((dirty_res.perf_flags_effective & VN_RUNTIME_PERF_DIRTY_TILE) == 0u) {
+        (void)fprintf(stderr, "expected dirty tile perf flag\n");
+        return 1;
+    }
+    if (dirty_res.dirty_tile_frames == 0u) {
+        (void)fprintf(stderr, "expected dirty tile frames, got 0\n");
+        return 1;
+    }
+    if (dirty_res.dirty_tile_total == 0u || dirty_res.dirty_rect_total == 0u) {
+        (void)fprintf(stderr,
+                      "expected dirty tile totals, got tiles=%u rects=%u\n",
+                      (unsigned int)dirty_res.dirty_tile_total,
+                      (unsigned int)dirty_res.dirty_rect_total);
+        return 1;
+    }
+    if (dirty_res.dirty_full_redraws == 0u) {
+        (void)fprintf(stderr, "expected at least one dirty full redraw\n");
+        return 1;
+    }
+    if (dirty_res.frame_reuse_hits != 0u || dirty_res.frame_reuse_misses != 0u ||
+        dirty_res.op_cache_hits != 0u || dirty_res.op_cache_misses != 0u) {
+        (void)fprintf(stderr,
+                      "expected isolated dirty tile stats reuse=%u/%u cache=%u/%u\n",
+                      (unsigned int)dirty_res.frame_reuse_hits,
+                      (unsigned int)dirty_res.frame_reuse_misses,
+                      (unsigned int)dirty_res.op_cache_hits,
+                      (unsigned int)dirty_res.op_cache_misses);
         return 1;
     }
 
@@ -128,21 +172,30 @@ int main(void) {
         return 1;
     }
     if (res.frame_reuse_hits != 0u || res.frame_reuse_misses != 0u ||
-        res.op_cache_hits != 0u || res.op_cache_misses != 0u) {
+        res.op_cache_hits != 0u || res.op_cache_misses != 0u ||
+        res.dirty_tile_frames != 0u || res.dirty_tile_total != 0u ||
+        res.dirty_rect_total != 0u || res.dirty_full_redraws != 0u) {
         (void)fprintf(stderr,
-                      "expected zero perf stats when disabled reuse=%u/%u cache=%u/%u\n",
+                      "expected zero perf stats when disabled reuse=%u/%u cache=%u/%u dirty=%u/%u/%u/%u\n",
                       (unsigned int)res.frame_reuse_hits,
                       (unsigned int)res.frame_reuse_misses,
                       (unsigned int)res.op_cache_hits,
-                      (unsigned int)res.op_cache_misses);
+                      (unsigned int)res.op_cache_misses,
+                      (unsigned int)res.dirty_tile_frames,
+                      (unsigned int)res.dirty_tile_total,
+                      (unsigned int)res.dirty_rect_total,
+                      (unsigned int)res.dirty_full_redraws);
         return 1;
     }
 
-    (void)printf("test_runtime_api ok backend=%s reuse_hits=%u reuse_misses=%u cache_hits=%u cache_misses=%u\n",
+    (void)printf("test_runtime_api ok backend=%s reuse_hits=%u reuse_misses=%u cache_hits=%u cache_misses=%u dirty_frames=%u dirty_tiles=%u dirty_rects=%u\n",
                  reuse_res.backend_name,
                  (unsigned int)reuse_res.frame_reuse_hits,
                  (unsigned int)reuse_res.frame_reuse_misses,
                  (unsigned int)cache_res.op_cache_hits,
-                 (unsigned int)cache_res.op_cache_misses);
+                 (unsigned int)cache_res.op_cache_misses,
+                 (unsigned int)dirty_res.dirty_tile_frames,
+                 (unsigned int)dirty_res.dirty_tile_total,
+                 (unsigned int)dirty_res.dirty_rect_total);
     return 0;
 }

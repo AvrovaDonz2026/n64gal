@@ -249,7 +249,14 @@ response=tests/integration/preview_protocol_response.tmp.json
 16. `frame_reuse_misses`
 17. `op_cache_hits`
 18. `op_cache_misses`
-19. `backend_name`
+19. `dirty_tile_count`
+20. `dirty_rect_count`
+21. `dirty_full_redraw`
+22. `dirty_tile_frames`
+23. `dirty_tile_total`
+24. `dirty_rect_total`
+25. `dirty_full_redraws`
+26. `backend_name`
 
 ### `events`
 

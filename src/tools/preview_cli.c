@@ -1355,6 +1355,13 @@ static void preview_json_write_result(FILE* fp, const VNRunResult* result) {
     (void)fprintf(fp, "\"frame_reuse_misses\":%u,", (unsigned int)result->frame_reuse_misses);
     (void)fprintf(fp, "\"op_cache_hits\":%u,", (unsigned int)result->op_cache_hits);
     (void)fprintf(fp, "\"op_cache_misses\":%u,", (unsigned int)result->op_cache_misses);
+    (void)fprintf(fp, "\"dirty_tile_count\":%u,", (unsigned int)result->dirty_tile_count);
+    (void)fprintf(fp, "\"dirty_rect_count\":%u,", (unsigned int)result->dirty_rect_count);
+    (void)fprintf(fp, "\"dirty_full_redraw\":%u,", (unsigned int)result->dirty_full_redraw);
+    (void)fprintf(fp, "\"dirty_tile_frames\":%u,", (unsigned int)result->dirty_tile_frames);
+    (void)fprintf(fp, "\"dirty_tile_total\":%u,", (unsigned int)result->dirty_tile_total);
+    (void)fprintf(fp, "\"dirty_rect_total\":%u,", (unsigned int)result->dirty_rect_total);
+    (void)fprintf(fp, "\"dirty_full_redraws\":%u,", (unsigned int)result->dirty_full_redraws);
     (void)fprintf(fp, "\"backend_name\":");
     preview_json_write_string(fp, result->backend_name);
     (void)fprintf(fp, "}");

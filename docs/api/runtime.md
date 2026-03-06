@@ -59,6 +59,8 @@
    - 当前实现会折叠 `frame_index` 派生的前端占位动画，因此命中后会冻结这类占位动画，优先换取稳定帧的 CPU 收益
    - 当前已公开：`VN_RUNTIME_PERF_OP_CACHE`（Frontend `VNRenderOp[]` LRU 命令缓存）
    - 命中时跳过命令构建，但仍会按当前帧回写 `SPRITE/FADE` 动态字段，避免命令缓存路径因占位动画长期 0 hit
+   - 当前已公开：`VN_RUNTIME_PERF_DIRTY_TILE`（Dirty-Tile 规划/统计）
+   - 当前会在 `frame reuse miss` 且拿到最终 `VNRenderOp[]` 后生成 dirty plan，回传 tile/rect/full-redraw 统计；现阶段仍保持 `renderer_submit` 整帧提交，默认 `off`
 
 ### `VNInputEvent`
 
@@ -99,6 +101,8 @@
 9. `perf_flags_effective`
 10. `frame_reuse_hits`, `frame_reuse_misses`
 11. `op_cache_hits`, `op_cache_misses`
+12. `dirty_tile_count`, `dirty_rect_count`, `dirty_full_redraw`
+13. `dirty_tile_frames`, `dirty_tile_total`, `dirty_rect_total`, `dirty_full_redraws`
 
 ## 4. API 函数
 
@@ -136,6 +140,7 @@
 4. 当运行结束且 `vm_error != 0` 时返回非 0。
 5. 若启用 `VN_RUNTIME_PERF_FRAME_REUSE`，则会在状态签名稳定时直接复用上一帧 framebuffer，并在 `VNRunResult` 中回传 `frame_reuse_hits/misses`。
 6. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
+7. 若启用 `VN_RUNTIME_PERF_DIRTY_TILE`，则会在当前帧最终 `VNRenderOp[]` 与上一帧已提交 op 之间构建 dirty plan，并在 `VNRunResult` 中回传当前帧与累计统计；当前阶段该路径只做规划/观测，不改变 `renderer_submit` 的整帧提交行为。
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 
@@ -185,6 +190,9 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
 3. `--perf-op-cache=<on|off>`
    - 切换 `VN_RUNTIME_PERF_OP_CACHE`
    - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
+4. `--perf-dirty-tile=<on|off>`
+   - 切换 `VN_RUNTIME_PERF_DIRTY_TILE`
+   - 默认 `off`（当前仅输出 dirty plan/统计，不改 full-frame submit）
 
 ## 5. 最小示例（推荐集成方式）
 
@@ -281,6 +289,7 @@ int run_scene_once(void) {
 7. `rss_mb`
 8. `frame_reuse_hit`, `frame_reuse_hits`, `frame_reuse_misses`（附加诊断字段）
 9. `op_cache_hit`, `op_cache_hits`, `op_cache_misses`（附加诊断字段）
+10. `dirty_tiles`, `dirty_rects`, `dirty_full_redraw`, `dirty_tile_frames`, `dirty_tile_total`, `dirty_rect_total`, `dirty_full_redraws`（Dirty-Tile 规划统计字段）
 
 `tests/perf/run_perf.sh` 基于这些字段生成 `perf_<scene>.csv` 与 `perf_summary.csv`。
 

@@ -83,6 +83,12 @@ int main(void) {
         (void)remove(response_path);
         return 1;
     }
+    if (!file_contains(response_path, "\"dirty_tile_total\":")) {
+        (void)fprintf(stderr, "missing dirty tile stats\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
 
     argv_cli[0] = (char*)"vn_previewd";
     argv_cli[1] = (char*)"--scene=S1";

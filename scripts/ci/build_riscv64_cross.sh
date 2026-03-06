@@ -15,6 +15,7 @@ COMMON_SRC=(
   src/core/platform.c
   src/core/runtime_cli.c
   src/frontend/render_ops.c
+  src/frontend/dirty_tiles.c
   src/backend/common/pixel_pipeline.c
   src/backend/avx2/avx2_backend.c
   src/backend/neon/neon_backend.c
@@ -36,6 +37,7 @@ RVV_FLAGS=(
 TESTS=(
   test_backend_registry
   test_render_ops
+  test_dirty_tiles
   test_vnpak
   test_renderer_fallback
   test_backend_consistency

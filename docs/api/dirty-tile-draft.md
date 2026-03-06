@@ -1,6 +1,6 @@
 # Dirty-Tile 增量渲染设计与 API 草案
 
-- 状态：`draft`（未实现，供 `ISSUE-008` 开工使用）
+- 状态：`draft + slice-1 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner 已落地；dirty submit 仍未接入）
 - 目标：把白皮书里的 `Dirty-Tile` 目标，落成可直接拆 PR 的运行时 / 前端 / 后端接口方案
 - 约束：保持 `C89`；继续坚持“前后端一份 API，跨架构只重写后端”
 
@@ -51,7 +51,7 @@
 1. `runtime_prepare_frame_reuse()` 命中：直接复用 framebuffer，跳过 `Dirty-Tile`
 2. `runtime_build_render_ops_cached()` 返回后：此时已经拿到当前帧 `VNRenderOp[]`
 3. `runtime_render_patch_cached_ops()` 已完成：此时 `session->ops` 才是可用于脏区分析的最终 IR
-4. 在调用 `renderer_submit()` 之前插入 `runtime_prepare_dirty_tiles()`
+4. 在调用 `renderer_submit()` 之前插入 `runtime_prepare_dirty_plan()`
 5. 根据计划结果分流到：
    - `renderer_submit()`（整帧路径）
    - `renderer_submit_dirty()`（脏区路径）
