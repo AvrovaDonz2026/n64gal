@@ -97,3 +97,10 @@ Render IR 单条指令。
 3. `test_runtime_golden` 对 `scalar` 继续要求 CRC 严格命中；对支持的 SIMD 后端则按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `test_runtime_golden_<scene>_<backend>_summary.txt`，便于直接定位首个差异点与阈值命中情况。若设置 `VN_GOLDEN_ARTIFACT_DIR`，这些产物会统一写入该目录；CI suite 脚本已用这条约定收集 artifact。
 4. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
 5. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行，以及 `test_runtime_golden` 的 golden 容差对照 / `scalar vs rvv` CRC 一致性。
+
+
+## 8. 规划中的 Dirty-Tile 扩展
+
+1. `Dirty-Tile` 增量渲染的共享 backend 契约目前仍在草案阶段，详见 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
+2. 该草案的目标是新增统一的 `submit_ops_dirty` 路径，而不是为不同 ISA 写多套前端差分逻辑。
+3. 在草案真正落地前，当前已发布的 `vn_backend.h` 仍只要求整帧 `submit_ops` 语义。

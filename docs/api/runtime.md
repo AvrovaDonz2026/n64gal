@@ -14,6 +14,13 @@
 4. CLI 仅作为包装层，核心行为由运行时会话层统一承载。
 5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
 
+
+## 2.1 规划中的性能扩展
+
+1. 当前 runtime 已公开 `frame reuse + op cache` 两条 perf 开关。
+2. `Dirty-Tile` 增量渲染的运行时/API 草案已单独整理到 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
+3. 在草案真正落地前，本文档仍只描述当前已实现的 `vn_runtime.h` 语义，不把未实现字段写成既成事实。
+
 ## 3. 结构体
 
 ### `VNRunConfig`

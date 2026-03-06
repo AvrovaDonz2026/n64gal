@@ -776,7 +776,9 @@ renderer_cache_frame();
 
 1. 使用 `8x8` tile 脏标记位图
 2. 仅对脏 tile 执行命令回放与光栅
-3. 背景全切或分辨率变化时强制全屏重绘
+3. 当前工程实现必须挂在 `frame reuse miss -> op cache/patched ops` 之后，不能只看粗粒度状态签名
+4. 背景全切、`FADE` 生效或分辨率变化时强制全屏重绘
+5. 当前工程化草案见 [`docs/api/dirty-tile-draft.md`](./docs/api/dirty-tile-draft.md)
 
 要求：
 

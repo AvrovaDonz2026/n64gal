@@ -9,7 +9,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 
 当前代码以“库优先”方式组织：核心能力通过 `vn_runtime.h` 暴露，预览协议入口通过 `vn_preview.h` 暴露，`vn_player` 仅作为可选 CLI 包装。
 
-## 项目状态（2026-03-06）
+## 项目状态（2026-03-07）
 
 1. 已完成：
    - `scalar` 后端最小闭环（默认 `600x800`，场景 `S0-S3`）。
@@ -19,13 +19,13 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
    - Golden 基线收口：`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。
-   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；下一步转向 `Dirty-Tile` 与动态分辨率。
+   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；`Dirty-Tile` 的设计/API 草案已冻结到 `docs/api/dirty-tile-draft.md`，当前规划为“frame reuse miss -> 当前帧最终 ops -> dirty plan -> renderer dirty submit”；动态分辨率仍排在其后。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，arm64 Linux/Windows CI 已通过；下一步转向补算子、golden 阈值与性能门限。
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。
 
 ## 目标平台矩阵
 
@@ -352,6 +352,7 @@ baseline/candidate 对照：
 4. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
 5. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
 6. API 索引：[`docs/api/README.md`](./docs/api/README.md)
+7. Dirty-Tile 设计/API 草案（draft）：[`docs/api/dirty-tile-draft.md`](./docs/api/dirty-tile-draft.md)
 
 ## 开发约束
 

@@ -17,15 +17,19 @@
    - 资源包 API（`vn_pack.h`）
    - `vnpak` v1/v2 格式与兼容策略
    - CRC32 与一致性校验行为
-4. `../preview-protocol.md`
+4. `dirty-tile-draft.md`
+   - `ISSUE-008` Dirty-Tile 增量渲染设计稿
+   - 最小 API 变更草案（runtime / renderer / backend）
+   - 实施顺序、回退条件与验证要求
+5. `../preview-protocol.md`
    - 预览协议 `v1`
    - `vn_previewd` / `vn_preview_run_cli`
    - editor / CI / automation 统一入口
-5. `../host-sdk.md`
+6. `../host-sdk.md`
    - 宿主 SDK 接入指南
    - Session API 调用序列、输入/文件/日志桥接
    - 版本协商矩阵与嵌入边界
-6. `../platform-matrix.md`
+7. `../platform-matrix.md`
    - Linux/Windows/riscv64 平台矩阵
    - 内部平台层当前收口范围
    - 构建、测试与验证路线
