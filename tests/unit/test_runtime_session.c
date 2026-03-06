@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "vn_error.h"
 #include "vn_runtime.h"
@@ -11,6 +12,7 @@ int main(void) {
     vn_u32 guard;
 
     session = (VNRuntimeSession*)0;
+    memset((void*)&res, 0, sizeof(res));
     vn_run_config_init(&cfg);
     cfg.scene_name = "S2";
     cfg.frames = 8u;
