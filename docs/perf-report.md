@@ -39,6 +39,33 @@
 2. `perf_summary.csv`
 3. `perf_report_template.md`
 
+## Runtime Perf Flags
+
+当前 perf 脚本默认沿用 runtime 主线默认开关，也就是同时开启：
+
+1. `VN_RUNTIME_PERF_FRAME_REUSE`
+2. `VN_RUNTIME_PERF_OP_CACHE`
+
+这意味着：
+
+1. `run_perf.sh` / `run_perf_compare.sh` / `run_perf_compare_revs.sh` 测到的是“当前 shipped 路径”的整机收益，而不是纯 backend 微基准。
+2. 在稳定等待帧里，`frame_reuse_hit=1` 时会直接复用上一帧 framebuffer，因此 `raster_ms` 可能接近 `0.000`。
+3. `op_cache_hit=1` 只代表跳过了 `VNRenderOp[]` 构建；该路径仍会执行 `renderer_submit` 与 raster。
+
+若需要拆开归因，当前建议直接运行 `vn_player --trace`，而不是修改 perf 脚本输入：
+
+```bash
+./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace
+./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off
+./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
+```
+
+推荐读法：
+
+1. 默认开启两层优化，先看整机 `p95_frame_ms` 是否下降。
+2. 关闭 `frame reuse` 后，再看 `raster_ms` 是否回升，用于估算静态帧短路的收益。
+3. 继续关闭 `op cache` 后，再看 `build_ms` 是否回升，用于估算命令缓存的收益。
+
 ## Baseline vs Candidate Backend
 
 ```bash
@@ -161,6 +188,8 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 1. 优先看 `p95_frame_ms`，其次看 `avg_frame_ms`。
 2. `gain > 0` 代表 candidate 更快。
 3. `rss_delta_mb < 0` 代表 candidate 峰值 RSS 更低。
-4. 所有性能结论都必须附带：commit、设备、OS、toolchain、命令行参数。
-5. `qemu-user` perf 只用于回归趋势判断；发版门槛必须看目标架构原生机器结果。
-6. CI 门限 profile 先按当前 runner 的 smoke 输入固化，后续随着优化落地再逐步收紧，不把“还未优化完”的目标值直接硬塞进日常短窗口 gate。
+4. 若 trace 中 `frame_reuse_hit=1`，则该帧已经跳过 build/raster；这属于整机收益，不应与“纯 backend 像素吞吐”混为一谈。
+5. 若 trace 中 `op_cache_hit=1`，则该帧只跳过了命令构建；仍需结合 `raster_ms` 判断 backend 热点是否变化。
+6. 所有性能结论都必须附带：commit、设备、OS、toolchain、命令行参数。
+7. `qemu-user` perf 只用于回归趋势判断；发版门槛必须看目标架构原生机器结果。
+8. CI 门限 profile 先按当前 runner 的 smoke 输入固化，后续随着优化落地再逐步收紧，不把“还未优化完”的目标值直接硬塞进日常短窗口 gate。

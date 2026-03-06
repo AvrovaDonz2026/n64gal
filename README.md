@@ -19,7 +19,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
    - Golden 基线收口：`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。
-   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段。
+   - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；下一步转向 `Dirty-Tile` 与动态分辨率。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，arm64 Linux/Windows CI 已通过；下一步转向补算子、golden 阈值与性能门限。
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
@@ -312,7 +312,7 @@ baseline/candidate 对照：
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 6. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 
