@@ -83,6 +83,10 @@ add_executable(test_runtime_session tests/unit/test_runtime_session.c)
 target_link_libraries(test_runtime_session PRIVATE vn_core)
 add_test(NAME unit_runtime_session COMMAND test_runtime_session)
 
+add_executable(test_runtime_input tests/unit/test_runtime_input.c)
+target_link_libraries(test_runtime_input PRIVATE vn_core)
+add_test(NAME unit_runtime_input COMMAND test_runtime_input)
+
 add_executable(test_preview_protocol tests/integration/test_preview_protocol.c)
 target_link_libraries(test_preview_protocol PRIVATE vn_preview)
 add_test(NAME integration_preview_protocol COMMAND test_preview_protocol)
@@ -105,6 +109,7 @@ set_tests_properties(
     unit_vm
     unit_runtime_api
     unit_runtime_session
+    unit_runtime_input
     integration_preview_protocol
     example_host_embed
     PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

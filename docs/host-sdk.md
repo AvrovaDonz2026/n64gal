@@ -28,8 +28,9 @@
 2. 覆盖宿主所需字段：`pack_path/scene_name/backend_name/width/height/frames/dt_ms/...`
 3. `vn_runtime_session_create(&cfg, &session)`
 4. 宿主主循环内反复调用 `vn_runtime_session_step(session, &result)`
-5. 通过 `vn_runtime_session_is_done(session)` 判断是否结束
-6. 退出前调用 `vn_runtime_session_destroy(session)`
+5. 在需要时调用 `vn_runtime_session_set_choice` 或 `vn_runtime_session_inject_input`
+6. 通过 `vn_runtime_session_is_done(session)` 判断是否结束
+7. 退出前调用 `vn_runtime_session_destroy(session)`
 
 最小模式适合：
 
@@ -57,6 +58,7 @@
 2. 不承诺真实时间睡眠
 3. 输出最新 `VNRunResult`
 4. 出错返回负值错误码
+5. 在本次调用前通过 `vn_runtime_session_inject_input` 写入的事件，会在本帧消费
 
 ### `vn_runtime_session_is_done`
 
@@ -65,15 +67,30 @@
 1. 帧数用尽
 2. VM 结束
 3. VM 错误
-4. 键盘退出
+4. quit 输入已消费
 5. 空 session 指针
 
 ### `vn_runtime_session_set_choice`
 
 用途：
 
-1. 覆盖下一次 `CHOICE` 默认选择
-2. 适合把外部 UI 的选择结果写回运行时
+1. 覆盖后续 `CHOICE` 的默认选择
+2. 适合把外部 UI 的“当前默认选项”写回运行时
+
+### `vn_runtime_session_inject_input`
+
+用途：
+
+1. 注入下一帧消费的离散输入事件
+2. 适合 editor / preview / 自动化脚本的单步驱动
+3. 适合宿主把 trace toggle / quit / key / choice 等控制信号传入 runtime
+
+当前公开的事件种类：
+
+1. `VN_INPUT_KIND_CHOICE`
+2. `VN_INPUT_KIND_KEY`
+3. `VN_INPUT_KIND_TRACE_TOGGLE`
+4. `VN_INPUT_KIND_QUIT`
 
 ### `vn_runtime_session_destroy`
 
@@ -86,16 +103,28 @@
 
 ## Input Bridge
 
-宿主输入建议统一映射到两类：
+宿主输入建议统一映射到两层：
 
-1. 离散选择输入
+1. 持续默认输入
    - 使用 `vn_runtime_session_set_choice`
    - 或在创建前写入 `choice_seq[]`
-2. 运行控制输入
-   - 继续/暂停/单步/退出/trace 开关
-   - 这些应由宿主自身管理，再决定是否调用 step
+2. 单次事件输入
+   - 使用 `vn_runtime_session_inject_input`
+   - 当前已公开：`CHOICE`、`KEY`、`TRACE_TOGGLE`、`QUIT`
 
-当前运行时内置键盘模式主要用于调试，不应被视为宿主 API 的一部分。
+建议映射：
+
+1. UI 分支选择
+   - 立即生效：`VN_INPUT_KIND_CHOICE`
+   - 作为默认值：`vn_runtime_session_set_choice`
+2. 运行控制输入
+   - trace 开关：`VN_INPUT_KIND_TRACE_TOGGLE`
+   - 退出：`VN_INPUT_KIND_QUIT`
+3. 调试键盘等价输入
+   - `VN_INPUT_KIND_KEY`
+   - 当前与 CLI 键盘模式对齐：`1-9`、`t/T`、`q/Q`
+
+当前运行时内置键盘模式主要用于调试，不应被视为宿主 API 的唯一输入来源；宿主与 preview 工具应优先绑定公开的 Session 输入注入接口。
 
 ## File Bridge
 

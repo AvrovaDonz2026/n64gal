@@ -23,7 +23,7 @@ int main(void) {
     const char* response_path;
     FILE* fp;
     char* argv_req[5];
-    char* argv_cli[9];
+    char* argv_cli[10];
     int rc;
 
     request_path = "tests/integration/preview_protocol_request.tmp";
@@ -90,11 +90,12 @@ int main(void) {
     argv_cli[3] = (char*)"--trace";
     argv_cli[4] = (char*)"--command=step_frame:2";
     argv_cli[5] = (char*)"--command=reload_scene";
-    argv_cli[6] = (char*)"--command=step_frame:1";
-    argv_cli[7] = (char*)"--response";
-    argv_cli[8] = (char*)response_path;
+    argv_cli[6] = (char*)"--command=inject_input:key:q";
+    argv_cli[7] = (char*)"--command=step_frame:1";
+    argv_cli[8] = (char*)"--response";
+    argv_cli[9] = (char*)response_path;
 
-    rc = vn_preview_run_cli(9, argv_cli);
+    rc = vn_preview_run_cli(10, argv_cli);
     if (rc != 0) {
         (void)fprintf(stderr, "cli mode failed rc=%d\n", rc);
         (void)remove(request_path);
@@ -109,6 +110,18 @@ int main(void) {
     }
     if (!file_contains(response_path, "\"reload_count\":1")) {
         (void)fprintf(stderr, "missing reload count\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "inject_input.key")) {
+        (void)fprintf(stderr, "missing injected key event\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"session_done\":1")) {
+        (void)fprintf(stderr, "missing done state\n");
         (void)remove(request_path);
         (void)remove(response_path);
         return 1;

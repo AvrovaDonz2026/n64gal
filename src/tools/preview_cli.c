@@ -25,6 +25,9 @@
 #define VN_PREVIEW_CMD_RELOAD_SCENE 3
 #define VN_PREVIEW_CMD_SET_CHOICE 4
 #define VN_PREVIEW_CMD_INJECT_CHOICE 5
+#define VN_PREVIEW_CMD_INJECT_KEY 6
+#define VN_PREVIEW_CMD_INJECT_TRACE_TOGGLE 7
+#define VN_PREVIEW_CMD_INJECT_QUIT 8
 #define VN_PREVIEW_EXIT_HELP 99
 
 typedef struct {
@@ -712,15 +715,74 @@ static int preview_run_request(const VNPreviewRequest* req,
                     return 1;
                 }
             } else if (command.kind == VN_PREVIEW_CMD_INJECT_CHOICE) {
+                VNInputEvent input_event;
+
                 preview_report_add_event(report,
                                          VN_PREVIEW_EVENT_COMMAND,
                                          "inject_input",
                                          command.value,
                                          0.0,
                                          (const VNRunResult*)0);
-                rc = vn_runtime_session_set_choice(session, (vn_u8)(command.value & 0xFFu));
+                input_event.kind = VN_INPUT_KIND_CHOICE;
+                input_event.value0 = command.value;
+                input_event.value1 = 0u;
+                rc = vn_runtime_session_inject_input(session, &input_event);
                 if (rc != VN_OK) {
                     preview_error(report, rc, "preview inject_input failed", 1);
+                    (void)vn_runtime_session_destroy(session);
+                    return 1;
+                }
+            } else if (command.kind == VN_PREVIEW_CMD_INJECT_KEY) {
+                VNInputEvent input_event;
+
+                preview_report_add_event(report,
+                                         VN_PREVIEW_EVENT_COMMAND,
+                                         "inject_input.key",
+                                         command.value,
+                                         0.0,
+                                         (const VNRunResult*)0);
+                input_event.kind = VN_INPUT_KIND_KEY;
+                input_event.value0 = command.value;
+                input_event.value1 = 0u;
+                rc = vn_runtime_session_inject_input(session, &input_event);
+                if (rc != VN_OK) {
+                    preview_error(report, rc, "preview inject_input key failed", 1);
+                    (void)vn_runtime_session_destroy(session);
+                    return 1;
+                }
+            } else if (command.kind == VN_PREVIEW_CMD_INJECT_TRACE_TOGGLE) {
+                VNInputEvent input_event;
+
+                preview_report_add_event(report,
+                                         VN_PREVIEW_EVENT_COMMAND,
+                                         "inject_input.trace_toggle",
+                                         0u,
+                                         0.0,
+                                         (const VNRunResult*)0);
+                input_event.kind = VN_INPUT_KIND_TRACE_TOGGLE;
+                input_event.value0 = 0u;
+                input_event.value1 = 0u;
+                rc = vn_runtime_session_inject_input(session, &input_event);
+                if (rc != VN_OK) {
+                    preview_error(report, rc, "preview inject_input trace_toggle failed", 1);
+                    (void)vn_runtime_session_destroy(session);
+                    return 1;
+                }
+            } else if (command.kind == VN_PREVIEW_CMD_INJECT_QUIT) {
+                VNInputEvent input_event;
+
+                preview_report_add_event(report,
+                                         VN_PREVIEW_EVENT_COMMAND,
+                                         "inject_input.quit",
+                                         0u,
+                                         0.0,
+                                         (const VNRunResult*)0);
+                input_event.kind = VN_INPUT_KIND_QUIT;
+                input_event.value0 = 0u;
+                input_event.value1 = 0u;
+                rc = vn_runtime_session_inject_input(session, &input_event);
+                if (rc != VN_OK) {
+                    preview_error(report, rc, "preview inject_input quit failed", 1);
                     (void)vn_runtime_session_destroy(session);
                     return 1;
                 }
@@ -846,6 +908,7 @@ static void preview_print_usage(void) {
     (void)printf("  --resolution WIDTHxHEIGHT\n");
     (void)printf("  --frames N --dt-ms N --trace --hold-end\n");
     (void)printf("  --command run_to_end|step_frame[:N]|reload_scene|set_choice:N|inject_input:choice:N\n");
+    (void)printf("  --command inject_input:key:C|inject_input:trace_toggle|inject_input:quit\n");
 }
 
 static void preview_str_copy(char* dst, size_t dst_size, const char* src) {
@@ -1036,6 +1099,22 @@ static int preview_parse_command(const char* text,
         }
         out_command->kind = VN_PREVIEW_CMD_INJECT_CHOICE;
         out_command->value = value;
+        return VN_OK;
+    }
+    if (strncmp(text, "inject_input:key:", 17) == 0) {
+        if (text[17] == '\0' || text[18] != '\0') {
+            return VN_E_INVALID_ARG;
+        }
+        out_command->kind = VN_PREVIEW_CMD_INJECT_KEY;
+        out_command->value = (vn_u32)(unsigned char)text[17];
+        return VN_OK;
+    }
+    if (strcmp(text, "inject_input:trace_toggle") == 0) {
+        out_command->kind = VN_PREVIEW_CMD_INJECT_TRACE_TOGGLE;
+        return VN_OK;
+    }
+    if (strcmp(text, "inject_input:quit") == 0) {
+        out_command->kind = VN_PREVIEW_CMD_INJECT_QUIT;
         return VN_OK;
     }
     return VN_E_INVALID_ARG;
@@ -1277,6 +1356,7 @@ static int preview_step_frames(VNRuntimeSession* session,
                                VNPreviewReport* report,
                                vn_u32 trace_enabled) {
     vn_u32 i;
+    vn_u32 prev_frames;
     int rc;
     double t0;
     double t1;
@@ -1291,13 +1371,16 @@ static int preview_step_frames(VNRuntimeSession* session,
             report->session_done = 1u;
             break;
         }
+        prev_frames = result.frames_executed;
         t0 = preview_now_ms();
         rc = vn_runtime_session_step(session, &result);
         t1 = preview_now_ms();
         if (rc != VN_OK) {
             return rc;
         }
-        preview_report_add_frame(report, &result, t1 - t0, trace_enabled);
+        if (result.frames_executed > prev_frames) {
+            preview_report_add_frame(report, &result, t1 - t0, trace_enabled);
+        }
         report->session_done = (vn_u32)vn_runtime_session_is_done(session);
         if (report->session_done != 0u) {
             break;

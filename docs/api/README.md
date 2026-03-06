@@ -6,7 +6,7 @@
 
 1. `runtime.md`
    - 运行时入口 API（`vn_runtime_run` / `vn_runtime_run_cli`）
-   - 会话 API（`vn_runtime_session_create/step/is_done/set_choice/destroy`）
+   - 会话 API（`vn_runtime_session_create/step/is_done/set_choice/inject_input/destroy`）
    - 运行配置与结果结构
    - 调用示例与返回码约定
 2. `backend.md`

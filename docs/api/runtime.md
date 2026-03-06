@@ -12,6 +12,7 @@
 2. 运行时接口保持 C89 兼容。
 3. 提供“一次性运行 + 会话化运行”两套库 API。
 4. CLI 仅作为包装层，核心行为由运行时会话层统一承载。
+5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
 
 ## 3. 结构体
 
@@ -43,6 +44,28 @@
    - 非 0 输出日志，0 时静默运行
 11. `hold_on_end`
    - 非 0 时脚本到达 `END` 后继续维持帧循环直到 `frames` 用尽（主要用于 perf 采样）
+
+### `VNInputEvent`
+
+会话级输入注入结构，供宿主、preview 协议和自动化脚本复用。
+
+字段：
+
+1. `kind`
+2. `value0`
+3. `value1`
+
+当前公开的 `kind`：
+
+1. `VN_INPUT_KIND_CHOICE`
+   - `value0=<choice_index>`
+2. `VN_INPUT_KIND_KEY`
+   - `value0=<ascii>`
+   - 当前支持与 CLI 键盘模式一致的键：`1-9`、`t/T`、`q/Q`
+3. `VN_INPUT_KIND_TRACE_TOGGLE`
+   - 等价于注入一次 trace 切换信号
+4. `VN_INPUT_KIND_QUIT`
+   - 等价于请求结束当前 session
 
 ### `VNRunResult`
 
@@ -85,16 +108,38 @@
 行为要点：
 
 1. 每次调用最多推进 1 帧。
-2. 支持 `choice_seq` 和 `vn_runtime_session_set_choice` 的分支注入。
-3. 当运行结束且 `vm_error != 0` 时返回非 0。
+2. 支持 `choice_seq`、`vn_runtime_session_set_choice` 与 `vn_runtime_session_inject_input` 的输入注入。
+3. `vn_runtime_session_inject_input` 注入的事件会在下一次 `step` 时消费。
+4. 当运行结束且 `vm_error != 0` 时返回非 0。
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 
-查询会话是否结束（帧数到达、脚本结束、错误、或键盘退出）。
+查询会话是否结束（帧数到达、脚本结束、错误、或退出输入被消费）。
 
 ### `int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index)`
 
 设置默认分支选择索引，供后续 `CHOICE` 指令消费。
+
+适合：
+
+1. 宿主 UI 的“当前默认选项”
+2. 测试框架在多帧推进前设置稳定缺省值
+
+### `int vn_runtime_session_inject_input(VNRuntimeSession* session, const VNInputEvent* event)`
+
+向 session 注入一次“下一帧消费”的输入事件。
+
+当前建议用途：
+
+1. 宿主把 UI 选择写入 runtime
+2. editor / preview 协议做脚本化驱动
+3. 测试框架注入 quit / trace toggle / key 等控制信号
+
+返回值：
+
+1. `VN_OK`：注入成功
+2. `VN_E_INVALID_ARG`：空指针或值越界
+3. `VN_E_UNSUPPORTED`：当前 `kind` 或 key 值未实现
 
 ### `int vn_runtime_session_destroy(VNRuntimeSession* session)`
 
@@ -150,6 +195,7 @@ int run_scene_once(void) {
     VNRunConfig cfg;
     VNRunResult res;
     VNRuntimeSession* session;
+    VNInputEvent input;
     int rc;
 
     vn_run_config_init(&cfg);
@@ -161,6 +207,11 @@ int run_scene_once(void) {
     if (rc != 0) {
         return rc;
     }
+
+    input.kind = VN_INPUT_KIND_CHOICE;
+    input.value0 = 1u;
+    input.value1 = 0u;
+    (void)vn_runtime_session_inject_input(session, &input);
 
     while (vn_runtime_session_is_done(session) == 0) {
         rc = vn_runtime_session_step(session, &res);
@@ -177,6 +228,8 @@ int run_scene_once(void) {
 ## 7. 键盘模式
 
 仅在类 Unix TTY 环境下可用。
+
+这些按键语义与 `vn_runtime_session_inject_input` 的 `VN_INPUT_KIND_KEY` 保持一致。
 
 按键：
 
@@ -204,4 +257,5 @@ int run_scene_once(void) {
 
 1. 运行时会话当前是单实例全局渲染后端模型，不支持并发多会话。
 2. Windows 平台暂未提供键盘非阻塞输入实现（会返回 `VN_E_UNSUPPORTED`）。
-3. `vn_runtime_run_cli` 保留进程级退出码语义（参数错误返回 `2`，运行失败返回 `1`）。
+3. `VN_INPUT_KIND_KEY` 当前只保证 `1-9`、`t/T`、`q/Q` 的运行时语义。
+4. `vn_runtime_run_cli` 保留进程级退出码语义（参数错误返回 `2`，运行失败返回 `1`）。

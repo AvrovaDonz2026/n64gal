@@ -15,7 +15,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `scalar` 后端最小闭环（默认 `600x800`，场景 `S0-S3`）。
    - Frontend 输出统一 `VNRenderOp[]`。
    - `vn_runtime_run(config, result)` 结构化运行入口。
-   - Session API：`create/step/is_done/set_choice/destroy`。
+   - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
    - AVX2 收口：golden 图差异基线与误差阈值。
@@ -195,6 +195,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   --trace \
   --command=set_choice:1 \
   --command=inject_input:choice:1 \
+  --command=inject_input:key:t \
   --command=step_frame:8
 ```
 
@@ -209,6 +210,7 @@ frames=8
 trace=1
 command=set_choice:1
 command=inject_input:choice:1
+command=inject_input:key:t
 command=step_frame:8
 EOF
 ./build/vn_previewd --request=/tmp/preview.req --response=/tmp/preview.json

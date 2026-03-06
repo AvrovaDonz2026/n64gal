@@ -7,6 +7,6 @@
 1. 基于 `vn_runtime_session_*`，不依赖 `vn_player`。
 2. 支持直接 CLI 参数与 `key=value` 请求文件。
 3. 输出结构化 JSON 响应，便于外部工具消费。
-4. 初版 `inject_input` 仅支持 `choice:<n>`。
+4. `inject_input` 当前支持 `choice:<n>`、`key:<c>`、`trace_toggle`、`quit`。
 
 协议说明见 `../../docs/preview-protocol.md`。

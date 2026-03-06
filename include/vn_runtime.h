@@ -22,6 +22,17 @@ typedef struct {
     vn_u32 choice_seq_count;
 } VNRunConfig;
 
+#define VN_INPUT_KIND_CHOICE       1u
+#define VN_INPUT_KIND_KEY          2u
+#define VN_INPUT_KIND_TRACE_TOGGLE 3u
+#define VN_INPUT_KIND_QUIT         4u
+
+typedef struct {
+    vn_u32 kind;
+    vn_u32 value0;
+    vn_u32 value1;
+} VNInputEvent;
+
 typedef struct {
     vn_u32 frames_executed;
     vn_u32 text_id;
@@ -48,6 +59,7 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
 int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result);
 int vn_runtime_session_is_done(const VNRuntimeSession* session);
 int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index);
+int vn_runtime_session_inject_input(VNRuntimeSession* session, const VNInputEvent* event);
 int vn_runtime_session_destroy(VNRuntimeSession* session);
 
 #endif

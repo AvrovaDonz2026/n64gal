@@ -48,6 +48,7 @@
   --trace \
   --command=set_choice:1 \
   --command=inject_input:choice:1 \
+  --command=inject_input:key:t \
   --command=step_frame:8 \
   --response=/tmp/preview_response.json
 ```
@@ -96,6 +97,7 @@ frames=8
 trace=1
 command=set_choice:1
 command=inject_input:choice:1
+command=inject_input:key:t
 command=step_frame:8
 response=tests/integration/preview_protocol_response.tmp.json
 ```
@@ -142,13 +144,20 @@ response=tests/integration/preview_protocol_response.tmp.json
 5. `set_choice:<n>`
    - 调用 `vn_runtime_session_set_choice`
 6. `inject_input:choice:<n>`
-   - `v1` 的输入注入别名，当前等价于 `set_choice:<n>`
+   - 通过 `vn_runtime_session_inject_input` 注入离散分支选择
+7. `inject_input:key:<c>`
+   - 注入单个键值；当前支持 `1-9`、`t/T`、`q/Q`
+8. `inject_input:trace_toggle`
+   - 注入一次 trace 切换事件
+9. `inject_input:quit`
+   - 注入一次退出事件
 
 兼容性说明：
 
-1. `inject_input` 在 `v1` 只支持 `choice:<n>`
-2. 键盘、鼠标、触摸、文本输入等更细输入种类保留到后续版本
-3. 将来若新增 `inject_input:<kind>:...`，必须保持现有 `choice` 语义不变
+1. `inject_input` 在 `v1` 当前支持 `choice`、`key`、`trace_toggle`、`quit` 四类事件
+2. `inject_input:key:<c>` 当前只接受单字节 ASCII，并仅保证 `1-9`、`t/T`、`q/Q` 的运行时语义
+3. 键盘、鼠标、触摸、文本输入等更细输入种类仍保留到后续版本
+4. 将来若新增 `inject_input:<kind>:...`，必须保持现有 `choice` / `key` / `trace_toggle` / `quit` 语义不变
 
 ## Response JSON
 
@@ -243,11 +252,14 @@ response=tests/integration/preview_protocol_response.tmp.json
 
 1. `set_choice`
 2. `inject_input`
-3. `step_frame`
-4. `run_to_end`
-5. `reload_scene`
-6. `frame`
-7. `VN_*` 错误事件
+3. `inject_input.key`
+4. `inject_input.trace_toggle`
+5. `inject_input.quit`
+6. `step_frame`
+7. `run_to_end`
+8. `reload_scene`
+9. `frame`
+10. `VN_*` 错误事件
 
 当 `trace=1` 时，会额外记录逐帧 `frame` 事件。
 当事件数量超过实现上限时，不会让请求失败，而是把 `summary.events_truncated` 置为 `1`。
@@ -287,8 +299,9 @@ response=tests/integration/preview_protocol_response.tmp.json
 仓库内当前验证链：
 
 1. `tests/integration/test_preview_protocol.c`
-2. `scripts/ci/run_cc_suite.sh`
-3. `ctest -R integration_preview_protocol`（当本地具备 `cmake` 时）
+2. `tests/unit/test_runtime_input.c`
+3. `scripts/ci/run_cc_suite.sh`
+4. `ctest -R integration_preview_protocol`（当本地具备 `cmake` 时）
 
 ## Non-Goals
 

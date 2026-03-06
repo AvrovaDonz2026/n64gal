@@ -44,6 +44,7 @@ TESTS=(
   test_vm
   test_runtime_api
   test_runtime_session
+  test_runtime_input
 )
 
 for test_name in "${TESTS[@]}"; do

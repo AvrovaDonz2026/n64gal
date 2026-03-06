@@ -65,7 +65,11 @@ struct VNRuntimeSession {
     vn_u32 frames_executed;
     vn_u32 last_op_count;
     vn_u32 last_choice_serial;
+    vn_u32 injected_trace_toggle_count;
     vn_u8 default_choice_index;
+    vn_u8 injected_choice_index;
+    int injected_has_choice;
+    int injected_quit;
     int pak_opened;
     int vm_ready;
     int renderer_ready;
@@ -300,6 +304,65 @@ static void keyboard_poll(KeyboardInput* kb,
     (void)out_toggle_trace;
     (void)out_quit;
 #endif
+}
+
+static int runtime_session_inject_key_code(VNRuntimeSession* session, vn_u32 key_code) {
+    if (session == (VNRuntimeSession*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (key_code >= (vn_u32)'1' && key_code <= (vn_u32)'9') {
+        session->injected_choice_index = (vn_u8)(key_code - (vn_u32)'1');
+        session->injected_has_choice = VN_TRUE;
+        return VN_OK;
+    }
+    if (key_code == (vn_u32)'t' || key_code == (vn_u32)'T') {
+        session->injected_trace_toggle_count += 1u;
+        return VN_OK;
+    }
+    if (key_code == (vn_u32)'q' || key_code == (vn_u32)'Q') {
+        session->injected_quit = VN_TRUE;
+        return VN_OK;
+    }
+    return VN_E_UNSUPPORTED;
+}
+
+static void runtime_session_merge_injected_input(VNRuntimeSession* session,
+                                                 vn_u8* io_choice,
+                                                 int* io_has_choice,
+                                                 int* io_toggle_trace,
+                                                 int* io_quit) {
+    vn_u32 toggle_now;
+
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+
+    if (session->injected_has_choice != VN_FALSE) {
+        if (io_choice != (vn_u8*)0) {
+            *io_choice = session->injected_choice_index;
+        }
+        if (io_has_choice != (int*)0) {
+            *io_has_choice = VN_TRUE;
+        }
+        session->injected_has_choice = VN_FALSE;
+    }
+
+    toggle_now = 0u;
+    if (io_toggle_trace != (int*)0 && *io_toggle_trace != VN_FALSE) {
+        toggle_now = 1u;
+    }
+    toggle_now ^= (session->injected_trace_toggle_count & 1u);
+    if (io_toggle_trace != (int*)0) {
+        *io_toggle_trace = (toggle_now != 0u) ? VN_TRUE : VN_FALSE;
+    }
+    session->injected_trace_toggle_count = 0u;
+
+    if (session->injected_quit != VN_FALSE) {
+        if (io_quit != (int*)0) {
+            *io_quit = VN_TRUE;
+        }
+        session->injected_quit = VN_FALSE;
+    }
 }
 
 static void fade_player_init(FadePlayer* fade) {
@@ -847,6 +910,11 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                       &keyboard_has_choice,
                       &keyboard_toggle_trace,
                       &keyboard_quit);
+        runtime_session_merge_injected_input(session,
+                                             &applied_choice,
+                                             &keyboard_has_choice,
+                                             &keyboard_toggle_trace,
+                                             &keyboard_quit);
         if (keyboard_toggle_trace != VN_FALSE) {
             session->trace = (session->trace == 0u) ? 1u : 0u;
         }
@@ -989,6 +1057,33 @@ int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index)
     }
     session->default_choice_index = choice_index;
     return VN_OK;
+}
+
+int vn_runtime_session_inject_input(VNRuntimeSession* session, const VNInputEvent* event) {
+    if (session == (VNRuntimeSession*)0 || event == (const VNInputEvent*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    if (event->kind == VN_INPUT_KIND_CHOICE) {
+        if (event->value0 > 255u) {
+            return VN_E_INVALID_ARG;
+        }
+        session->injected_choice_index = (vn_u8)(event->value0 & 0xFFu);
+        session->injected_has_choice = VN_TRUE;
+        return VN_OK;
+    }
+    if (event->kind == VN_INPUT_KIND_KEY) {
+        return runtime_session_inject_key_code(session, event->value0);
+    }
+    if (event->kind == VN_INPUT_KIND_TRACE_TOGGLE) {
+        session->injected_trace_toggle_count += 1u;
+        return VN_OK;
+    }
+    if (event->kind == VN_INPUT_KIND_QUIT) {
+        session->injected_quit = VN_TRUE;
+        return VN_OK;
+    }
+    return VN_E_UNSUPPORTED;
 }
 
 int vn_runtime_session_destroy(VNRuntimeSession* session) {

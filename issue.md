@@ -25,14 +25,14 @@
 ### 进行中（当前主线）
 
 1. Runtime API 化：`vn_runtime_run(config, result)` + Session API（`create/step/destroy`）已可用
-2. 输入链路：CLI + 键盘输入并存，后续补统一输入抽象层
+2. 输入链路：Session 输入注入 API（`vn_runtime_session_inject_input`）已落地，待继续收口 Windows 终端键盘适配
 3. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`）
 4. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md` 已建立，后续随 API 变更持续维护
 
 ### 下一步（短周期）
 
 1. `ISSUE-007` 收口：补 golden 图差异基线与误差阈值
-2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
+2. 平台输入收口：把 Windows 终端键盘适配接到现有 Session 输入接口
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
 5. `ISSUE-014` 收口：`linux-riscv64-qemu-scalar` 已接入并待远端稳定观察，继续推进 `qemu-rvv` 告警链
@@ -912,7 +912,7 @@ ctest --test-dir build --output-on-failure
 
 - [x] 定义输入参数：工程目录/场景/分辨率/backend/trace
 - [x] 定义输出：首帧状态/结构化错误/日志/性能摘要
-- [x] 支持控制：`reload scene`、`step frame`、`set choice`、`inject input`（`v1` 当前仅实现 `choice:<n>`）
+- [x] 支持控制：`reload scene`、`step frame`、`set choice`、`inject input`（`v1` 当前已实现 `choice`/`key`/`trace_toggle`/`quit`）
 - [x] 初版以 CLI + 文件协议落地，后续再升级本地 IPC
 
 ### 验收命令
@@ -926,6 +926,7 @@ frames=8
 trace=1
 command=set_choice:1
 command=inject_input:choice:1
+command=inject_input:key:t
 command=step_frame:8
 EOF
 ./build/vn_previewd --request=/tmp/preview.req --response=/tmp/preview.json
@@ -947,7 +948,7 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 2. 文档：`docs/preview-protocol.md`
 3. 测试：`tests/integration/test_preview_protocol.c`，并已接入 `run_cc_suite.sh` 与 `ctest`
 4. `perf_summary` 当前是 host 侧 step 包围时间摘要，不替代正式 perf 报告
-5. `inject_input` 在 `v1` 当前仅覆盖 `choice:<n>`，其余输入种类后续扩展
+5. `inject_input` 在 `v1` 当前覆盖 `choice`/`key`/`trace_toggle`/`quit`；鼠标/触摸/文本输入仍后续扩展
 
 ---
 

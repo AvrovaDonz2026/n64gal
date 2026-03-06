@@ -5,7 +5,7 @@
 ## 文件
 
 1. `session_loop.c`
-   - 使用 `vn_runtime_session_create/step/is_done/set_choice/destroy`
+   - 使用 `vn_runtime_session_create/step/is_done/set_choice/inject_input/destroy`
    - 演示宿主循环、分支注入与结果读取
 
 ## 本地编译（C89）
@@ -57,7 +57,7 @@ ctest --test-dir build -C Release --output-on-failure -R example_host_embed
 
 1. 运行时推荐总是先调用 `vn_run_config_init`。
 2. 宿主应自己维护主循环，不要假设 `vn_runtime_session_step` 会阻塞一整帧墙钟时间。
-3. 分支选择通过 `vn_runtime_session_set_choice` 或 `choice_seq` 注入。
+3. 分支选择通过 `vn_runtime_session_set_choice`、`vn_runtime_session_inject_input` 或 `choice_seq` 注入。
 4. 默认包路径是 `assets/demo/demo.vnpak`；嵌入到外部项目时应显式设置 `pack_path`。
 
 ## CI
