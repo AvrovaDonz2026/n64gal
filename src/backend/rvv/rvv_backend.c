@@ -110,18 +110,26 @@ static vuint32m4_t vn_rvv_hash32(vuint32m4_t value, size_t vl) {
     return value;
 }
 
-static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id) {
+static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id, vn_u8 layer, vn_u8 flags, vn_u8 op) {
     vn_u32 i;
     vn_u32 tex_mul;
     vn_u32 tex_hi;
     vn_u32 tex_lo3;
     vn_u32 v5;
+    int layer_r;
+    int layer_g;
+    int layer_b;
+    int text_blue_bias;
 
     tex_mul = ((vn_u32)tex_id * 2654435761u);
     tex_hi = ((vn_u32)tex_id << 16);
     tex_lo3 = ((vn_u32)tex_id & 7u);
     v8 &= 0xFFu;
     v5 = (v8 >> 5) & 0xFFu;
+    layer_r = (int)layer * 7;
+    layer_g = (int)layer * 5;
+    layer_b = (int)layer * 3;
+    text_blue_bias = 24 + (int)layer * 6;
 
     i = 0u;
     while (i < count) {
@@ -197,57 +205,6 @@ static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32
         g = __riscv_vmin_vx_i32m4(g, 255, vl);
         b = __riscv_vmax_vx_i32m4(b, 0, vl);
         b = __riscv_vmin_vx_i32m4(b, 255, vl);
-
-        ur = __riscv_vreinterpret_v_i32m4_u32m4(r);
-        ug = __riscv_vreinterpret_v_i32m4_u32m4(g);
-        ub = __riscv_vreinterpret_v_i32m4_u32m4(b);
-        ur = __riscv_vsll_vx_u32m4(ur, (size_t)16, vl);
-        ug = __riscv_vsll_vx_u32m4(ug, (size_t)8, vl);
-        out = __riscv_vor_vv_u32m4(ur, ug, vl);
-        out = __riscv_vor_vv_u32m4(out, ub, vl);
-        out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
-
-        __riscv_vse32_v_u32m4(colors + i, out, vl);
-        i += (vn_u32)vl;
-    }
-}
-
-static void vn_rvv_combine_texels_inplace(vn_u32* colors, vn_u32 count, vn_u8 layer, vn_u8 flags, vn_u8 op) {
-    vn_u32 i;
-    int layer_r;
-    int layer_g;
-    int layer_b;
-    int text_blue_bias;
-
-    layer_r = (int)layer * 7;
-    layer_g = (int)layer * 5;
-    layer_b = (int)layer * 3;
-    text_blue_bias = 24 + (int)layer * 6;
-
-    i = 0u;
-    while (i < count) {
-        size_t vl;
-        vuint32m4_t texel;
-        vuint32m4_t ur;
-        vuint32m4_t ug;
-        vuint32m4_t ub;
-        vint32m4_t r;
-        vint32m4_t g;
-        vint32m4_t b;
-        vuint32m4_t out;
-
-        vl = __riscv_vsetvl_e32m4((size_t)(count - i));
-        texel = __riscv_vle32_v_u32m4(colors + i, vl);
-
-        ur = __riscv_vsrl_vx_u32m4(texel, (size_t)16, vl);
-        ur = __riscv_vand_vx_u32m4(ur, 0xFFu, vl);
-        ug = __riscv_vsrl_vx_u32m4(texel, (size_t)8, vl);
-        ug = __riscv_vand_vx_u32m4(ug, 0xFFu, vl);
-        ub = __riscv_vand_vx_u32m4(texel, 0xFFu, vl);
-
-        r = __riscv_vreinterpret_v_u32m4_i32m4(ur);
-        g = __riscv_vreinterpret_v_u32m4_i32m4(ug);
-        b = __riscv_vreinterpret_v_u32m4_i32m4(ub);
 
         r = __riscv_vadd_vx_i32m4(r, layer_r, vl);
         g = __riscv_vadd_vx_i32m4(g, layer_g, vl);
@@ -430,22 +387,12 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     }
 }
 
-static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id) {
+static void vn_rvv_sample_texels_row(vn_u32* colors, const vn_u32* u_lut, vn_u32 count, vn_u32 v8, vn_u16 tex_id, vn_u8 layer, vn_u8 flags, vn_u8 op) {
     vn_u32 i;
 
     i = 0u;
     while (i < count) {
-        colors[i] = vn_pp_sample_texel(tex_id, u_lut[i], v8);
-        i += 1u;
-    }
-}
-
-static void vn_rvv_combine_texels_inplace(vn_u32* colors, vn_u32 count, vn_u8 layer, vn_u8 flags, vn_u8 op) {
-    vn_u32 i;
-
-    i = 0u;
-    while (i < count) {
-        colors[i] = vn_pp_combine_texel(colors[i], layer, flags, op);
+        colors[i] = vn_pp_combine_texel(vn_pp_sample_texel(tex_id, u_lut[i], v8), layer, flags, op);
         i += 1u;
     }
 }
@@ -593,13 +540,27 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
         row_off = yy * g_rvv_stride;
         v8 = g_rvv_v_lut[row_rel];
         row_ptr = g_rvv_framebuffer + row_off + x0;
-        /* Vectorize the tex/hash hot path over the prebuilt UV LUT, then batch combine/writeback. */
-        vn_rvv_sample_texels_row(g_rvv_row_colors, g_rvv_u_lut, vis_w, v8, op->tex_id);
-        vn_rvv_combine_texels_inplace(g_rvv_row_colors, vis_w, op->layer, op->flags, op->op);
 
         if (op->alpha >= 255u) {
-            (void)memcpy(row_ptr, g_rvv_row_colors, (size_t)vis_w * sizeof(vn_u32));
+            /* Opaque textured rows can write the fused sample/combine result straight to the framebuffer. */
+            vn_rvv_sample_texels_row(row_ptr,
+                                     g_rvv_u_lut,
+                                     vis_w,
+                                     v8,
+                                     op->tex_id,
+                                     op->layer,
+                                     op->flags,
+                                     op->op);
         } else {
+            /* Keep the translucent path batched so sample/combine and alpha blend still run per row. */
+            vn_rvv_sample_texels_row(g_rvv_row_colors,
+                                     g_rvv_u_lut,
+                                     vis_w,
+                                     v8,
+                                     op->tex_id,
+                                     op->layer,
+                                     op->flags,
+                                     op->op);
             /* Batch the framebuffer writeback so alpha blend and store run in RVV-width chunks. */
             vn_rvv_blend_u32(row_ptr, g_rvv_row_colors, vis_w, op->alpha);
         }

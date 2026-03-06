@@ -71,7 +71,7 @@ Render IR 单条指令。
 1. `scalar`：完整基线实现，可作为默认回退后端。
 2. `avx2`：已实现最小可运行链路。
 3. `neon`：已接入最小可运行链路，`fill` 与不透明矩形填充路径使用 NEON 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。
-4. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充、统一颜色半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash + combine + alpha` 路径使用 RVV 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
+4. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充、统一颜色半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径使用 RVV 向量写入；其中 `sample -> combine` 已融合为单次行内向量流水，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
 
 实现说明：
 
@@ -81,7 +81,7 @@ Render IR 单条指令。
 4. 当强制选择 `avx2` 但当前 CPU 不支持时，渲染器会自动回退到 `scalar`。
 5. `SPRITE/TEXT` 走统一的 `tex -> combine` 采样链路（共享 `pixel_pipeline`），保证 `scalar/avx2` 输出语义一致。
 6. `SPRITE/TEXT` 纹理坐标映射使用 UV LUT（每帧按可见区域构建）以减少逐像素除法开销。
-7. `rvv` 当前已将 `tex/hash` 采样、整行 `combine` 与 alpha 写回都批量向量化；后续优化重点转为减少 `sample -> combine` 之间的中间缓存往返。
+7. `rvv` 当前已将 `tex/hash` 采样与 `combine` 融合成单次行内向量流水，`alpha=255` 时直接写 framebuffer，`alpha<255` 时继续走批量向量混合；后续优化重点转为更进一步的 translucent 单循环化与更轻量的 UV/seed 热路径。
 
 ## 6. 后端能力位约定
 

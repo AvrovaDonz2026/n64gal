@@ -21,7 +21,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - AVX2 收口：已固化 `test_runtime_golden` 的 `S0-S3 @ 600x800` 标量 CRC 基线，并对 `avx2` 做逐像素 exact compare；下一步补误差阈值与可视化门限。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，待原生 arm64 进一步补算子与压测。
-   - `rvv` 最小后端已接入，`tex/hash + combine + alpha` 热路径已开始向量化，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与进一步融合优化。
+   - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` 已可直接写 framebuffer；`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证、perf 固化与 translucent 进一步优化。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
@@ -321,7 +321,7 @@ baseline/candidate 对照：
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
 3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译已通过，当前待补原生 arm64 验证与其余核心算子。
-4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash + combine + alpha` 路径已向量化；当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证、性能采样与进一步融合优化。
+4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径已向量化；其中 `sample -> combine` 已融合，`alpha=255` 已可直接写 framebuffer，当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证、性能采样与 translucent 单循环优化。
 
 ## CI
 
