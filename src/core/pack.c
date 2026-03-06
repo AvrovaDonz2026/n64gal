@@ -3,6 +3,7 @@
 
 #include "vn_pack.h"
 #include "vn_error.h"
+#include "platform.h"
 
 #define VNPAK_MAGIC_0 ((vn_u8)'V')
 #define VNPAK_MAGIC_1 ((vn_u8)'N')
@@ -143,7 +144,7 @@ int vnpak_open(VNPak* pak, const char* path) {
     pak->file_size = 0u;
     pak->entries = (ResourceEntry*)0;
 
-    fp = fopen(path, "rb");
+    fp = vn_platform_fopen_read_binary(path);
     if (fp == (FILE*)0) {
         return VN_E_IO;
     }
@@ -329,7 +330,7 @@ int vnpak_read_resource(const VNPak* pak, vn_u32 id, vn_u8* out_buf, vn_u32 out_
         return VN_E_FORMAT;
     }
 
-    fp = fopen(pak->path, "rb");
+    fp = vn_platform_fopen_read_binary(pak->path);
     if (fp == (FILE*)0) {
         return VN_E_IO;
     }

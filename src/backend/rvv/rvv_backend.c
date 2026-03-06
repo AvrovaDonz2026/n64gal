@@ -6,12 +6,10 @@
 #include "vn_error.h"
 
 #include "../common/pixel_pipeline.h"
+#include "../../core/build_config.h"
 
-#if defined(__riscv) && defined(__riscv_vector)
+#if VN_RVV_IMPL_AVAILABLE
 #include <riscv_vector.h>
-#define VN_RVV_IMPL_AVAILABLE 1
-#else
-#define VN_RVV_IMPL_AVAILABLE 0
 #endif
 
 static int vn_rvv_runtime_supported(void) {

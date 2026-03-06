@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "vn_error.h"
 #include "vn_preview.h"
 #include "vn_runtime.h"
+#include "../core/platform.h"
 
 #define VN_PREVIEW_PATH_MAX 512u
 #define VN_PREVIEW_TEXT_MAX 160u
@@ -122,14 +122,6 @@ static void preview_error(VNPreviewReport* report,
                           const char* message,
                           int status_code);
 static const char* preview_error_name(int error_code);
-static int preview_is_absolute_path(const char* path);
-static void preview_dirname_from_path(const char* path,
-                                      char* out_dir,
-                                      size_t out_size);
-static void preview_join_path(char* out_path,
-                              size_t out_size,
-                              const char* base_dir,
-                              const char* leaf);
 static void preview_resolve_pack_path(VNPreviewRequest* req);
 static void preview_report_add_event(VNPreviewReport* report,
                                      int kind,
@@ -149,8 +141,6 @@ static void preview_json_write_string(FILE* fp, const char* text);
 static void preview_json_write_result(FILE* fp, const VNRunResult* result);
 static void preview_json_write_frame(FILE* fp,
                                      const VNPreviewFrameSample* frame);
-static const char* preview_host_os(void);
-static const char* preview_host_arch(void);
 static double preview_now_ms(void);
 
 int vn_preview_run_cli(int argc, char** argv) {
@@ -504,7 +494,7 @@ static int preview_load_request_file(VNPreviewRequest* req,
         return VN_E_INVALID_ARG;
     }
 
-    preview_dirname_from_path(path, req->request_dir, sizeof(req->request_dir));
+    vn_platform_path_dirname(path, req->request_dir, sizeof(req->request_dir));
     fp = fopen(path, "r");
     if (fp == (FILE*)0) {
         preview_error(report, VN_E_IO, "failed to open request file", 2);
@@ -828,9 +818,9 @@ static int preview_write_response(const VNPreviewRequest* req,
     (void)fprintf(fp, ",\n  \"error_message\":");
     preview_json_write_string(fp, report->error_message);
     (void)fprintf(fp, ",\n  \"host_os\":");
-    preview_json_write_string(fp, preview_host_os());
+    preview_json_write_string(fp, vn_platform_host_os_name());
     (void)fprintf(fp, ",\n  \"host_arch\":");
-    preview_json_write_string(fp, preview_host_arch());
+    preview_json_write_string(fp, vn_platform_host_arch_name());
     (void)fprintf(fp, ",\n  \"request\":{\n");
     (void)fprintf(fp, "    \"project_dir\":");
     preview_json_write_string(fp, req->project_dir);
@@ -1182,86 +1172,6 @@ static const char* preview_error_name(int error_code) {
     return "VN_E_UNKNOWN";
 }
 
-static int preview_is_absolute_path(const char* path) {
-    if (path == (const char*)0 || path[0] == '\0') {
-        return 0;
-    }
-    if (path[0] == '/' || path[0] == '\\') {
-        return 1;
-    }
-    if (isalpha((unsigned char)path[0]) && path[1] == ':') {
-        return 1;
-    }
-    return 0;
-}
-
-static void preview_dirname_from_path(const char* path,
-                                      char* out_dir,
-                                      size_t out_size) {
-    const char* slash;
-    const char* backslash;
-    const char* cut;
-    size_t len;
-
-    if (out_dir == (char*)0 || out_size == 0u) {
-        return;
-    }
-    if (path == (const char*)0 || path[0] == '\0') {
-        preview_str_copy(out_dir, out_size, ".");
-        return;
-    }
-    slash = strrchr(path, '/');
-    backslash = strrchr(path, '\\');
-    cut = slash;
-    if (backslash != (const char*)0 && (cut == (const char*)0 || backslash > cut)) {
-        cut = backslash;
-    }
-    if (cut == (const char*)0) {
-        preview_str_copy(out_dir, out_size, ".");
-        return;
-    }
-    len = (size_t)(cut - path);
-    if (len == 0u) {
-        preview_str_copy(out_dir, out_size, "/");
-        return;
-    }
-    if (len + 1u > out_size) {
-        len = out_size - 1u;
-    }
-    (void)memcpy(out_dir, path, len);
-    out_dir[len] = '\0';
-}
-
-static void preview_join_path(char* out_path,
-                              size_t out_size,
-                              const char* base_dir,
-                              const char* leaf) {
-    size_t base_len;
-
-    if (out_path == (char*)0 || out_size == 0u) {
-        return;
-    }
-    out_path[0] = '\0';
-    if (leaf == (const char*)0 || leaf[0] == '\0') {
-        return;
-    }
-    if (base_dir == (const char*)0 || base_dir[0] == '\0' || preview_is_absolute_path(leaf) != 0) {
-        preview_str_copy(out_path, out_size, leaf);
-        return;
-    }
-    preview_str_copy(out_path, out_size, base_dir);
-    base_len = strlen(out_path);
-    if (base_len > 0u && out_path[base_len - 1u] != '/' && out_path[base_len - 1u] != '\\') {
-        if (base_len + 1u < out_size) {
-            out_path[base_len] = '/';
-            out_path[base_len + 1u] = '\0';
-        }
-    }
-    if (strlen(out_path) + strlen(leaf) + 1u < out_size) {
-        (void)strcat(out_path, leaf);
-    }
-}
-
 static void preview_resolve_pack_path(VNPreviewRequest* req) {
     const char* leaf;
     const char* base_dir;
@@ -1277,7 +1187,7 @@ static void preview_resolve_pack_path(VNPreviewRequest* req) {
     if (base_dir[0] == '\0') {
         base_dir = req->request_dir;
     }
-    preview_join_path(req->resolved_pack_path,
+    vn_platform_path_join(req->resolved_pack_path,
                       sizeof(req->resolved_pack_path),
                       base_dir,
                       leaf);
@@ -1456,30 +1366,6 @@ static void preview_json_write_frame(FILE* fp,
     (void)fprintf(fp, "}");
 }
 
-static const char* preview_host_os(void) {
-#if defined(_WIN32)
-    return "windows";
-#elif defined(__linux__)
-    return "linux";
-#elif defined(__APPLE__)
-    return "macos";
-#else
-    return "unknown";
-#endif
-}
-
-static const char* preview_host_arch(void) {
-#if defined(__x86_64__) || defined(_M_X64)
-    return "x64";
-#elif defined(__aarch64__) || defined(_M_ARM64)
-    return "arm64";
-#elif defined(__riscv) && __riscv_xlen == 64
-    return "riscv64";
-#else
-    return "unknown";
-#endif
-}
-
 static double preview_now_ms(void) {
-    return ((double)clock() * 1000.0) / (double)CLOCKS_PER_SEC;
+    return vn_platform_now_ms();
 }

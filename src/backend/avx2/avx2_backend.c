@@ -6,10 +6,17 @@
 #include "vn_error.h"
 
 #include "../common/pixel_pipeline.h"
+#include "../../core/build_config.h"
 
-#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#if VN_AVX2_GNU_STYLE_IMPL
 #include <immintrin.h>
 #define VN_AVX2_IMPL_AVAILABLE 1
+#define VN_AVX2_GNU_IMPL 1
+#elif VN_AVX2_MSVC_STYLE_IMPL
+#include <intrin.h>
+#include <immintrin.h>
+#define VN_AVX2_IMPL_AVAILABLE 1
+#define VN_AVX2_MSVC_IMPL 1
 #else
 #define VN_AVX2_IMPL_AVAILABLE 0
 #endif
@@ -67,13 +74,53 @@ static int vn_avx2_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out
     return VN_TRUE;
 }
 
-#if VN_AVX2_IMPL_AVAILABLE
+#if defined(VN_AVX2_GNU_IMPL)
 static int vn_avx2_runtime_supported(void) {
     __builtin_cpu_init();
     return __builtin_cpu_supports("avx2") ? VN_TRUE : VN_FALSE;
 }
 
 __attribute__((target("avx2")))
+static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    __m256i vec;
+    vn_u32 i;
+
+    vec = _mm256_set1_epi32((int)value);
+    i = 0u;
+    while ((i + 8u) <= count) {
+        _mm256_storeu_si256((__m256i*)(void*)(dst + i), vec);
+        i += 8u;
+    }
+    while (i < count) {
+        dst[i] = value;
+        i += 1u;
+    }
+}
+#elif defined(VN_AVX2_MSVC_IMPL)
+static int vn_avx2_runtime_supported(void) {
+    int cpu_info[4];
+
+    __cpuid(cpu_info, 0);
+    if (cpu_info[0] < 7) {
+        return VN_FALSE;
+    }
+
+    __cpuid(cpu_info, 1);
+    if ((cpu_info[2] & (1 << 27)) == 0 ||
+        (cpu_info[2] & (1 << 28)) == 0) {
+        return VN_FALSE;
+    }
+    if ((_xgetbv(0) & 0x6u) != 0x6u) {
+        return VN_FALSE;
+    }
+
+    __cpuidex(cpu_info, 7, 0);
+    if ((cpu_info[1] & (1 << 5)) == 0) {
+        return VN_FALSE;
+    }
+    return VN_TRUE;
+}
+
 static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     __m256i vec;
     vn_u32 i;

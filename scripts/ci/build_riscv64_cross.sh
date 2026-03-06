@@ -12,6 +12,7 @@ COMMON_SRC=(
   src/core/renderer.c
   src/core/vm.c
   src/core/pack.c
+  src/core/platform.c
   src/core/runtime_cli.c
   src/frontend/render_ops.c
   src/backend/common/pixel_pipeline.c
@@ -41,6 +42,7 @@ TESTS=(
   test_vm
   test_runtime_api
   test_runtime_session
+  test_runtime_golden
 )
 
 echo "[riscv64-cross] build dir: $BUILD_DIR"

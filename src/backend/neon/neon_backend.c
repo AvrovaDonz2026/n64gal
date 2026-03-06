@@ -6,12 +6,10 @@
 #include "vn_error.h"
 
 #include "../common/pixel_pipeline.h"
+#include "../../core/build_config.h"
 
-#if defined(__aarch64__) || defined(__ARM_NEON)
+#if VN_NEON_IMPL_AVAILABLE
 #include <arm_neon.h>
-#define VN_NEON_IMPL_AVAILABLE 1
-#else
-#define VN_NEON_IMPL_AVAILABLE 0
 #endif
 
 static int vn_neon_runtime_supported(void) {

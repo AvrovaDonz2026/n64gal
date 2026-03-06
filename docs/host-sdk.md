@@ -133,6 +133,7 @@
 1. `pack_path` 指向 `.vnpak`
 2. `scene_name` 指向 pack 内逻辑场景名
 3. 运行时自行打开 pack 并读取资源
+4. `pack_path` 可以是相对路径或绝对路径，分隔符与二进制打开模式由 `src/core/platform.c` 统一处理
 
 宿主当前不需要提供自定义 I/O 回调；如果后续引入文件桥接接口，必须保持向后兼容，不破坏现有路径模式。
 
@@ -196,6 +197,7 @@
 2. 键盘调试模式不是跨平台宿主输入方案；Linux/Windows CLI 现在共享 `1-9` / `t` / `q` 语义，但宿主仍应优先使用 Session 输入注入接口。
 3. 路径和二进制文件模式由 runtime/pack 层处理，宿主不应假定文本模式 I/O 足够。
 4. 后端选择应默认使用 `backend_name="auto"`，除非宿主明确要做诊断或基准对比。
+5. 详细平台矩阵、验证路线与当前收口范围见 [`docs/platform-matrix.md`](./platform-matrix.md)。
 
 ## Example
 

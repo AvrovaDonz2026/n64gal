@@ -71,6 +71,9 @@ run_capture "$BUILD_DIR/test_runtime_api.log" \
 assert_log_has "$BUILD_DIR/test_runtime_api.log" "backend=scalar"
 run_capture "$BUILD_DIR/test_runtime_session.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_session_riscv64"
+run_capture "$BUILD_DIR/test_runtime_golden.log" \
+  "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_golden_riscv64"
+assert_log_has "$BUILD_DIR/test_runtime_golden.log" "test_runtime_golden ok"
 run_capture "$BUILD_DIR/test_renderer_fallback.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_renderer_fallback_riscv64"
 run_capture "$BUILD_DIR/player_scalar.log" \

@@ -93,5 +93,6 @@ Render IR 单条指令。
 ## 7. 一致性验证
 
 1. 新增 `test_backend_consistency`：同一组 `VNRenderOp` 在 `scalar` 与 `avx2` 下渲染后比较 framebuffer CRC32。
-2. 当机器不支持 AVX2 时，该测试会输出 `skipped (no avx2 support)` 并通过。
-3. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行以及 `scalar vs rvv` framebuffer CRC 一致性。
+2. 新增 `test_runtime_golden`：真实 `S0-S3` 场景在 `600x800` 下固定标量 golden CRC，当前基线为 `S0=0x58C8928B`、`S1=0x80D7F175`、`S2=0x587BC5A4`、`S3=0x0BC0160F`，并在支持的平台上对照 `avx2/neon/rvv`。
+3. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
+4. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行以及 `test_runtime_golden` / `scalar vs rvv` CRC 一致性。

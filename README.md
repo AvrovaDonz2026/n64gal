@@ -18,7 +18,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
-   - AVX2 收口：golden 图差异基线与误差阈值。
+   - AVX2 收口：已固化 `test_runtime_golden` 的 `S0-S3 @ 600x800` 标量 CRC 基线与 `avx2` 对照，下一步补差异图误差阈值。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，待原生 arm64 进一步补算子与压测。
    - `rvv` 最小后端已接入，`tex/hash + combine + alpha` 热路径已开始向量化，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与进一步融合优化。
@@ -127,6 +127,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/renderer.c \
   src/core/vm.c \
   src/core/pack.c \
+  src/core/platform.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
   src/backend/common/pixel_pipeline.c \
@@ -147,6 +148,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/renderer.c \
   src/core/vm.c \
   src/core/pack.c \
+  src/core/platform.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
   src/backend/common/pixel_pipeline.c \
@@ -173,7 +175,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 6. `--choice-index=<N>`
 7. `--choice-seq=0,1,0`
 8. `--trace`
-9. `--keyboard`（Linux TTY / Windows console 调试模式）
+9. `--keyboard`（Linux TTY / Windows console 调试模式，按 `--dt-ms` 节奏推进）
 10. `--quiet`
 
 键盘模式按键：
@@ -309,6 +311,8 @@ baseline/candidate 对照：
 5. `perf_report_template.md`
 
 完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。
+
+平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 
 预览协议与无 GUI 预览入口见 [`docs/preview-protocol.md`](./docs/preview-protocol.md) 与 [`tools/previewd/README.md`](./tools/previewd/README.md)。
 

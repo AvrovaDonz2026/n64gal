@@ -26,15 +26,18 @@
 
 1. Runtime API 化：`vn_runtime_run(config, result)` + Session API（`create/step/destroy`）已可用
 2. 输入链路：Session 输入注入 API 已落地，CLI 键盘语义已在 Linux/Windows 收口到同一套 `1-9` / `t` / `q` 规则
-3. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`）
-4. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md` 已建立，后续随 API 变更持续维护
+3. 平台路径/文件 I/O：`src/core/platform.c` 已接入 pack 与 preview 路径解析，并进一步统一 `runtime/preview` 计时入口，`test_platform_paths` 已补齐
+4. 时间/休眠：`vn_platform_now_ms()` + `vn_platform_sleep_ms()` 已落地，CLI `keyboard` 调试模式可按 `dt_ms` 节奏推进
+5. 编译器差异：`src/core/build_config.h` 已集中收口 OS/Arch/Compiler 探测，`avx2_backend.c` 已补齐 GCC/Clang + MSVC x64 双路径探测与编译开关
+6. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`），`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 golden CRC 与 `avx2` 对照
+7. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md`、`docs/platform-matrix.md` 已建立，后续随 API 变更持续维护
 
 ### 下一步（短周期）
 
-1. `ISSUE-007` 收口：补 golden 图差异基线与误差阈值
-2. `ISSUE-013` 收口：继续补路径/文件 I/O 与编译器差异的跨平台统一层
-3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
-4. `ISSUE-008` 前置：建立性能回归基线门限文件
+1. `ISSUE-007` 收口：补差异图误差阈值与可视化 golden 对照
+2. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
+3. `ISSUE-008` 前置：建立性能回归基线门限文件
+4. `ISSUE-014` 跟进：观察 Windows x64/arm64 上 `build_config.h` + MSVC AVX2 路径的 CI 结果
 5. `ISSUE-014` 收口：`linux-riscv64-qemu-scalar` 已接入并待远端稳定观察，继续推进 `qemu-rvv` 告警链
 6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
 7. `ISSUE-011` 前置：补 `scalar vs rvv` CRC 一致性验证，避免 RVV 仅停留在启动冒烟
@@ -447,6 +450,7 @@ cmake --build build -j
 - [x] `tex/combine` 真采样路径（共享 `pixel_pipeline`，`scalar/avx2` 同语义）
 - [x] 纹理坐标热路径优化：UV LUT（减少逐像素除法）
 - [x] 与 scalar 一致性对照测试（`test_backend_consistency` CRC 对照）
+- [x] 运行时 golden CRC 基线（`test_runtime_golden`: `S0-S3 @ 600x800`）
 - [ ] golden 图差异测试（误差阈值）
 
 ### 验收命令
@@ -721,21 +725,25 @@ ctest --test-dir build --output-on-failure
 
 ### 交付物
 
-- `src/core/platform/*`（建议）
+- `src/core/build_config.h`
+- `src/core/platform.h`
+- `src/core/platform.c`
+- `tests/unit/test_platform_paths.c`
 - `docs/platform-matrix.md`
 
 ### 任务清单
 
-- [ ] 统一时间/休眠接口（Linux + Windows）
+- [x] 统一时间/休眠接口（Linux + Windows，`vn_platform_now_ms` + `vn_platform_sleep_ms` + CLI keyboard pacing）
 - [x] 统一终端输入接口（Linux/Windows CLI 键盘语义一致）
-- [ ] 路径与文件 I/O 兼容性收口（分隔符/二进制模式）
-- [ ] 编译器差异收口（GCC/Clang/MSVC）
+- [x] 路径与文件 I/O 兼容性收口（分隔符/二进制模式，`platform.c` + `pack.c` + `preview_cli.c` + `test_platform_paths`）
+- [x] 编译器差异收口（GCC/Clang/MSVC，`build_config.h` + `avx2` GNU/MSVC + preview/platform host detect）
 
 ### 验收命令
 
 ```bash
 cmake -S . -B build && cmake --build build
 ctest --test-dir build --output-on-failure
+./scripts/ci/run_cc_suite.sh
 ```
 
 ### DoD

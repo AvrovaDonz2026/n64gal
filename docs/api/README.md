@@ -25,6 +25,10 @@
    - 宿主 SDK 接入指南
    - Session API 调用序列、输入/文件/日志桥接
    - 版本协商矩阵与嵌入边界
+6. `../platform-matrix.md`
+   - Linux/Windows/riscv64 平台矩阵
+   - 内部平台层当前收口范围
+   - 构建、测试与验证路线
 
 ## 维护规则
 

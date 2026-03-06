@@ -12,11 +12,18 @@ else()
     add_compile_options(-Wall -Wextra -Werror -pedantic-errors)
 endif()
 
+if(MSVC)
+    if(CMAKE_VS_PLATFORM_NAME STREQUAL "x64" OR CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+        set_source_files_properties(src/backend/avx2/avx2_backend.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+    endif()
+endif()
+
 add_library(vn_core
     src/core/backend_registry.c
     src/core/renderer.c
     src/core/vm.c
     src/core/pack.c
+    src/core/platform.c
     src/core/runtime_cli.c
     src/frontend/render_ops.c
     src/backend/common/pixel_pipeline.c
@@ -87,6 +94,14 @@ add_executable(test_runtime_input tests/unit/test_runtime_input.c)
 target_link_libraries(test_runtime_input PRIVATE vn_core)
 add_test(NAME unit_runtime_input COMMAND test_runtime_input)
 
+add_executable(test_runtime_golden tests/unit/test_runtime_golden.c)
+target_link_libraries(test_runtime_golden PRIVATE vn_core)
+add_test(NAME unit_runtime_golden COMMAND test_runtime_golden)
+
+add_executable(test_platform_paths tests/unit/test_platform_paths.c)
+target_link_libraries(test_platform_paths PRIVATE vn_core)
+add_test(NAME unit_platform_paths COMMAND test_platform_paths)
+
 add_executable(test_preview_protocol tests/integration/test_preview_protocol.c)
 target_link_libraries(test_preview_protocol PRIVATE vn_preview)
 add_test(NAME integration_preview_protocol COMMAND test_preview_protocol)
@@ -110,6 +125,8 @@ set_tests_properties(
     unit_runtime_api
     unit_runtime_session
     unit_runtime_input
+    unit_runtime_golden
+    unit_platform_paths
     integration_preview_protocol
     example_host_embed
     PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

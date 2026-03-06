@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #if defined(_WIN32)
 #include <conio.h>
 #else
@@ -9,7 +8,6 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <errno.h>
-#include <sys/time.h>
 #endif
 
 #include "vn_renderer.h"
@@ -18,6 +16,7 @@
 #include "vn_vm.h"
 #include "vn_runtime.h"
 #include "vn_error.h"
+#include "platform.h"
 
 #define VN_MAX_CHOICE_SEQ 64u
 
@@ -83,22 +82,7 @@ struct VNRuntimeSession {
 static VNRunResult g_last_run_result;
 
 static double runtime_now_ms(void) {
-#if !defined(_WIN32)
-    struct timeval tv;
-
-    if (gettimeofday(&tv, (struct timezone*)0) != 0) {
-        return 0.0;
-    }
-    return ((double)tv.tv_sec * 1000.0) + ((double)tv.tv_usec / 1000.0);
-#else
-    clock_t now_ticks;
-
-    now_ticks = clock();
-    if (now_ticks == (clock_t)-1) {
-        return 0.0;
-    }
-    return ((double)now_ticks * 1000.0) / (double)CLOCKS_PER_SEC;
-#endif
+    return vn_platform_now_ms();
 }
 
 static double runtime_rss_mb(void) {
@@ -1319,6 +1303,7 @@ int vn_runtime_run(const VNRunConfig* run_cfg, VNRunResult* out_result) {
     VNRunResult step_result;
     int rc;
     int step_rc;
+    int sleep_between_frames;
 
     runtime_result_reset();
     rc = vn_runtime_session_create(run_cfg, &session);
@@ -1331,11 +1316,21 @@ int vn_runtime_run(const VNRunConfig* run_cfg, VNRunResult* out_result) {
 
     step_result = g_last_run_result;
     rc = VN_OK;
+    sleep_between_frames = VN_FALSE;
+    if (run_cfg != (const VNRunConfig*)0 &&
+        run_cfg->keyboard != 0u &&
+        run_cfg->dt_ms > 0u) {
+        sleep_between_frames = VN_TRUE;
+    }
     while (vn_runtime_session_is_done(session) == VN_FALSE) {
         step_rc = vn_runtime_session_step(session, &step_result);
         if (step_rc != VN_OK) {
             rc = step_rc;
             break;
+        }
+        if (sleep_between_frames != VN_FALSE &&
+            vn_runtime_session_is_done(session) == VN_FALSE) {
+            vn_platform_sleep_ms((unsigned int)run_cfg->dt_ms);
         }
     }
 
