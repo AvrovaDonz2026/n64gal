@@ -56,8 +56,9 @@ Render IR 单条指令。
 
 失败回退：
 
-1. 首选后端初始化失败，必须回退 `scalar`
-2. 回退路径必须可运行并记录日志
+1. 自动模式按 `avx2 -> neon -> rvv -> scalar` 顺序逐个尝试初始化。
+2. 任一候选初始化失败时，必须继续尝试下一候选，最终确保 `scalar` 可回退。
+3. 回退路径必须可运行并记录日志
 
 ## 4. 扩展后端实现约定
 
@@ -69,6 +70,8 @@ Render IR 单条指令。
 
 1. `scalar`：完整基线实现，可作为默认回退后端。
 2. `avx2`：已实现最小可运行链路。
+3. `neon`：已接入最小可运行链路，当前以共享像素管线提供语义正确性，目标架构外返回 `VN_E_UNSUPPORTED`。
+4. `rvv`：已接入最小可运行链路，当前以共享像素管线提供语义正确性，目标架构外返回 `VN_E_UNSUPPORTED`。
 
 实现说明：
 
@@ -83,6 +86,8 @@ Render IR 单条指令。
 
 1. `scalar`: `has_simd=0`, `has_lut_blend=0`, `has_tmem_cache=0`
 2. `avx2`（当前阶段）: `has_simd=1`, `has_lut_blend=0`, `has_tmem_cache=0`
+3. `neon`（当前阶段）: `has_simd=1`, `has_lut_blend=0`, `has_tmem_cache=0`
+4. `rvv`（当前阶段）: `has_simd=1`, `has_lut_blend=0`, `has_tmem_cache=0`
 
 ## 7. 一致性验证
 

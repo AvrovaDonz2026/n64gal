@@ -19,6 +19,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 2. 进行中:
    - AVX2 收口：golden 图差异基线与误差阈值。
    - Windows x64 兼容：`_WIN32` 模拟编译/运行已通过，原生 CI 待补。
+   - `neon`/`rvv` 最小后端已接入，待原生平台验证与 SIMD 算子补齐。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
@@ -124,6 +125,8 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/frontend/render_ops.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
+  src/backend/neon/neon_backend.c \
+  src/backend/rvv/rvv_backend.c \
   src/backend/scalar/scalar_backend.c \
   -o /tmp/vn_player
 ```
@@ -237,8 +240,8 @@ ctest --test-dir build --output-on-failure
 
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
-3. `neon`：预留。
-4. `rvv`：预留。
+3. `neon`：最小可运行后端已接入，目标架构可启用，当前待补原生 arm64 验证与 SIMD 算子。
+4. `rvv`：最小可运行后端已接入，目标架构可启用，当前待补原生 riscv64 Linux 验证与 RVV 算子。
 
 ## API 文档
 

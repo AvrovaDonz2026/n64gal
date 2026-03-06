@@ -5,9 +5,53 @@
 
 int vn_register_scalar_backend(void);
 int vn_register_avx2_backend(void);
+int vn_register_neon_backend(void);
+int vn_register_rvv_backend(void);
 
 static RendererConfig g_cfg;
 static int g_initialized = VN_FALSE;
+
+static int vn_renderer_register_backends(void) {
+    int rc;
+
+    rc = vn_register_scalar_backend();
+    if (rc != VN_OK) {
+        return rc;
+    }
+
+    rc = vn_register_avx2_backend();
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "avx2 register skipped rc=%d\n", rc);
+    }
+
+    rc = vn_register_neon_backend();
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "neon register skipped rc=%d\n", rc);
+    }
+
+    rc = vn_register_rvv_backend();
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "rvv register skipped rc=%d\n", rc);
+    }
+
+    return VN_OK;
+}
+
+static int vn_renderer_try_backend(vn_u32 arch_mask, const RendererConfig* cfg) {
+    const VNRenderBackend* be;
+    int rc;
+
+    be = vn_backend_select(arch_mask);
+    if (be == (const VNRenderBackend*)0 || be->init == (int (*)(const RendererConfig*))0) {
+        return VN_E_RENDER_STATE;
+    }
+
+    rc = be->init(cfg);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "backend init failed rc=%d backend=%s\n", rc, be->name);
+    }
+    return rc;
+}
 
 static vn_u32 vn_renderer_arch_mask_from_flags(vn_u32 flags) {
     if ((flags & VN_RENDERER_FLAG_FORCE_AVX2) != 0u) {
@@ -30,53 +74,77 @@ static vn_u32 vn_renderer_arch_mask_from_flags(vn_u32 flags) {
 
 int renderer_init(const RendererConfig* cfg) {
     vn_u32 arch_mask;
-    const VNRenderBackend* be;
-    int first_init_rc;
     int rc;
+    int forced_backend;
 
     if (cfg == (const RendererConfig*)0 || cfg->width == 0 || cfg->height == 0) {
         return VN_E_INVALID_ARG;
     }
 
     vn_backend_reset_registry();
-    rc = vn_register_scalar_backend();
+    rc = vn_renderer_register_backends();
     if (rc != VN_OK) {
         return rc;
     }
-    rc = vn_register_avx2_backend();
-    if (rc != VN_OK) {
-        (void)fprintf(stderr, "avx2 register skipped rc=%d\n", rc);
-    }
-
-    arch_mask = vn_renderer_arch_mask_from_flags(cfg->flags);
-    be = vn_backend_select(arch_mask);
-    if (be == (const VNRenderBackend*)0) {
-        be = vn_backend_select(VN_ARCH_MASK_SCALAR);
-    }
-    if (be == (const VNRenderBackend*)0 || be->init == (int (*)(const RendererConfig*))0) {
-        return VN_E_RENDER_STATE;
-    }
 
     g_cfg = *cfg;
-    first_init_rc = be->init(&g_cfg);
-    if (first_init_rc != VN_OK) {
-        if (be->arch_tag != VN_ARCH_SCALAR) {
-            (void)fprintf(stderr, "backend init failed rc=%d backend=%s, fallback=scalar\n", first_init_rc, be->name);
-            be = vn_backend_select(VN_ARCH_MASK_SCALAR);
-            if (be == (const VNRenderBackend*)0 || be->init == (int (*)(const RendererConfig*))0) {
-                return first_init_rc;
+    arch_mask = vn_renderer_arch_mask_from_flags(cfg->flags);
+    forced_backend = (arch_mask != VN_ARCH_MASK_ALL && arch_mask != VN_ARCH_MASK_SCALAR) ? VN_TRUE : VN_FALSE;
+
+    if ((arch_mask & VN_ARCH_MASK_AVX2) != 0u) {
+        rc = vn_renderer_try_backend(VN_ARCH_MASK_AVX2, &g_cfg);
+        if (rc == VN_OK) {
+            g_initialized = VN_TRUE;
+            return VN_OK;
+        }
+        if (forced_backend != VN_FALSE) {
+            rc = vn_renderer_try_backend(VN_ARCH_MASK_SCALAR, &g_cfg);
+            if (rc == VN_OK) {
+                g_initialized = VN_TRUE;
             }
-            rc = be->init(&g_cfg);
-            if (rc != VN_OK) {
-                return rc;
-            }
-        } else {
-            return first_init_rc;
+            return rc;
         }
     }
 
-    g_initialized = VN_TRUE;
-    return VN_OK;
+    if ((arch_mask & VN_ARCH_MASK_NEON) != 0u) {
+        rc = vn_renderer_try_backend(VN_ARCH_MASK_NEON, &g_cfg);
+        if (rc == VN_OK) {
+            g_initialized = VN_TRUE;
+            return VN_OK;
+        }
+        if (forced_backend != VN_FALSE) {
+            rc = vn_renderer_try_backend(VN_ARCH_MASK_SCALAR, &g_cfg);
+            if (rc == VN_OK) {
+                g_initialized = VN_TRUE;
+            }
+            return rc;
+        }
+    }
+
+    if ((arch_mask & VN_ARCH_MASK_RVV) != 0u) {
+        rc = vn_renderer_try_backend(VN_ARCH_MASK_RVV, &g_cfg);
+        if (rc == VN_OK) {
+            g_initialized = VN_TRUE;
+            return VN_OK;
+        }
+        if (forced_backend != VN_FALSE) {
+            rc = vn_renderer_try_backend(VN_ARCH_MASK_SCALAR, &g_cfg);
+            if (rc == VN_OK) {
+                g_initialized = VN_TRUE;
+            }
+            return rc;
+        }
+    }
+
+    if ((arch_mask & VN_ARCH_MASK_SCALAR) != 0u || forced_backend == VN_FALSE) {
+        rc = vn_renderer_try_backend(VN_ARCH_MASK_SCALAR, &g_cfg);
+        if (rc == VN_OK) {
+            g_initialized = VN_TRUE;
+        }
+        return rc;
+    }
+
+    return VN_E_RENDER_STATE;
 }
 
 void renderer_begin_frame(void) {

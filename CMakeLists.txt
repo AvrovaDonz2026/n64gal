@@ -20,6 +20,8 @@ add_library(vn_core
     src/frontend/render_ops.c
     src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
+    src/backend/neon/neon_backend.c
+    src/backend/rvv/rvv_backend.c
     src/backend/scalar/scalar_backend.c
 )
 
