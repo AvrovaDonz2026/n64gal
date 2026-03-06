@@ -15,6 +15,8 @@ PERF_WARMUP_SEC="${PERF_WARMUP_SEC:-1}"
 PERF_DT_MS="${PERF_DT_MS:-16}"
 PERF_RESOLUTION="${PERF_RESOLUTION:-600x800}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_ci_riscv64_perf}"
+PERF_THRESHOLD_FILE="${PERF_THRESHOLD_FILE:-}"
+PERF_THRESHOLD_PROFILE="${PERF_THRESHOLD_PROFILE:-}"
 
 require_tool() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -36,6 +38,14 @@ mkdir -p "$OUT_DIR"
 BASELINE_REV="$(git rev-parse --verify "$BASELINE_REV")"
 CANDIDATE_REV="$(git rev-parse --verify "$CANDIDATE_REV")"
 
+THRESHOLD_ARGS=()
+if [[ -n "$PERF_THRESHOLD_PROFILE" ]]; then
+  if [[ -n "$PERF_THRESHOLD_FILE" ]]; then
+    THRESHOLD_ARGS+=(--threshold-file "$PERF_THRESHOLD_FILE")
+  fi
+  THRESHOLD_ARGS+=(--threshold-profile "$PERF_THRESHOLD_PROFILE")
+fi
+
 CC=riscv64-linux-gnu-gcc \
 VN_PERF_CFLAGS='-march=rv64gcv -mabi=lp64d' \
 VN_PERF_RUNNER_PREFIX="$QEMU_BIN -cpu $QEMU_RVV_CPU -L $QEMU_SYSROOT" \
@@ -48,7 +58,8 @@ VN_PERF_RUNNER_PREFIX="$QEMU_BIN -cpu $QEMU_RVV_CPU -L $QEMU_SYSROOT" \
   --warmup-sec "$PERF_WARMUP_SEC" \
   --dt-ms "$PERF_DT_MS" \
   --resolution "$PERF_RESOLUTION" \
-  --out-dir "$OUT_DIR"
+  --out-dir "$OUT_DIR" \
+  "${THRESHOLD_ARGS[@]}"
 
 REPORT_MD="$OUT_DIR/compare/perf_compare_revs.md"
 if [ ! -f "$REPORT_MD" ]; then

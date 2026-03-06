@@ -17,24 +17,57 @@ jobs:
       - uses: actions/checkout@v4
       - name: Native C89 suite
         run: ./scripts/ci/run_cc_suite.sh
+      - name: Publish native suite summary
+        if: always()
+        run: |
+          if [ -f build_ci_cc/ci_suite_summary.md ]; then
+            cat build_ci_cc/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload native suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-linux-x64
+          if-no-files-found: warn
+          path: |
+            build_ci_cc/ci_logs
+            build_ci_cc/ci_suite_summary.md
+            build_ci_cc/golden_artifacts
       - name: Perf compare
-        run: ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S3 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --out-dir "$RUNNER_TEMP/perf_compare"
+        run: ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S3 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir "$RUNNER_TEMP/perf_compare"
       - name: Upload perf artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: perf-linux-x64
+          if-no-files-found: warn
           path: ${{ runner.temp }}/perf_compare
 
   windows-x64:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -A x64 -DVN_BUILD_PLAYER=ON
-      - name: Build
-        run: cmake --build build --config Release
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Windows suite
+        shell: pwsh
+        run: ./scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-x64 -CMakePlatform x64 -SuiteRoot build_ci_windows_x64
+      - name: Publish suite summary
+        if: always()
+        shell: pwsh
+        run: |
+          $SummaryPath = Join-Path 'build_ci_windows_x64' 'ci_suite_summary.md'
+          if (Test-Path $SummaryPath) {
+            Get-Content $SummaryPath | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-windows-x64
+          if-no-files-found: warn
+          path: |
+            build_ci_windows_x64/ci_logs
+            build_ci_windows_x64/ci_suite_summary.md
+            build_ci_windows_x64/golden_artifacts
 
   linux-arm64:
     runs-on: ubuntu-24.04-arm
@@ -42,17 +75,48 @@ jobs:
       - uses: actions/checkout@v4
       - name: Native C89 suite
         run: ./scripts/ci/run_cc_suite.sh
+      - name: Publish native suite summary
+        if: always()
+        run: |
+          if [ -f build_ci_cc/ci_suite_summary.md ]; then
+            cat build_ci_cc/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload native suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-linux-arm64
+          if-no-files-found: warn
+          path: |
+            build_ci_cc/ci_logs
+            build_ci_cc/ci_suite_summary.md
+            build_ci_cc/golden_artifacts
 
   windows-arm64:
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -S . -B build -A ARM64 -DVN_BUILD_PLAYER=ON
-      - name: Build
-        run: cmake --build build --config Release
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Windows suite
+        shell: pwsh
+        run: ./scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakePlatform ARM64 -SuiteRoot build_ci_windows_arm64
+      - name: Publish suite summary
+        if: always()
+        shell: pwsh
+        run: |
+          $SummaryPath = Join-Path 'build_ci_windows_arm64' 'ci_suite_summary.md'
+          if (Test-Path $SummaryPath) {
+            Get-Content $SummaryPath | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-windows-arm64
+          if-no-files-found: warn
+          path: |
+            build_ci_windows_arm64/ci_logs
+            build_ci_windows_arm64/ci_suite_summary.md
+            build_ci_windows_arm64/golden_artifacts
 
   linux-riscv64-cross:
     runs-on: ubuntu-latest
@@ -75,6 +139,22 @@ jobs:
           sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
       - name: QEMU scalar smoke
         run: ./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
+      - name: Publish qemu scalar suite summary
+        if: always()
+        run: |
+          if [ -f build_ci_riscv64/ci_suite_summary.md ]; then
+            cat build_ci_riscv64/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload qemu scalar suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-linux-riscv64-qemu-scalar
+          if-no-files-found: warn
+          path: |
+            build_ci_riscv64/ci_logs
+            build_ci_riscv64/ci_suite_summary.md
+            build_ci_riscv64/golden_artifacts
 
   linux-riscv64-qemu-rvv:
     runs-on: ubuntu-latest
@@ -84,5 +164,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
-      - name: QEMU rvv smoke
+      - name: QEMU RVV smoke
         run: ./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
+      - name: Publish qemu RVV suite summary
+        if: always()
+        run: |
+          if [ -f build_ci_riscv64/ci_suite_summary.md ]; then
+            cat build_ci_riscv64/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload qemu RVV suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-linux-riscv64-qemu-rvv
+          if-no-files-found: warn
+          path: |
+            build_ci_riscv64/ci_logs
+            build_ci_riscv64/ci_suite_summary.md
+            build_ci_riscv64/golden_artifacts

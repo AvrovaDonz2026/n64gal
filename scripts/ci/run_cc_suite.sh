@@ -5,11 +5,44 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_ci_cc}"
-mkdir -p "$BUILD_DIR"
+LOG_DIR="$BUILD_DIR/ci_logs"
+GOLDEN_ARTIFACT_DIR="$BUILD_DIR/golden_artifacts"
+SUMMARY_MD="$BUILD_DIR/ci_suite_summary.md"
+mkdir -p "$BUILD_DIR" "$LOG_DIR" "$GOLDEN_ARTIFACT_DIR"
 
-./scripts/check_c89.sh
-./tools/scriptc/build_demo_scripts.sh >/tmp/n64gal_ci_scriptc.log
-./tools/packer/make_demo_pack.sh >/tmp/n64gal_ci_packer.log
+run_capture() {
+  local log_path
+  log_path="$1"
+  shift
+  "$@" >"$log_path" 2>&1
+  cat "$log_path"
+}
+
+write_summary() {
+  local status
+  status="$1"
+  {
+    echo "# CI Suite Summary"
+    echo
+    echo "- Status: \`$status\`"
+    echo "- Build dir: \`$BUILD_DIR\`"
+    echo "- Log dir: \`$LOG_DIR\`"
+    echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
+    echo "- Fallback log: \`$LOG_DIR/test_renderer_fallback.log\`"
+    echo "- Golden runtime log: \`$LOG_DIR/test_runtime_golden.log\`"
+    if compgen -G "$GOLDEN_ARTIFACT_DIR/*" >/dev/null; then
+      echo "- Golden artifacts present: yes"
+    else
+      echo "- Golden artifacts present: no (exact-match run or no diff output)"
+    fi
+  } > "$SUMMARY_MD"
+}
+
+trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary failed; fi; exit $rc' EXIT
+
+run_capture "$LOG_DIR/check_c89.log" ./scripts/check_c89.sh
+run_capture "$LOG_DIR/build_demo_scripts.log" ./tools/scriptc/build_demo_scripts.sh
+run_capture "$LOG_DIR/make_demo_pack.log" ./tools/packer/make_demo_pack.sh
 
 COMMON_SRC=(
   src/core/backend_registry.c
@@ -60,8 +93,12 @@ cc "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]
 cc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
 
 for test_name in "${TESTS[@]}"; do
-  "$BUILD_DIR/$test_name"
+  if [[ "$test_name" == "test_runtime_golden" ]]; then
+    run_capture "$LOG_DIR/${test_name}.log" env VN_GOLDEN_ARTIFACT_DIR="$GOLDEN_ARTIFACT_DIR" "$BUILD_DIR/$test_name"
+  else
+    run_capture "$LOG_DIR/${test_name}.log" "$BUILD_DIR/$test_name"
+  fi
 done
 
-"$BUILD_DIR/test_preview_protocol"
-"$BUILD_DIR/example_host_embed"
+run_capture "$LOG_DIR/test_preview_protocol.log" "$BUILD_DIR/test_preview_protocol"
+run_capture "$LOG_DIR/example_host_embed.log" "$BUILD_DIR/example_host_embed"

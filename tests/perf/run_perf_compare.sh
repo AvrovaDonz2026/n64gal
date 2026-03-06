@@ -14,6 +14,8 @@ DT_MS=16
 RESOLUTION="600x800"
 FRAMES_OVERRIDE=""
 KEEP_RAW=0
+THRESHOLD_FILE=""
+THRESHOLD_PROFILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +59,14 @@ while [[ $# -gt 0 ]]; do
       KEEP_RAW=1
       shift 1
       ;;
+    --threshold-file)
+      THRESHOLD_FILE="$2"
+      shift 2
+      ;;
+    --threshold-profile)
+      THRESHOLD_PROFILE="$2"
+      shift 2
+      ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
@@ -94,5 +104,16 @@ echo "[perf-compare] candidate backend=$CANDIDATE_BACKEND out=$CANDIDATE_DIR"
   --baseline "$BASELINE_BACKEND:$BASELINE_DIR/perf_summary.csv" \
   --candidate "$CANDIDATE_BACKEND:$CANDIDATE_DIR/perf_summary.csv" \
   --out-dir "$COMPARE_DIR"
+
+if [[ -n "$THRESHOLD_PROFILE" ]]; then
+  if [[ -z "$THRESHOLD_FILE" ]]; then
+    THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
+  fi
+  ./tests/perf/check_perf_thresholds.sh \
+    --compare-csv "$COMPARE_DIR/perf_compare.csv" \
+    --threshold-file "$THRESHOLD_FILE" \
+    --profile "$THRESHOLD_PROFILE" \
+    --out-dir "$COMPARE_DIR"
+fi
 
 echo "[perf-compare] done baseline=$BASELINE_BACKEND candidate=$CANDIDATE_BACKEND out=$OUT_DIR"

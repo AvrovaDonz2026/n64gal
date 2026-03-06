@@ -4,13 +4,13 @@
 
 ## 目标平台
 
-| Arch | OS | Backend Priority | Current Status | Validation Route |
-|---|---|---|---|---|
-| `amd64` | Linux | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux x64 |
-| `amd64` | Windows | `avx2 -> scalar` | 已接入并在 CI 验证 | GitHub Actions Windows x64 |
-| `arm64` | Linux | `neon -> scalar` | 已接入并在 CI 验证 | GitHub Actions Linux arm64 |
-| `arm64` | Windows | `neon -> scalar` | 已接入并在 CI 验证 | GitHub Actions Windows arm64 |
-| `riscv64` | Linux | `rvv -> scalar` | 交叉构建与 QEMU 已接入，原生验证进行中 | `scripts/ci/build_riscv64_cross.sh` + `scripts/ci/run_riscv64_qemu_suite.sh` |
+| Arch | OS | Backend Priority | Current Status | Validation Route | Evidence |
+|---|---|---|---|---|---|
+| `amd64` | Linux | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux x64 | `suite-linux-x64`, `perf-linux-x64` |
+| `amd64` | Windows | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-x64 -CMakePlatform x64` + GitHub Actions Windows x64 | `suite-windows-x64` |
+| `arm64` | Linux | `neon -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux arm64 | `suite-linux-arm64` |
+| `arm64` | Windows | `neon -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakePlatform ARM64` + GitHub Actions Windows arm64 | `suite-windows-arm64` |
+| `riscv64` | Linux | `rvv -> scalar` | 交叉构建与 QEMU 已接入，原生验证进行中 | `scripts/ci/build_riscv64_cross.sh` + `scripts/ci/run_riscv64_qemu_suite.sh` | `suite-linux-riscv64-qemu-scalar`, `suite-linux-riscv64-qemu-rvv`, `perf-riscv64-qemu-rvv` |
 
 ## 平台层原则
 
@@ -46,6 +46,7 @@
 | 预览路径解析 | `src/tools/preview_cli.c` |
 | 运行时键盘输入 | `src/core/runtime_cli.c` |
 | 路径单测 | `tests/unit/test_platform_paths.c` |
+| Windows suite 归档脚本 | `scripts/ci/run_windows_suite.ps1` |
 
 ## 构建与验证
 
@@ -70,6 +71,23 @@ ctest --test-dir build --output-on-failure
 3. 所有 unit tests。
 4. `preview protocol` 集成测试。
 5. `example_host_embed` 嵌入示例验证。
+6. 生成 `build_ci_cc/ci_logs/*`、`build_ci_cc/ci_suite_summary.md` 与 `build_ci_cc/golden_artifacts/`（如有 diff）。
+
+### Windows 本地/CI 套件
+
+```powershell
+pwsh -File scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-x64 -CMakePlatform x64 -SuiteRoot build_ci_windows_x64
+pwsh -File scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakePlatform ARM64 -SuiteRoot build_ci_windows_arm64
+```
+
+该脚本会统一完成：
+
+1. `cmake configure/build`。
+2. `ctest --output-on-failure`。
+3. 复跑 `test_renderer_fallback`、`test_runtime_api`、`test_runtime_golden`。
+4. 将 `VN_GOLDEN_ARTIFACT_DIR` 指向 suite artifact 目录。
+5. 生成 `ci_logs/*`、`ci_suite_summary.md` 与 `golden_artifacts/`。
+6. 即使 `ctest` 或单个复跑二进制失败，也会尽量保留 summary 与已生成日志。
 
 ### riscv64 交叉验证
 
@@ -78,6 +96,12 @@ ctest --test-dir build --output-on-failure
 ./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
 ./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
 ```
+
+当前 qemu 套件会把日志与摘要落到：
+
+1. `build_ci_riscv64/ci_logs/*`
+2. `build_ci_riscv64/ci_suite_summary.md`
+3. `build_ci_riscv64/golden_artifacts/`（如有 golden diff 产物）
 
 ## 宿主集成要求
 
@@ -91,3 +115,4 @@ ctest --test-dir build --output-on-failure
 1. 新增平台相关代码时，必须同步更新本文档和 `issue.md` 中对应 issue 的完成状态。
 2. 若修改了宿主可见行为，还必须同步更新 `docs/host-sdk.md` 与 `docs/api/runtime.md`。
 3. 新增平台能力后，必须至少补一条可复现验证命令和一条对应测试。
+4. Windows CI 目前也必须上传 suite artifact；若只保留 workflow 控制台输出，不视为证据链闭环。

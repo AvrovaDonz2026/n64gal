@@ -9,6 +9,8 @@
 #define VN_GOLDEN_WIDTH 600u
 #define VN_GOLDEN_HEIGHT 800u
 #define VN_GOLDEN_PIXELS (VN_GOLDEN_WIDTH * VN_GOLDEN_HEIGHT)
+#define VN_GOLDEN_OPTIONAL_MAX_MISMATCH_PERCENT 1u
+#define VN_GOLDEN_OPTIONAL_MAX_CHANNEL_DIFF 8u
 
 vn_u32 vn_scalar_backend_debug_frame_crc32(void);
 vn_u32 vn_avx2_backend_debug_frame_crc32(void);
@@ -25,12 +27,73 @@ typedef struct {
     vn_u32 expected_crc;
 } GoldenScene;
 
+typedef struct {
+    unsigned int max_mismatch_percent;
+    unsigned int max_channel_diff;
+} GoldenTolerancePolicy;
+
+typedef struct {
+    vn_u32 mismatch_count;
+    unsigned int max_channel_diff;
+    vn_u32 first_mismatch_index;
+    vn_u32 first_expected_pixel;
+    vn_u32 first_actual_pixel;
+} PixelDiffStats;
+
 static const GoldenScene k_golden_scenes[] = {
     { "S0", 0x58C8928Bu },
     { "S1", 0x80D7F175u },
     { "S2", 0x587BC5A4u },
     { "S3", 0x0BC0160Fu }
 };
+
+static const GoldenTolerancePolicy k_optional_backend_policy = {
+    VN_GOLDEN_OPTIONAL_MAX_MISMATCH_PERCENT,
+    VN_GOLDEN_OPTIONAL_MAX_CHANNEL_DIFF
+};
+
+static const char* golden_artifact_dir(void) {
+    const char* value;
+
+    value = getenv("VN_GOLDEN_ARTIFACT_DIR");
+    if (value == (const char*)0 || value[0] == '\0') {
+        return (const char*)0;
+    }
+    return value;
+}
+
+static int build_artifact_path(char* out_path,
+                               size_t out_path_cap,
+                               const char* file_name) {
+    const char* dir;
+    size_t dir_len;
+    size_t file_len;
+
+    if (out_path == (char*)0 || out_path_cap == 0u || file_name == (const char*)0) {
+        return 1;
+    }
+
+    dir = golden_artifact_dir();
+    if (dir == (const char*)0) {
+        file_len = strlen(file_name);
+        if (file_len + 1u > out_path_cap) {
+            return 1;
+        }
+        memcpy(out_path, file_name, file_len + 1u);
+        return 0;
+    }
+
+    dir_len = strlen(dir);
+    file_len = strlen(file_name);
+    if (dir_len + file_len + 2u > out_path_cap) {
+        return 1;
+    }
+
+    memcpy(out_path, dir, dir_len);
+    out_path[dir_len] = '/';
+    memcpy(out_path + dir_len + 1u, file_name, file_len + 1u);
+    return 0;
+}
 
 static int should_try_backend(const char* backend_name) {
     if (backend_name == (const char*)0) {
@@ -109,6 +172,91 @@ static void build_diff_pixel(vn_u32 expected, vn_u32 actual, unsigned char* out_
     out_rgb[2] = (unsigned char)channel_abs_diff(expected, actual, 0u);
 }
 
+static double mismatch_percent_for_stats(const PixelDiffStats* stats,
+                                         vn_u32 pixel_count) {
+    if (stats == (const PixelDiffStats*)0 || pixel_count == 0u) {
+        return 0.0;
+    }
+    return (100.0 * (double)stats->mismatch_count) / (double)pixel_count;
+}
+
+static void collect_pixel_diff_stats(const vn_u32* expected_pixels,
+                                     const vn_u32* actual_pixels,
+                                     vn_u32 pixel_count,
+                                     PixelDiffStats* out_stats) {
+    vn_u32 i;
+
+    if (out_stats == (PixelDiffStats*)0) {
+        return;
+    }
+
+    out_stats->mismatch_count = 0u;
+    out_stats->max_channel_diff = 0u;
+    out_stats->first_mismatch_index = pixel_count;
+    out_stats->first_expected_pixel = 0u;
+    out_stats->first_actual_pixel = 0u;
+
+    if (expected_pixels == (const vn_u32*)0 ||
+        actual_pixels == (const vn_u32*)0 ||
+        pixel_count == 0u) {
+        return;
+    }
+
+    for (i = 0u; i < pixel_count; ++i) {
+        if (expected_pixels[i] != actual_pixels[i]) {
+            unsigned int diff_r;
+            unsigned int diff_g;
+            unsigned int diff_b;
+            unsigned int local_max;
+
+            if (out_stats->mismatch_count == 0u) {
+                out_stats->first_mismatch_index = i;
+                out_stats->first_expected_pixel = expected_pixels[i];
+                out_stats->first_actual_pixel = actual_pixels[i];
+            }
+
+            out_stats->mismatch_count += 1u;
+            diff_r = channel_abs_diff(expected_pixels[i], actual_pixels[i], 16u);
+            diff_g = channel_abs_diff(expected_pixels[i], actual_pixels[i], 8u);
+            diff_b = channel_abs_diff(expected_pixels[i], actual_pixels[i], 0u);
+            local_max = diff_r;
+            if (diff_g > local_max) {
+                local_max = diff_g;
+            }
+            if (diff_b > local_max) {
+                local_max = diff_b;
+            }
+            if (local_max > out_stats->max_channel_diff) {
+                out_stats->max_channel_diff = local_max;
+            }
+        }
+    }
+}
+
+static int pixel_diff_within_policy(const PixelDiffStats* stats,
+                                    vn_u32 pixel_count,
+                                    const GoldenTolerancePolicy* policy) {
+    double mismatch_percent;
+
+    if (stats == (const PixelDiffStats*)0 ||
+        policy == (const GoldenTolerancePolicy*)0 ||
+        pixel_count == 0u) {
+        return 0;
+    }
+    if (stats->mismatch_count == 0u) {
+        return 1;
+    }
+
+    mismatch_percent = mismatch_percent_for_stats(stats, pixel_count);
+    if (mismatch_percent >= (double)policy->max_mismatch_percent) {
+        return 0;
+    }
+    if (stats->max_channel_diff > policy->max_channel_diff) {
+        return 0;
+    }
+    return 1;
+}
+
 static int write_ppm_from_pixels(const char* path,
                                  const vn_u32* pixels,
                                  vn_u32 width,
@@ -174,97 +322,188 @@ static int write_ppm_diff(const char* path,
     return 0;
 }
 
-static void emit_diff_artifacts(const char* scene_name,
-                                const char* backend_name,
-                                const vn_u32* expected_pixels,
-                                const vn_u32* actual_pixels) {
-    char expected_path[128];
-    char actual_path[128];
-    char diff_path[128];
+static int write_diff_summary(const char* path,
+                              const char* status,
+                              const char* scene_name,
+                              const char* backend_name,
+                              vn_u32 expected_crc,
+                              vn_u32 actual_crc,
+                              const PixelDiffStats* stats,
+                              vn_u32 pixel_count,
+                              const GoldenTolerancePolicy* policy,
+                              const char* expected_path,
+                              const char* actual_path,
+                              const char* diff_path) {
+    FILE* fp;
+    double mismatch_percent;
+    vn_u32 first_x;
+    vn_u32 first_y;
 
-    if (scene_name == (const char*)0 ||
+    if (path == (const char*)0 ||
+        status == (const char*)0 ||
+        scene_name == (const char*)0 ||
         backend_name == (const char*)0 ||
-        expected_pixels == (const vn_u32*)0 ||
-        actual_pixels == (const vn_u32*)0) {
-        return;
-    }
-
-    (void)sprintf(expected_path,
-                  "test_runtime_golden_%s_%s_expected.ppm",
-                  scene_name,
-                  backend_name);
-    (void)sprintf(actual_path,
-                  "test_runtime_golden_%s_%s_actual.ppm",
-                  scene_name,
-                  backend_name);
-    (void)sprintf(diff_path,
-                  "test_runtime_golden_%s_%s_diff.ppm",
-                  scene_name,
-                  backend_name);
-
-    (void)write_ppm_from_pixels(expected_path, expected_pixels, VN_GOLDEN_WIDTH, VN_GOLDEN_HEIGHT);
-    (void)write_ppm_from_pixels(actual_path, actual_pixels, VN_GOLDEN_WIDTH, VN_GOLDEN_HEIGHT);
-    (void)write_ppm_diff(diff_path, expected_pixels, actual_pixels, VN_GOLDEN_WIDTH, VN_GOLDEN_HEIGHT);
-    (void)printf("test_runtime_golden wrote artifacts expected=%s actual=%s diff=%s\n",
-                 expected_path,
-                 actual_path,
-                 diff_path);
-}
-
-static int compare_exact_pixels(const char* scene_name,
-                                const char* backend_name,
-                                const vn_u32* expected_pixels,
-                                const vn_u32* actual_pixels,
-                                vn_u32 pixel_count) {
-    vn_u32 i;
-    vn_u32 mismatch_count;
-    unsigned int max_channel_diff;
-
-    if (scene_name == (const char*)0 ||
-        backend_name == (const char*)0 ||
-        expected_pixels == (const vn_u32*)0 ||
-        actual_pixels == (const vn_u32*)0) {
+        stats == (const PixelDiffStats*)0 ||
+        policy == (const GoldenTolerancePolicy*)0 ||
+        expected_path == (const char*)0 ||
+        actual_path == (const char*)0 ||
+        diff_path == (const char*)0) {
         return 1;
     }
 
-    mismatch_count = 0u;
-    max_channel_diff = 0u;
-    for (i = 0u; i < pixel_count; ++i) {
-        if (expected_pixels[i] != actual_pixels[i]) {
-            unsigned int diff_r;
-            unsigned int diff_g;
-            unsigned int diff_b;
-            unsigned int local_max;
+    fp = fopen(path, "wb");
+    if (fp == (FILE*)0) {
+        return 1;
+    }
 
-            mismatch_count += 1u;
-            diff_r = channel_abs_diff(expected_pixels[i], actual_pixels[i], 16u);
-            diff_g = channel_abs_diff(expected_pixels[i], actual_pixels[i], 8u);
-            diff_b = channel_abs_diff(expected_pixels[i], actual_pixels[i], 0u);
-            local_max = diff_r;
-            if (diff_g > local_max) {
-                local_max = diff_g;
-            }
-            if (diff_b > local_max) {
-                local_max = diff_b;
-            }
-            if (local_max > max_channel_diff) {
-                max_channel_diff = local_max;
-            }
+    mismatch_percent = mismatch_percent_for_stats(stats, pixel_count);
+    (void)fprintf(fp, "status=%s\n", status);
+    (void)fprintf(fp, "scene=%s\n", scene_name);
+    (void)fprintf(fp, "backend=%s\n", backend_name);
+    (void)fprintf(fp, "expected_crc=0x%08X\n", (unsigned int)expected_crc);
+    (void)fprintf(fp, "actual_crc=0x%08X\n", (unsigned int)actual_crc);
+    (void)fprintf(fp, "crc_match=%s\n", expected_crc == actual_crc ? "yes" : "no");
+    (void)fprintf(fp, "pixel_count=%u\n", (unsigned int)pixel_count);
+    (void)fprintf(fp, "mismatch_count=%u\n", (unsigned int)stats->mismatch_count);
+    (void)fprintf(fp, "mismatch_percent=%.4f\n", mismatch_percent);
+    (void)fprintf(fp, "max_channel_diff=%u\n", stats->max_channel_diff);
+    (void)fprintf(fp,
+                  "threshold_rule=mismatch_percent<%u max_channel_diff<=%u\n",
+                  policy->max_mismatch_percent,
+                  policy->max_channel_diff);
+    if (stats->mismatch_count != 0u) {
+        first_x = stats->first_mismatch_index % VN_GOLDEN_WIDTH;
+        first_y = stats->first_mismatch_index / VN_GOLDEN_WIDTH;
+        (void)fprintf(fp, "first_mismatch_x=%u\n", (unsigned int)first_x);
+        (void)fprintf(fp, "first_mismatch_y=%u\n", (unsigned int)first_y);
+        (void)fprintf(fp,
+                      "first_expected_pixel=0x%08X\n",
+                      (unsigned int)stats->first_expected_pixel);
+        (void)fprintf(fp,
+                      "first_actual_pixel=0x%08X\n",
+                      (unsigned int)stats->first_actual_pixel);
+    }
+    (void)fprintf(fp, "expected_ppm=%s\n", expected_path);
+    (void)fprintf(fp, "actual_ppm=%s\n", actual_path);
+    (void)fprintf(fp, "diff_ppm=%s\n", diff_path);
+    (void)fclose(fp);
+    return 0;
+}
+
+static void emit_compare_artifacts(const char* scene_name,
+                                   const char* backend_name,
+                                   const vn_u32* expected_pixels,
+                                   const vn_u32* actual_pixels,
+                                   vn_u32 expected_crc,
+                                   vn_u32 actual_crc,
+                                   const PixelDiffStats* stats,
+                                   const GoldenTolerancePolicy* policy,
+                                   const char* status) {
+    char expected_name[128];
+    char actual_name[128];
+    char diff_name[128];
+    char summary_name[128];
+    char expected_path[512];
+    char actual_path[512];
+    char diff_path[512];
+    char summary_path[512];
+    const char* summary_expected_path;
+    const char* summary_actual_path;
+    const char* summary_diff_path;
+
+    if (scene_name == (const char*)0 ||
+        backend_name == (const char*)0 ||
+        expected_pixels == (const vn_u32*)0 ||
+        actual_pixels == (const vn_u32*)0 ||
+        stats == (const PixelDiffStats*)0 ||
+        policy == (const GoldenTolerancePolicy*)0 ||
+        status == (const char*)0) {
+        return;
+    }
+
+    (void)sprintf(expected_name,
+                  "test_runtime_golden_%s_%s_expected.ppm",
+                  scene_name,
+                  backend_name);
+    (void)sprintf(actual_name,
+                  "test_runtime_golden_%s_%s_actual.ppm",
+                  scene_name,
+                  backend_name);
+    (void)sprintf(diff_name,
+                  "test_runtime_golden_%s_%s_diff.ppm",
+                  scene_name,
+                  backend_name);
+    (void)sprintf(summary_name,
+                  "test_runtime_golden_%s_%s_summary.txt",
+                  scene_name,
+                  backend_name);
+    if (build_artifact_path(expected_path, sizeof(expected_path), expected_name) != 0 ||
+        build_artifact_path(actual_path, sizeof(actual_path), actual_name) != 0 ||
+        build_artifact_path(diff_path, sizeof(diff_path), diff_name) != 0 ||
+        build_artifact_path(summary_path, sizeof(summary_path), summary_name) != 0) {
+        (void)fprintf(stderr,
+                      "scene=%s backend=%s artifact path too long\n",
+                      scene_name,
+                      backend_name);
+        return;
+    }
+
+    summary_expected_path = "not-written";
+    summary_actual_path = "not-written";
+    summary_diff_path = "not-written";
+
+    if (stats->mismatch_count != 0u) {
+        if (write_ppm_from_pixels(expected_path,
+                                  expected_pixels,
+                                  VN_GOLDEN_WIDTH,
+                                  VN_GOLDEN_HEIGHT) == 0 &&
+            write_ppm_from_pixels(actual_path,
+                                  actual_pixels,
+                                  VN_GOLDEN_WIDTH,
+                                  VN_GOLDEN_HEIGHT) == 0 &&
+            write_ppm_diff(diff_path,
+                           expected_pixels,
+                           actual_pixels,
+                           VN_GOLDEN_WIDTH,
+                           VN_GOLDEN_HEIGHT) == 0) {
+            summary_expected_path = expected_path;
+            summary_actual_path = actual_path;
+            summary_diff_path = diff_path;
+        } else {
+            (void)fprintf(stderr,
+                          "scene=%s backend=%s failed to write diff PPM artifacts\n",
+                          scene_name,
+                          backend_name);
         }
     }
 
-    if (mismatch_count == 0u) {
-        return 0;
+    if (write_diff_summary(summary_path,
+                           status,
+                           scene_name,
+                           backend_name,
+                           expected_crc,
+                           actual_crc,
+                           stats,
+                           VN_GOLDEN_PIXELS,
+                           policy,
+                           summary_expected_path,
+                           summary_actual_path,
+                           summary_diff_path) != 0) {
+        (void)fprintf(stderr,
+                      "scene=%s backend=%s failed to write diff summary %s\n",
+                      scene_name,
+                      backend_name,
+                      summary_path);
+        return;
     }
 
-    emit_diff_artifacts(scene_name, backend_name, expected_pixels, actual_pixels);
-    (void)fprintf(stderr,
-                  "scene=%s backend=%s pixel mismatch count=%u max_channel_diff=%u\n",
-                  scene_name,
-                  backend_name,
-                  (unsigned int)mismatch_count,
-                  max_channel_diff);
-    return 1;
+    (void)printf("test_runtime_golden wrote summary=%s\n", summary_path);
+    if (stats->mismatch_count != 0u && strcmp(summary_expected_path, "not-written") != 0) {
+        (void)printf("test_runtime_golden wrote artifacts expected=%s actual=%s diff=%s\n",
+                     expected_path,
+                     actual_path,
+                     diff_path);
+    }
 }
 
 static int run_scene_once(const char* scene_name,
@@ -336,6 +575,9 @@ static int check_optional_backend(const GoldenScene* golden,
                                   int* out_compared_count) {
     vn_u32 backend_crc;
     const char* actual_backend;
+    PixelDiffStats stats;
+    double mismatch_percent;
+    int within_tolerance;
     int rc;
 
     if (golden == (const GoldenScene*)0 ||
@@ -381,28 +623,75 @@ static int check_optional_backend(const GoldenScene* golden,
                       actual_backend);
         return 1;
     }
-    if (backend_crc != golden->expected_crc) {
+
+    collect_pixel_diff_stats(expected_pixels,
+                             actual_pixels,
+                             VN_GOLDEN_PIXELS,
+                             &stats);
+    mismatch_percent = mismatch_percent_for_stats(&stats, VN_GOLDEN_PIXELS);
+    within_tolerance = pixel_diff_within_policy(&stats,
+                                                VN_GOLDEN_PIXELS,
+                                                &k_optional_backend_policy);
+
+    if (stats.mismatch_count == 0u) {
+        if (backend_crc != golden->expected_crc) {
+            emit_compare_artifacts(golden->scene_name,
+                                   backend_name,
+                                   expected_pixels,
+                                   actual_pixels,
+                                   golden->expected_crc,
+                                   backend_crc,
+                                   &stats,
+                                   &k_optional_backend_policy,
+                                   "failed");
+            (void)fprintf(stderr,
+                          "scene=%s backend=%s exact pixels but crc mismatch expected=0x%08X got=0x%08X\n",
+                          golden->scene_name,
+                          backend_name,
+                          (unsigned int)golden->expected_crc,
+                          (unsigned int)backend_crc);
+            return 1;
+        }
+
+        *out_compared_count += 1;
+        (void)printf("test_runtime_golden matched scene=%s backend=%s crc=0x%08X\n",
+                     golden->scene_name,
+                     backend_name,
+                     (unsigned int)backend_crc);
+        return 0;
+    }
+
+    emit_compare_artifacts(golden->scene_name,
+                           backend_name,
+                           expected_pixels,
+                           actual_pixels,
+                           golden->expected_crc,
+                           backend_crc,
+                           &stats,
+                           &k_optional_backend_policy,
+                           within_tolerance != 0 ? "tolerated" : "failed");
+
+    if (within_tolerance == 0) {
         (void)fprintf(stderr,
-                      "scene=%s backend=%s crc mismatch expected=0x%08X got=0x%08X\n",
+                      "scene=%s backend=%s pixel mismatch count=%u mismatch_percent=%.4f max_channel_diff=%u threshold=mismatch_percent<%u max_channel_diff<=%u\n",
                       golden->scene_name,
                       backend_name,
-                      (unsigned int)golden->expected_crc,
-                      (unsigned int)backend_crc);
-        return 1;
-    }
-    if (compare_exact_pixels(golden->scene_name,
-                             backend_name,
-                             expected_pixels,
-                             actual_pixels,
-                             VN_GOLDEN_PIXELS) != 0) {
+                      (unsigned int)stats.mismatch_count,
+                      mismatch_percent,
+                      stats.max_channel_diff,
+                      k_optional_backend_policy.max_mismatch_percent,
+                      k_optional_backend_policy.max_channel_diff);
         return 1;
     }
 
     *out_compared_count += 1;
-    (void)printf("test_runtime_golden matched scene=%s backend=%s crc=0x%08X\n",
+    (void)printf("test_runtime_golden tolerated scene=%s backend=%s crc=0x%08X mismatch_count=%u mismatch_percent=%.4f max_channel_diff=%u\n",
                  golden->scene_name,
                  backend_name,
-                 (unsigned int)backend_crc);
+                 (unsigned int)backend_crc,
+                 (unsigned int)stats.mismatch_count,
+                 mismatch_percent,
+                 stats.max_channel_diff);
     return 0;
 }
 

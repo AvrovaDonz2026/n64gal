@@ -50,6 +50,8 @@
   --warmup-sec 20 \
   --dt-ms 16 \
   --resolution 600x800 \
+  --threshold-file tests/perf/perf_thresholds.csv \
+  --threshold-profile linux-x64-scalar-avx2-smoke \
   --out-dir /tmp/n64gal_perf/compare_scalar_avx2
 ```
 
@@ -59,8 +61,30 @@
 2. `avx2/perf_summary.csv`
 3. `compare/perf_compare.csv`
 4. `compare/perf_compare.md`
+5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 
 `perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比。
+`perf_threshold_report.md` 会把 profile 中的每条门限检查展开成表格，适合直接进 CI artifact 或 issue 证据链。
+
+## Perf Threshold Gate
+
+`tests/perf/perf_thresholds.csv` 用一份 CSV 定义不同 runner/profile 的性能门限；`tests/perf/check_perf_thresholds.sh` 会把 `perf_compare.csv` 转成聚合指标后执行门限判定。
+
+当前已落地的 profile：
+
+1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke gate。
+2. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，当前默认保留为可选接线。
+
+直接对已有 compare 结果做门限检查：
+
+```bash
+./tests/perf/check_perf_thresholds.sh \
+  --compare-csv /tmp/n64gal_perf/compare_scalar_avx2/compare/perf_compare.csv \
+  --threshold-file tests/perf/perf_thresholds.csv \
+  --profile linux-x64-scalar-avx2-smoke
+```
+
+如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成。
 
 ## Baseline vs Candidate Revision
 
@@ -133,3 +157,4 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 3. `rss_delta_mb < 0` 代表 candidate 峰值 RSS 更低。
 4. 所有性能结论都必须附带：commit、设备、OS、toolchain、命令行参数。
 5. `qemu-user` perf 只用于回归趋势判断；发版门槛必须看目标架构原生机器结果。
+6. CI 门限 profile 先按当前 runner 的 smoke 输入固化，后续随着优化落地再逐步收紧，不把“还未优化完”的目标值直接硬塞进日常短窗口 gate。

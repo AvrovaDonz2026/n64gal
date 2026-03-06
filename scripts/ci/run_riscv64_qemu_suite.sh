@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_ci_riscv64}"
+LOG_DIR="$BUILD_DIR/ci_logs"
+GOLDEN_ARTIFACT_DIR="$BUILD_DIR/golden_artifacts"
+SUMMARY_MD="$BUILD_DIR/ci_suite_summary.md"
 QEMU_BIN="${QEMU_BIN:-qemu-riscv64}"
 QEMU_SYSROOT="${QEMU_SYSROOT:-/usr/riscv64-linux-gnu}"
 QEMU_RVV_CPU="${QEMU_RVV_CPU:-max,v=true}"
@@ -25,6 +28,8 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+mkdir -p "$BUILD_DIR" "$LOG_DIR" "$GOLDEN_ARTIFACT_DIR"
 
 require_tool() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -53,6 +58,28 @@ assert_log_has() {
   return 0
 }
 
+write_summary() {
+  local status
+  status="$1"
+  {
+    echo "# RISC-V QEMU Suite Summary"
+    echo
+    echo "- Status: \`$status\`"
+    echo "- Build dir: \`$BUILD_DIR\`"
+    echo "- Log dir: \`$LOG_DIR\`"
+    echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
+    echo "- RVV mode: \`$RVV_MODE\`"
+    echo "- Fallback evidence: \`$LOG_DIR/player_auto.log\`, \`$LOG_DIR/test_runtime_api.log\`, \`$LOG_DIR/test_renderer_fallback.log\`"
+    if compgen -G "$GOLDEN_ARTIFACT_DIR/*" >/dev/null; then
+      echo "- Golden artifacts present: yes"
+    else
+      echo "- Golden artifacts present: no (exact-match run or no diff output)"
+    fi
+  } > "$SUMMARY_MD"
+}
+
+trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary failed; fi; exit $rc' EXIT
+
 require_tool riscv64-linux-gnu-gcc
 require_tool "$QEMU_BIN"
 
@@ -64,26 +91,27 @@ fi
 ./scripts/ci/build_riscv64_cross.sh
 
 echo "[riscv64-qemu] running blocking smoke suite"
-run_capture "$BUILD_DIR/test_vnpak.log" \
+run_capture "$LOG_DIR/test_vnpak.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_vnpak_riscv64"
-run_capture "$BUILD_DIR/test_runtime_api.log" \
+run_capture "$LOG_DIR/test_runtime_api.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_api_riscv64"
-assert_log_has "$BUILD_DIR/test_runtime_api.log" "backend=scalar"
-run_capture "$BUILD_DIR/test_runtime_session.log" \
+assert_log_has "$LOG_DIR/test_runtime_api.log" "backend=scalar"
+run_capture "$LOG_DIR/test_runtime_session.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_session_riscv64"
-run_capture "$BUILD_DIR/test_runtime_golden.log" \
+run_capture "$LOG_DIR/test_runtime_golden.log" \
+  env VN_GOLDEN_ARTIFACT_DIR="$GOLDEN_ARTIFACT_DIR" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_golden_riscv64"
-assert_log_has "$BUILD_DIR/test_runtime_golden.log" "test_runtime_golden ok"
-run_capture "$BUILD_DIR/test_renderer_fallback.log" \
+assert_log_has "$LOG_DIR/test_runtime_golden.log" "test_runtime_golden ok"
+run_capture "$LOG_DIR/test_renderer_fallback.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_renderer_fallback_riscv64"
-run_capture "$BUILD_DIR/player_scalar.log" \
+run_capture "$LOG_DIR/player_scalar.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/vn_player_riscv64" \
   --backend=scalar --scene=S0 --frames=2 --dt-ms=16
-assert_log_has "$BUILD_DIR/player_scalar.log" "backend=scalar"
-run_capture "$BUILD_DIR/player_auto.log" \
+assert_log_has "$LOG_DIR/player_scalar.log" "backend=scalar"
+run_capture "$LOG_DIR/player_auto.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/vn_player_riscv64" \
   --scene=S0 --frames=2 --dt-ms=16
-assert_log_has "$BUILD_DIR/player_auto.log" "backend=scalar"
+assert_log_has "$LOG_DIR/player_auto.log" "backend=scalar"
 
 echo "[riscv64-qemu] blocking smoke suite passed"
 
@@ -93,17 +121,17 @@ if [ "$RVV_MODE" = "skip" ]; then
 fi
 
 rvv_smoke() {
-  run_capture "$BUILD_DIR/player_rvv_forced.log" \
+  run_capture "$LOG_DIR/player_rvv_forced.log" \
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/vn_player_rvv" \
     --backend=rvv --scene=S0 --frames=2 --dt-ms=16
-  assert_log_has "$BUILD_DIR/player_rvv_forced.log" "backend=rvv"
-  run_capture "$BUILD_DIR/player_rvv_auto.log" \
+  assert_log_has "$LOG_DIR/player_rvv_forced.log" "backend=rvv"
+  run_capture "$LOG_DIR/player_rvv_auto.log" \
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/vn_player_rvv" \
     --scene=S0 --frames=2 --dt-ms=16
-  assert_log_has "$BUILD_DIR/player_rvv_auto.log" "backend=rvv"
-  run_capture "$BUILD_DIR/test_backend_consistency_rvv.log" \
+  assert_log_has "$LOG_DIR/player_rvv_auto.log" "backend=rvv"
+  run_capture "$LOG_DIR/test_backend_consistency_rvv.log" \
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_backend_consistency_rvv"
-  assert_log_has "$BUILD_DIR/test_backend_consistency_rvv.log" "test_backend_consistency ok"
+  assert_log_has "$LOG_DIR/test_backend_consistency_rvv.log" "test_backend_consistency ok"
 }
 
 if rvv_smoke; then

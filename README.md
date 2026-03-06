@@ -18,7 +18,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
-   - AVX2 收口：已固化 `test_runtime_golden` 的 `S0-S3 @ 600x800` 标量 CRC 基线，并对 `avx2` 做逐像素 exact compare；下一步补误差阈值与可视化门限。
+   - Golden 基线收口：`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。下一步转向性能门限与回归门。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，arm64 Linux/Windows CI 已通过；下一步转向补算子、golden 阈值与性能门限。
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
@@ -299,7 +299,7 @@ ctest --test-dir build --output-on-failure
 baseline/candidate 对照：
 
 ```bash
-./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_compare
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir /tmp/n64gal_perf_compare
 ```
 
 输出包括：
@@ -308,7 +308,8 @@ baseline/candidate 对照：
 2. `perf_summary.csv`（含每场景 `p95_frame_ms`）
 3. `compare/perf_compare.csv`
 4. `compare/perf_compare.md`
-5. `perf_report_template.md`
+5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
+6. `perf_report_template.md`
 
 完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
 
@@ -328,15 +329,19 @@ baseline/candidate 对照：
 1. GitHub Actions 主矩阵工作流：`.github/workflows/ci-matrix.yml`
 2. GitHub Actions RVV perf 报告工作流：`.github/workflows/riscv-perf-report.yml`
 3. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
-4. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
-5. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
-6. riscv64 qemu perf 报告脚本：`scripts/ci/run_riscv64_qemu_perf_report.sh`
-7. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
-8. `linux-x64` 会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照）
-9. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown）；首次 dispatch run `22766736383` 已验证成功
-10. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
-11. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
-12. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
+4. Windows 原生套件脚本：`scripts/ci/run_windows_suite.ps1`
+5. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
+6. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
+7. riscv64 qemu perf 报告脚本：`scripts/ci/run_riscv64_qemu_perf_report.sh`
+8. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
+9. `linux-x64` 与 `linux-arm64` 会产出 `suite-linux-x64` / `suite-linux-arm64` artifact，内容包括 `ci_logs/`、`ci_suite_summary.md` 与 `golden_artifacts/`
+10. `windows-x64` 与 `windows-arm64` 统一通过 `scripts/ci/run_windows_suite.ps1` 产出 `suite-windows-x64` / `suite-windows-arm64` artifact，收纳 `configure/build/ctest` 日志以及 `test_renderer_fallback`、`test_runtime_api`、`test_runtime_golden` 复跑证据；脚本会在失败场景下尽量保留 summary 与已生成日志
+11. `linux-x64` 还会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照 + perf threshold report）
+12. `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 会产出对应 suite artifact，收纳 qemu smoke logs、fallback 证据与 golden artifact 目录
+13. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown）；首次 dispatch run `22766736383` 已验证成功
+14. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
+15. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+16. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
 
 ## API 文档
 
