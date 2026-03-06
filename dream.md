@@ -24,9 +24,10 @@
 12. CI / 质量门禁
 13. 工程治理补充规范
 14. 性能深度优化路线
-15. 结论与立即行动项
-16. 开工实施手册（Day0-Day2）
-17. 首周并行执行计划（可直接派工）
+15. 引擎生态设想与演进边界
+16. 结论与立即行动项
+17. 开工实施手册（Day0-Day2）
+18. 首周并行执行计划（可直接派工）
 
 ---
 
@@ -860,13 +861,191 @@ VN_SIMD=2   强制 SIMD（仅测试）
 
 ---
 
-## 15. 结论与立即行动项
+## 15. 引擎生态设想与演进边界
 
-### 15.1 结论
+这份白皮书的主线仍然是“先把运行时和跨架构后端做扎实”。
+但如果项目目标是长期可用的视觉小说引擎，那么生态必须从一开始就定义边界，否则后续工具、编辑器、宿主接入和内容分发会各自演化出不兼容接口。
+
+### 15.1 生态目标
+
+生态不是“做一个大而全 IDE”，而是围绕稳定契约形成可协作的生产链：
+
+1. 内容作者可以稳定地产生 `script + asset + pack`。
+2. 宿主程序可以稳定地嵌入 `vn_runtime`，而不需要理解后端 ISA 细节。
+3. 后端作者只需要实现统一 Backend API，不必改 Frontend、工具链或内容格式。
+4. 测试、性能、兼容性证据可以随版本沉淀，而不是散落在 issue 和聊天记录里。
+
+### 15.2 生态分层（建议冻结）
+
+```text
+Layer 0: Runtime Core
+  vn_runtime / VM / Frontend IR / Backend ABI / Save / Pack reader
+
+Layer 1: Creator Toolchain
+  scriptc / packer / validator / perf capture / golden diff / migration tools
+
+Layer 2: Host SDK
+  C API / session API / input bridge / file bridge / telemetry hooks
+
+Layer 3: Editor & Preview
+  script preview runner / pack preview / live reload protocol / error diagnostics
+
+Layer 4: Distribution & Community
+  sample projects / templates / compatibility matrix / release bundles / extension registry
+```
+
+约束：
+
+1. Layer 0 必须保持 C89 运行时约束。
+2. Layer 1-4 允许使用更高层语言或脚本，但不得反向污染运行时 ABI。
+3. 所有层之间都必须优先走“文件格式 + CLI + 文档契约”，避免过早绑定脆弱的进程内插件 ABI。
+
+### 15.3 我们要做的生态，不做的生态
+
+明确做：
+
+1. 离线资源工具链：脚本编译、打包、校验、迁移、性能采样。
+2. 样例工程与模板：让新项目在一天内跑起来。
+3. 宿主 SDK：让外部程序能够嵌入播放器、会话循环、输入桥接和日志采集。
+4. 预览协议：编辑器或外部工具可以拉起预览进程并获得结构化错误。
+5. 兼容矩阵：版本、资源格式、后端能力、平台支持的证据链。
+
+当前阶段不做：
+
+1. 运行时热更新脚本 VM ABI。
+2. 直接在运行时进程内加载第三方未审计插件。
+3. 复杂协作文档系统、云端项目管理或在线编辑器。
+4. 为单个编辑器深度耦合私有工程格式。
+
+### 15.4 生态核心构件（建议命名）
+
+1. `vn_runtime`：稳定宿主运行时库。
+2. `vn_player`：CLI/调试包装器，用于冒烟、预览、性能与问题复现。
+3. `vn_scriptc`：脚本文本 -> 字节码编译器。
+4. `vn_packer`：资源打包与 `manifest` 生成器。
+5. `vn_validate`：资源包、脚本、版本兼容性校验器。
+6. `vn_migrate`：`vnpak/vnsave/script schema` 的迁移工具。
+7. `vn_probe`：trace/perf/golden diff 采集工具。
+8. `vn_host_sdk`：宿主接入头文件、示例与能力协商文档。
+9. `vn_previewd`：预览进程协议入口，供编辑器或脚本工具驱动。
+
+要求：
+
+1. 这些构件优先以独立 CLI/库组合出现，而不是一次性做成单体应用。
+2. 所有 CLI 输出都应支持稳定文本模式与机器可读模式（CSV/JSON/Markdown 至少其一）。
+3. 任何新工具都不得绕开 `vnpak` / `scriptc` 主路径自造格式。
+
+### 15.5 编辑器与预览协议（先协议、后 GUI）
+
+如果未来要做编辑器，最先冻结的应是预览协议而不是界面样式。
+
+建议最小协议：
+
+1. 输入：工程目录、目标场景、平台后端、分辨率、trace 开关。
+2. 输出：首帧状态、结构化错误、资源缺失列表、性能摘要、日志路径。
+3. 控制：`reload scene`、`step frame`、`set choice`、`inject input`、`capture screenshot`。
+4. 传输：初期可直接使用 CLI + 临时文件；中期再升级为本地 IPC。
+
+这样做的意义：
+
+1. 编辑器、CI 和自动化脚本共用同一条预览链。
+2. Linux/Windows/arm64/x64/riscv64 不需要分别维护不同编辑器内核。
+3. 出现错误时，可以先复现 CLI 命令，而不是先调 GUI。
+
+### 15.6 宿主 SDK 设计原则
+
+宿主 SDK 的目标不是暴露所有内部实现，而是提供最小稳定集：
+
+1. 初始化与销毁。
+2. 单步推进与查询结果。
+3. 输入注入（键盘、脚本化输入、选择项）。
+4. 文件与资源桥接。
+5. 日志、trace、性能采样回调。
+
+必须避免：
+
+1. 让宿主直接操作 Backend 私有结构。
+2. 让宿主依赖某个 ISA 特定后端头文件。
+3. 把 VM 内部状态布局当成公开 ABI。
+
+### 15.7 扩展机制：先文件级扩展，后插件 ABI
+
+生态扩展建议分两步走。
+
+第一步：文件级扩展
+
+1. 导入器：`png -> rgba16/ci8/ia8`
+2. 导出器：截图、trace、golden、perf summary
+3. 校验器：pack/script/save compatibility check
+4. 迁移器：旧版脚本/资源/存档升级
+
+第二步：插件级扩展
+
+1. 仅在 CLI 或独立工具进程中加载插件
+2. 以 `manifest + version range + capability flags` 做能力协商
+3. 运行时主进程仍默认拒绝第三方动态插件
+
+原因：
+
+1. 工具进程崩溃不会拖垮运行时。
+2. 插件 ABI 变更压力留在工具链，不污染 `vn_runtime` 稳定面。
+3. 更适合跨平台和跨架构分发。
+
+### 15.8 版本与兼容矩阵
+
+生态要成立，必须有统一的版本协商表。
+
+至少维护以下版本面：
+
+1. `runtime api version`
+2. `backend abi version`
+3. `script bytecode version`
+4. `vnpak version`
+5. `vnsave version`
+6. `tool manifest version`
+7. `preview protocol version`
+
+兼容规则建议：
+
+1. Runtime 与 Backend ABI 只追加字段，不做破坏性重排。
+2. `script/vnpak/vnsave` 升级必须附迁移器或拒绝加载理由。
+3. 所有 release 都必须附兼容矩阵和最小工具链版本。
+
+### 15.9 生态路线图（M4 以后）
+
+`M4-engine-ecosystem` 建议拆成四段：
+
+1. `E1` 样例工程与模板：项目骨架、最小 demo、宿主接入示例。
+2. `E2` Creator Toolchain：`validate/migrate/probe` 与统一 CLI 出口。
+3. `E3` Preview Protocol：编辑器预览与自动化共享同一驱动层。
+4. `E4` Extension Registry：导入器/导出器/校验器兼容清单与版本约束。
+
+阶段性 DoD：
+
+1. 新用户能在 30 分钟内从模板工程跑出首个场景。
+2. 任意一次格式升级都有迁移命令和回退策略。
+3. CI artifact 能附带性能、golden、兼容性证据，而不是只给“过/不过”。
+4. 宿主示例在 Linux/Windows 上至少各有 1 个可编译工程。
+
+### 15.10 生态部分的工程纪律
+
+生态建设必须服从主线约束：
+
+1. 不以牺牲 C89 运行时边界换取工具便利。
+2. 不以编辑器需求倒逼 Runtime 暴露临时内部结构。
+3. 不以“先做 GUI 再补协议”的方式推进。
+4. 不在没有兼容矩阵和迁移路径时冻结新格式。
+5. 所有生态改动都必须能写回 issue、文档和 CI 证据链。
+
+---
+
+## 16. 结论与立即行动项
+
+### 16.1 结论
 
 N64-RDP 思路对视觉小说引擎是成立的，但必须以“可验证交付”推进，而不是以“理论性能”推进。本版已经将项目约束、接口契约、验证方法、回退路径和里程碑 DoD 明确化，并将渲染链路细化为前后端分离架构与 `AVX2 -> NEON -> RVV` 分阶段后端路线，可直接转入工程实施。
 
-### 15.2 立即行动项（本周）
+### 16.2 立即行动项（本周）
 
 1. 冻结目录结构与公共头文件（`vn_backend.h/vn_renderer.h/vn_vm.h/vn_pack.h`）
 2. 完成 `tools/packer` 最小可用版本（图像 + 脚本）
@@ -876,9 +1055,9 @@ N64-RDP 思路对视觉小说引擎是成立的，但必须以“可验证交付
 
 ---
 
-## 16. 开工实施手册（Day0-Day2）
+## 17. 开工实施手册（Day0-Day2）
 
-### 16.1 Day0 启动检查（2 小时内完成）
+### 17.1 Day0 启动检查（2 小时内完成）
 
 启动前必须全部满足：
 
@@ -895,7 +1074,7 @@ cmake -S . -B build -DCMAKE_C_STANDARD=90 -DCMAKE_C_EXTENSIONS=OFF
 cmake --build build -j
 ```
 
-### 16.2 最小目录落地（一次性建齐）
+### 17.2 最小目录落地（一次性建齐）
 
 ```text
 include/
@@ -920,7 +1099,7 @@ tests/
 
 说明：`avx2/neon/rvv` 目录可先放空实现桩，但目录必须先存在，便于并行开发。
 
-### 16.3 首批代码骨架（必须先有）
+### 17.3 首批代码骨架（必须先有）
 
 首批必须落地的符号（未实现可返回 `VN_E_UNSUPPORTED`）：
 
@@ -936,7 +1115,7 @@ tests/
 2. Backend 私有头文件不得被 Frontend include
 3. 所有新文件默认开启 `-std=c89 -pedantic-errors`
 
-### 16.4 Definition of Ready（DoR）
+### 17.4 Definition of Ready（DoR）
 
 Issue 进入开发前必须满足：
 
@@ -946,7 +1125,7 @@ Issue 进入开发前必须满足：
 4. 有依赖 issue 并已确认状态
 5. 有预计工时（1-5 天）
 
-### 16.5 Definition of Done（统一补充）
+### 17.5 Definition of Done（统一补充）
 
 除 issue 自身 DoD 外，还必须满足：
 
@@ -957,9 +1136,9 @@ Issue 进入开发前必须满足：
 
 ---
 
-## 17. 首周并行执行计划（可直接派工）
+## 18. 首周并行执行计划（可直接派工）
 
-### 17.1 角色与责任边界
+### 18.1 角色与责任边界
 
 建议最小 4 角色并行：
 
@@ -970,7 +1149,7 @@ Issue 进入开发前必须满足：
 
 规则：各 Owner 只能修改自己责任目录，跨目录改动必须先发 RFC 评论。
 
-### 17.2 首周日程（W1）
+### 18.2 首周日程（W1）
 
 | 日期 | 目标 | 责任人 | 验收输出 |
 |---|---|---|---|
@@ -982,7 +1161,7 @@ Issue 进入开发前必须满足：
 | D6 | AVX2 原型接入 | B | `--backend=avx2` 可运行 |
 | D7 | 周验收与回归修复 | 全员 | 周报 + 风险清单 |
 
-### 17.3 首批 PR 切分（建议）
+### 18.3 首批 PR 切分（建议）
 
 1. `PR-001`: `include/vn_backend.h` + 后端注册器（对应 ISSUE-001）
 2. `PR-002`: Frontend Render IR 输出（对应 ISSUE-002）
@@ -997,7 +1176,7 @@ Issue 进入开发前必须满足：
 2. 说明中必须附验收命令与输出摘要
 3. 未附回退策略的 PR 不进入 review
 
-### 17.4 每日站会模板（10 分钟）
+### 18.4 每日站会模板（10 分钟）
 
 每人仅汇报三项：
 
@@ -1005,7 +1184,7 @@ Issue 进入开发前必须满足：
 2. 今天要提交什么（目标 PR 编号）
 3. 当前阻塞是什么（需要谁决策）
 
-### 17.5 首周验收出口（必须达成）
+### 18.5 首周验收出口（必须达成）
 
 1. `M0` 相关 issue 至少完成 4/6
 2. `scalar` 后端可运行 `S0`

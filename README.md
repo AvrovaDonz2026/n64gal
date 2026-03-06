@@ -20,7 +20,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - AVX2 收口：golden 图差异基线与误差阈值。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，待原生 arm64 进一步补算子与压测。
-   - `rvv` 最小后端已接入，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与其余 RVV 算子补齐。
+   - `rvv` 最小后端已接入，`tex/hash + combine + alpha` 热路径已开始向量化，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与进一步融合优化。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
@@ -227,22 +227,34 @@ ctest --test-dir build --output-on-failure
 
 ### Perf 脚本
 
+单 backend 采样：
+
 ```bash
 ./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
 ```
 
-会在 `tests/perf/` 下生成：
+baseline/candidate 对照：
+
+```bash
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_compare
+```
+
+输出包括：
 
 1. `perf_<scene>.csv`
 2. `perf_summary.csv`（含每场景 `p95_frame_ms`）
-3. `perf_report_template.md`
+3. `compare/perf_compare.csv`
+4. `compare/perf_compare.md`
+5. `perf_report_template.md`
+
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。
 
 ## 后端支持状态
 
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
 3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译已通过，当前待补原生 arm64 验证与其余核心算子。
-4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `combine + alpha` 写回路径已向量化；当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证与其余 RVV 算子。
+4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash + combine + alpha` 路径已向量化；当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证、性能采样与进一步融合优化。
 
 ## CI
 
@@ -251,7 +263,9 @@ ctest --test-dir build --output-on-failure
 3. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
 4. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
 5. workflow 已接入 `linux-riscv64-qemu-scalar` 阻塞 job 与 `linux-riscv64-qemu-rvv` 告警 job
-6. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+6. `linux-x64` 会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照）
+7. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+8. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
 
 ## API 文档
 

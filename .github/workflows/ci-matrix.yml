@@ -17,8 +17,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Native C89 suite
         run: ./scripts/ci/run_cc_suite.sh
-      - name: Perf smoke
-        run: ./tests/perf/run_perf.sh --backend avx2 --scenes S0 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --out-dir "$RUNNER_TEMP/perf_smoke"
+      - name: Perf compare
+        run: ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S3 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --out-dir "$RUNNER_TEMP/perf_compare"
+      - name: Upload perf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-linux-x64
+          path: ${{ runner.temp }}/perf_compare
 
   windows-x64:
     runs-on: windows-latest
