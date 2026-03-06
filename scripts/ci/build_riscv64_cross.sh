@@ -47,6 +47,7 @@ echo "[riscv64-cross] build dir: $BUILD_DIR"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player_riscv64"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player_rvv"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" -c src/backend/rvv/rvv_backend.c -o "$BUILD_DIR/rvv_backend.o"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_backend_consistency.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_backend_consistency_rvv"
 
 for test_name in "${TESTS[@]}"; do
   echo "[riscv64-cross] compiling $test_name"

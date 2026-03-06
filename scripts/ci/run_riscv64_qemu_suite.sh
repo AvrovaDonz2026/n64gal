@@ -98,6 +98,9 @@ rvv_smoke() {
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/vn_player_rvv" \
     --scene=S0 --frames=2 --dt-ms=16
   assert_log_has "$BUILD_DIR/player_rvv_auto.log" "backend=rvv"
+  run_capture "$BUILD_DIR/test_backend_consistency_rvv.log" \
+    "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_backend_consistency_rvv"
+  assert_log_has "$BUILD_DIR/test_backend_consistency_rvv.log" "test_backend_consistency ok"
 }
 
 if rvv_smoke; then

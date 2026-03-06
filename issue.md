@@ -34,8 +34,9 @@
 2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
-5. `ISSUE-014` 收口：x64/arm64 + Linux/Windows CI 已全绿，下一步补 `riscv64 qemu-user` 阻塞链
+5. `ISSUE-014` 收口：`linux-riscv64-qemu-scalar` 已接入并待远端稳定观察，继续推进 `qemu-rvv` 告警链
 6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
+7. `ISSUE-011` 前置：补 `scalar vs rvv` CRC 一致性验证，避免 RVV 仅停留在启动冒烟
 
 ## 0. 适用原则
 
@@ -612,6 +613,7 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] `scripts/ci/build_riscv64_cross.sh` 已覆盖 `vn_player` 与核心单测交叉构建
 - [x] `scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv` 已验证 `scalar`/回退链/pack/runtime/session`
 - [x] `scripts/ci/run_riscv64_qemu_suite.sh --require-rvv` 已验证 `vn_player_rvv` 在 `qemu-user` 下实际落到 `backend=rvv`
+- [x] `test_backend_consistency_rvv` 已验证 `scalar vs rvv` framebuffer CRC 一致
 - [x] RVV `fill` 核心算子（向量填充）
 - [ ] RVV `blend/tex/combine` 核心算子
 - [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
@@ -751,8 +753,8 @@ Windows 专属改动可短期 feature flag 化，但必须保留 Linux 主线稳
 - [x] Job C: Linux arm64（scalar + neon）
 - [x] Job D: Windows arm64（scalar + neon）
 - [x] Job E0: Linux riscv64 cross-build（交叉构建）
-- [ ] Job E1: Linux riscv64 qemu-scalar（`scalar`/回退链/pack/runtime，阻塞）
-- [ ] Job F0: Linux riscv64 qemu-rvv（`rvv` 冒烟，`M3` 前告警）
+- [x] Job E1: Linux riscv64 qemu-scalar（`scalar`/回退链/pack/runtime，阻塞）
+- [x] Job F0: Linux riscv64 qemu-rvv（`rvv` 冒烟，`M3` 前告警，workflow 已接入 `continue-on-error`）
 - [ ] Job F1: Linux riscv64 native-nightly（真机功能 + perf）
 - [ ] 失败回退路径验证（每个平台至少 1 例）
 

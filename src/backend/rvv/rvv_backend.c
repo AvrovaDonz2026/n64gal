@@ -90,6 +90,78 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
         i += (vn_u32)vl;
     }
 }
+
+static vuint32m4_t vn_rvv_div255_round_u32(vuint32m4_t value, size_t vl) {
+    vuint32m4_t bias;
+    vuint32m4_t hi;
+
+    bias = __riscv_vadd_vx_u32m4(value, 128u, vl);
+    hi = __riscv_vsrl_vx_u32m4(bias, (size_t)8, vl);
+    bias = __riscv_vadd_vv_u32m4(bias, hi, vl);
+    return __riscv_vsrl_vx_u32m4(bias, (size_t)8, vl);
+}
+
+static void vn_rvv_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
+    vn_u32 i;
+    vn_u32 inv;
+    vn_u32 sr;
+    vn_u32 sg;
+    vn_u32 sb;
+    vn_u32 src_r_prod;
+    vn_u32 src_g_prod;
+    vn_u32 src_b_prod;
+
+    inv = (vn_u32)(255u - alpha);
+    sr = (color >> 16) & 0xFFu;
+    sg = (color >> 8) & 0xFFu;
+    sb = color & 0xFFu;
+    src_r_prod = sr * (vn_u32)alpha;
+    src_g_prod = sg * (vn_u32)alpha;
+    src_b_prod = sb * (vn_u32)alpha;
+
+    i = 0u;
+    while (i < count) {
+        size_t vl;
+        vuint32m4_t dst_px;
+        vuint32m4_t dr;
+        vuint32m4_t dg;
+        vuint32m4_t db;
+        vuint32m4_t rr;
+        vuint32m4_t rg;
+        vuint32m4_t rb;
+        vuint32m4_t out;
+
+        vl = __riscv_vsetvl_e32m4((size_t)(count - i));
+        dst_px = __riscv_vle32_v_u32m4(dst + i, vl);
+
+        dr = __riscv_vsrl_vx_u32m4(dst_px, (size_t)16, vl);
+        dr = __riscv_vand_vx_u32m4(dr, 0xFFu, vl);
+        dg = __riscv_vsrl_vx_u32m4(dst_px, (size_t)8, vl);
+        dg = __riscv_vand_vx_u32m4(dg, 0xFFu, vl);
+        db = __riscv_vand_vx_u32m4(dst_px, 0xFFu, vl);
+
+        rr = __riscv_vmul_vx_u32m4(dr, inv, vl);
+        rr = __riscv_vadd_vx_u32m4(rr, src_r_prod, vl);
+        rr = vn_rvv_div255_round_u32(rr, vl);
+
+        rg = __riscv_vmul_vx_u32m4(dg, inv, vl);
+        rg = __riscv_vadd_vx_u32m4(rg, src_g_prod, vl);
+        rg = vn_rvv_div255_round_u32(rg, vl);
+
+        rb = __riscv_vmul_vx_u32m4(db, inv, vl);
+        rb = __riscv_vadd_vx_u32m4(rb, src_b_prod, vl);
+        rb = vn_rvv_div255_round_u32(rb, vl);
+
+        rr = __riscv_vsll_vx_u32m4(rr, (size_t)16, vl);
+        rg = __riscv_vsll_vx_u32m4(rg, (size_t)8, vl);
+        out = __riscv_vor_vv_u32m4(rr, rg, vl);
+        out = __riscv_vor_vv_u32m4(out, rb, vl);
+        out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
+
+        __riscv_vse32_v_u32m4(dst + i, out, vl);
+        i += (vn_u32)vl;
+    }
+}
 #else
 static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     vn_u32 i;
@@ -97,6 +169,16 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     i = 0u;
     while (i < count) {
         dst[i] = value;
+        i += 1u;
+    }
+}
+
+static void vn_rvv_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
+    vn_u32 i;
+
+    i = 0u;
+    while (i < count) {
+        dst[i] = vn_pp_blend_rgb(dst[i], color, alpha);
         i += 1u;
     }
 }
@@ -133,14 +215,10 @@ static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_
     }
 
     for (yy = y0; yy < y1; ++yy) {
-        vn_u32 xx;
-        vn_u32 row_off;
-        row_off = yy * g_rvv_stride;
-        for (xx = x0; xx < x1; ++xx) {
-            vn_u32 idx;
-            idx = row_off + xx;
-            g_rvv_framebuffer[idx] = vn_pp_blend_rgb(g_rvv_framebuffer[idx], color, alpha);
-        }
+        vn_u32* row_ptr;
+        row_ptr = g_rvv_framebuffer + yy * g_rvv_stride + x0;
+        /* Vectorize fade and translucent solid fills on the hot full-width path. */
+        vn_rvv_blend_u32_uniform(row_ptr, x1 - x0, color, alpha);
     }
 }
 

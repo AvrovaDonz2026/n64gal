@@ -250,7 +250,8 @@ ctest --test-dir build --output-on-failure
 2. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
 3. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
 4. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
-5. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+5. workflow 已接入 `linux-riscv64-qemu-scalar` 阻塞 job 与 `linux-riscv64-qemu-rvv` 告警 job
+6. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
 
 ## API 文档
 

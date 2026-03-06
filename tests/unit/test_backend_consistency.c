@@ -5,6 +5,7 @@
 
 vn_u32 vn_scalar_backend_debug_frame_crc32(void);
 vn_u32 vn_avx2_backend_debug_frame_crc32(void);
+vn_u32 vn_rvv_backend_debug_frame_crc32(void);
 
 static void fill_ops(VNRenderOp* ops, vn_u32* out_count) {
     if (ops == (VNRenderOp*)0 || out_count == (vn_u32*)0) {
@@ -64,14 +65,14 @@ static void fill_ops(VNRenderOp* ops, vn_u32* out_count) {
     *out_count = 5u;
 }
 
-static int render_one(vn_u32 flags, vn_u32* out_crc) {
+static int render_one(vn_u32 flags, const char* expected_name, vn_u32* out_crc) {
     RendererConfig cfg;
     VNRenderOp ops[8];
     vn_u32 op_count;
     int rc;
     const char* name;
 
-    if (out_crc == (vn_u32*)0) {
+    if (expected_name == (const char*)0 || out_crc == (vn_u32*)0) {
         return 1;
     }
 
@@ -99,36 +100,79 @@ static int render_one(vn_u32 flags, vn_u32* out_crc) {
             return 1;
         }
         *out_crc = vn_scalar_backend_debug_frame_crc32();
-    } else if ((flags & VN_RENDERER_FLAG_FORCE_AVX2) != 0u) {
-        if (strcmp(name, "avx2") == 0) {
+        renderer_shutdown();
+        return 0;
+    }
+
+    if (strcmp(name, expected_name) == 0) {
+        if (strcmp(expected_name, "avx2") == 0) {
             *out_crc = vn_avx2_backend_debug_frame_crc32();
-        } else if (strcmp(name, "scalar") == 0) {
-            *out_crc = 0u;
-            renderer_shutdown();
-            return 2;
+        } else if (strcmp(expected_name, "rvv") == 0) {
+            *out_crc = vn_rvv_backend_debug_frame_crc32();
         } else {
-            (void)fprintf(stderr, "forced avx2 unexpected backend=%s\n", name);
+            (void)fprintf(stderr, "unsupported expected backend=%s\n", expected_name);
             renderer_shutdown();
             return 1;
         }
-    } else {
-        *out_crc = 0u;
+        renderer_shutdown();
+        return 0;
     }
 
+    if (strcmp(name, "scalar") == 0) {
+        *out_crc = 0u;
+        renderer_shutdown();
+        return 2;
+    }
+
+    (void)fprintf(stderr, "forced %s unexpected backend=%s\n", expected_name, name);
     renderer_shutdown();
+    return 1;
+}
+
+static int compare_backend(vn_u32 flags, const char* expected_name, const char* skip_reason, vn_u32 scalar_crc, int* out_compared) {
+    vn_u32 backend_crc;
+    int rc;
+
+    if (expected_name == (const char*)0 || skip_reason == (const char*)0 || out_compared == (int*)0) {
+        return 1;
+    }
+
+    backend_crc = 0u;
+    rc = render_one(flags, expected_name, &backend_crc);
+    if (rc == 2) {
+        (void)printf("test_backend_consistency skipped (%s)\n", skip_reason);
+        return 0;
+    }
+    if (rc != 0) {
+        return 1;
+    }
+    if (backend_crc == 0u) {
+        (void)fprintf(stderr, "%s crc missing\n", expected_name);
+        return 1;
+    }
+    if (scalar_crc != backend_crc) {
+        (void)fprintf(stderr, "backend crc mismatch scalar=0x%08X %s=0x%08X\n",
+                      (unsigned int)scalar_crc,
+                      expected_name,
+                      (unsigned int)backend_crc);
+        return 1;
+    }
+
+    *out_compared += 1;
+    (void)printf("test_backend_consistency matched backend=%s crc=0x%08X\n",
+                 expected_name,
+                 (unsigned int)scalar_crc);
     return 0;
 }
 
 int main(void) {
     vn_u32 scalar_crc;
-    vn_u32 avx2_crc;
-    int rc;
+    int compared_count;
 
     scalar_crc = 0u;
-    avx2_crc = 0u;
+    compared_count = 0;
 
-    rc = render_one(VN_RENDERER_FLAG_FORCE_SCALAR, &scalar_crc);
-    if (rc != 0) {
+    if (render_one(VN_RENDERER_FLAG_FORCE_SCALAR, "scalar", &scalar_crc) != 0) {
         return 1;
     }
     if (scalar_crc == 0u) {
@@ -136,27 +180,20 @@ int main(void) {
         return 1;
     }
 
-    rc = render_one(VN_RENDERER_FLAG_FORCE_AVX2, &avx2_crc);
-    if (rc == 2) {
-        (void)printf("test_backend_consistency skipped (no avx2 support)\n");
+    if (compare_backend(VN_RENDERER_FLAG_FORCE_AVX2, "avx2", "no avx2 support", scalar_crc, &compared_count) != 0) {
+        return 1;
+    }
+    if (compare_backend(VN_RENDERER_FLAG_FORCE_RVV, "rvv", "no rvv support", scalar_crc, &compared_count) != 0) {
+        return 1;
+    }
+
+    if (compared_count == 0) {
+        (void)printf("test_backend_consistency skipped (no simd backend support)\n");
         return 0;
     }
-    if (rc != 0) {
-        return 1;
-    }
 
-    if (avx2_crc == 0u) {
-        (void)fprintf(stderr, "avx2 crc missing\n");
-        return 1;
-    }
-
-    if (scalar_crc != avx2_crc) {
-        (void)fprintf(stderr, "backend crc mismatch scalar=0x%08X avx2=0x%08X\n",
-                      (unsigned int)scalar_crc,
-                      (unsigned int)avx2_crc);
-        return 1;
-    }
-
-    (void)printf("test_backend_consistency ok crc=0x%08X\n", (unsigned int)scalar_crc);
+    (void)printf("test_backend_consistency ok crc=0x%08X compared=%d\n",
+                 (unsigned int)scalar_crc,
+                 compared_count);
     return 0;
 }
