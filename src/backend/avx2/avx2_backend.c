@@ -434,3 +434,11 @@ vn_u32 vn_avx2_backend_debug_frame_crc32(void) {
     }
     return vn_pp_frame_crc32(g_avx2_framebuffer, g_avx2_pixels);
 }
+
+vn_u32 vn_avx2_backend_debug_copy_framebuffer(vn_u32* out_pixels, vn_u32 pixel_count) {
+    if (g_avx2_ready == VN_FALSE || out_pixels == (vn_u32*)0 || pixel_count < g_avx2_pixels) {
+        return 0u;
+    }
+    (void)memcpy(out_pixels, g_avx2_framebuffer, (size_t)g_avx2_pixels * sizeof(vn_u32));
+    return g_avx2_pixels;
+}

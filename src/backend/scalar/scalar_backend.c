@@ -350,3 +350,11 @@ vn_u32 vn_scalar_backend_debug_frame_crc32(void) {
     }
     return vn_pp_frame_crc32(g_scalar_framebuffer, g_scalar_pixels);
 }
+
+vn_u32 vn_scalar_backend_debug_copy_framebuffer(vn_u32* out_pixels, vn_u32 pixel_count) {
+    if (g_scalar_ready == VN_FALSE || out_pixels == (vn_u32*)0 || pixel_count < g_scalar_pixels) {
+        return 0u;
+    }
+    (void)memcpy(out_pixels, g_scalar_framebuffer, (size_t)g_scalar_pixels * sizeof(vn_u32));
+    return g_scalar_pixels;
+}

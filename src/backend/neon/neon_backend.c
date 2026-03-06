@@ -384,3 +384,11 @@ vn_u32 vn_neon_backend_debug_frame_crc32(void) {
     }
     return vn_pp_frame_crc32(g_neon_framebuffer, g_neon_pixels);
 }
+
+vn_u32 vn_neon_backend_debug_copy_framebuffer(vn_u32* out_pixels, vn_u32 pixel_count) {
+    if (g_neon_ready == VN_FALSE || out_pixels == (vn_u32*)0 || pixel_count < g_neon_pixels) {
+        return 0u;
+    }
+    (void)memcpy(out_pixels, g_neon_framebuffer, (size_t)g_neon_pixels * sizeof(vn_u32));
+    return g_neon_pixels;
+}

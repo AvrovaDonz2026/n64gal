@@ -18,7 +18,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
-   - AVX2 收口：已固化 `test_runtime_golden` 的 `S0-S3 @ 600x800` 标量 CRC 基线与 `avx2` 对照，下一步补差异图误差阈值。
+   - AVX2 收口：已固化 `test_runtime_golden` 的 `S0-S3 @ 600x800` 标量 CRC 基线，并对 `avx2` 做逐像素 exact compare；下一步补误差阈值与可视化门限。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
    - `neon` 最小后端已接入，待原生 arm64 进一步补算子与压测。
    - `rvv` 最小后端已接入，`tex/hash + combine + alpha` 热路径已开始向量化，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与进一步融合优化。

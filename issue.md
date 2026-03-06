@@ -29,7 +29,7 @@
 3. 平台路径/文件 I/O：`src/core/platform.c` 已接入 pack 与 preview 路径解析，并进一步统一 `runtime/preview` 计时入口，`test_platform_paths` 已补齐
 4. 时间/休眠：`vn_platform_now_ms()` + `vn_platform_sleep_ms()` 已落地，CLI `keyboard` 调试模式可按 `dt_ms` 节奏推进
 5. 编译器差异：`src/core/build_config.h` 已集中收口 OS/Arch/Compiler 探测，`avx2_backend.c` 已补齐 GCC/Clang + MSVC x64 双路径探测与编译开关
-6. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`），`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 golden CRC 与 `avx2` 对照
+6. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`），`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 golden CRC，并对支持的 SIMD 后端做逐像素 exact compare；失败时导出 `expected/actual/diff` PPM
 7. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md`、`docs/platform-matrix.md` 已建立，后续随 API 变更持续维护
 
 ### 下一步（短周期）
@@ -450,7 +450,7 @@ cmake --build build -j
 - [x] `tex/combine` 真采样路径（共享 `pixel_pipeline`，`scalar/avx2` 同语义）
 - [x] 纹理坐标热路径优化：UV LUT（减少逐像素除法）
 - [x] 与 scalar 一致性对照测试（`test_backend_consistency` CRC 对照）
-- [x] 运行时 golden CRC 基线（`test_runtime_golden`: `S0-S3 @ 600x800`）
+- [x] 运行时 golden CRC + 像素级基线（`test_runtime_golden`: `S0-S3 @ 600x800`，支持后端逐像素 exact compare，失败导出 PPM）
 - [ ] golden 图差异测试（误差阈值）
 
 ### 验收命令
