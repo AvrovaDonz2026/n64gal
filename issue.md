@@ -633,7 +633,10 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] RVV `SPRITE/TEXT` 的 varying-src alpha 写回路径已批量化并使用向量混合
 - [x] RVV `SPRITE/TEXT` 的 `combine` 阶段已按行批量化并使用向量处理
 - [x] RVV `tex/hash` 采样核心算子已按行批量向量化
-- [ ] RVV `sample -> combine` 融合，减少中间 row buffer 往返（继续压榨热点，尽可能提升更多性能）
+- [ ] RVV `sample -> combine` 融合，减少中间 row buffer 往返（后置项，记录设计与验证口径，后期再捡）
+- [ ] RVV `alpha=255` 专用融合路径：直接 `sample -> combine -> store`，绕开中间整行回写
+- [ ] RVV `alpha<255` 专用融合路径：`sample -> combine -> blend/store` 单循环化
+- [ ] RVV 融合优化前后补 `perf_compare` 证据（至少 `rvv before/after` 一组 markdown 报告）
 - [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
 - [ ] riscv64 Linux 原生运行验证
 - [ ] 工具链版本固定与构建说明（`docs/riscv-toolchain.md` 持续维护）
@@ -949,21 +952,37 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 
 ### 任务清单
 
-- [ ] 明确 Session API 的宿主最小调用序列
-- [ ] 明确输入桥接、文件桥接、日志桥接接口
-- [ ] 输出版本协商矩阵与兼容规则
+- [x] 明确 Session API 的宿主最小调用序列
+- [x] 明确输入桥接、文件桥接、日志桥接接口
+- [x] 输出版本协商矩阵与兼容规则
+- [x] 最小宿主嵌入示例（`examples/host-embed/session_loop.c`）
 - [ ] Linux/Windows 各补 1 个宿主演示
 
 ### 验收命令
 
 ```bash
+cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
+  examples/host-embed/session_loop.c \
+  src/core/backend_registry.c \
+  src/core/renderer.c \
+  src/core/vm.c \
+  src/core/pack.c \
+  src/core/runtime_cli.c \
+  src/frontend/render_ops.c \
+  src/backend/common/pixel_pipeline.c \
+  src/backend/avx2/avx2_backend.c \
+  src/backend/neon/neon_backend.c \
+  src/backend/rvv/rvv_backend.c \
+  src/backend/scalar/scalar_backend.c \
+  -o /tmp/n64gal_host_embed_example
+/tmp/n64gal_host_embed_example
 ctest --test-dir build --output-on-failure -R runtime_session
 ```
 
 ### DoD
 
-- [ ] 宿主无需了解 ISA 私有后端实现
-- [ ] SDK 文档包含最小接入与错误处理示例
+- [x] 宿主无需了解 ISA 私有后端实现
+- [x] SDK 文档包含最小接入与错误处理示例
 - [ ] 版本协商表与 release 文档同步
 
 ### 回退策略

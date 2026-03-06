@@ -198,6 +198,8 @@ int run_scene_once(void) {
 
 `tests/perf/run_perf.sh` 基于这些字段生成 `perf_<scene>.csv` 与 `perf_summary.csv`。
 
+宿主集成的更完整说明见 [`../host-sdk.md`](../host-sdk.md)。
+
 ## 9. 当前已知约束
 
 1. 运行时会话当前是单实例全局渲染后端模型，不支持并发多会话。

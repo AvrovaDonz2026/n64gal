@@ -1,0 +1,43 @@
+# Host Embed Example
+
+这个目录给出一个最小宿主集成示例，目标是直接通过 `vn_runtime.h` 驱动引擎，而不是依赖 `vn_player` 二进制。
+
+## 文件
+
+1. `session_loop.c`
+   - 使用 `vn_runtime_session_create/step/is_done/set_choice/destroy`
+   - 演示宿主循环、分支注入与结果读取
+
+## 本地编译（C89）
+
+```bash
+cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
+  examples/host-embed/session_loop.c \
+  src/core/backend_registry.c \
+  src/core/renderer.c \
+  src/core/vm.c \
+  src/core/pack.c \
+  src/core/runtime_cli.c \
+  src/frontend/render_ops.c \
+  src/backend/common/pixel_pipeline.c \
+  src/backend/avx2/avx2_backend.c \
+  src/backend/neon/neon_backend.c \
+  src/backend/rvv/rvv_backend.c \
+  src/backend/scalar/scalar_backend.c \
+  -o /tmp/n64gal_host_embed_example
+```
+
+## 运行前准备
+
+```bash
+./tools/scriptc/build_demo_scripts.sh
+./tools/packer/make_demo_pack.sh
+/tmp/n64gal_host_embed_example
+```
+
+## 宿主接入要点
+
+1. 运行时推荐总是先调用 `vn_run_config_init`。
+2. 宿主应自己维护主循环，不要假设 `vn_runtime_session_step` 会阻塞一整帧墙钟时间。
+3. 分支选择通过 `vn_runtime_session_set_choice` 或 `choice_seq` 注入。
+4. 默认包路径是 `assets/demo/demo.vnpak`；嵌入到外部项目时应显式设置 `pack_path`。

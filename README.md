@@ -67,6 +67,7 @@ tools/scriptc/  场景脚本编译器
 tools/packer/   vnpak 打包工具
 tests/unit/     单元测试
 tests/perf/     基准脚本与 CSV 输出
+examples/       宿主嵌入与集成示例
 docs/api/       API 文档
 ```
 
@@ -270,9 +271,10 @@ baseline/candidate 对照：
 ## API 文档
 
 1. Runtime API：[`docs/api/runtime.md`](./docs/api/runtime.md)
-2. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
-3. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
-4. API 索引：[`docs/api/README.md`](./docs/api/README.md)
+2. Host SDK 指南：[`docs/host-sdk.md`](./docs/host-sdk.md)
+3. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
+4. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
+5. API 索引：[`docs/api/README.md`](./docs/api/README.md)
 
 ## 开发约束
 
