@@ -40,7 +40,7 @@
 4. `ISSUE-014` 跟进：观察 Windows x64/arm64 上 `build_config.h` + MSVC AVX2 路径的 CI 结果
 5. `ISSUE-014` 收口：`linux-riscv64-qemu-scalar` 已接入并待远端稳定观察，继续推进 `qemu-rvv` 告警链
 6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
-7. `ISSUE-011` 跟进：为 RVV 融合与直写路径补 `perf_compare` 证据，并继续推进 seed 热路径瘦身
+7. `ISSUE-011` 跟进：为 RVV 融合与直写路径补 `perf_compare` 证据，并评估 `qemu-rvv` 从告警转阻塞的条件
 8. `M4-engine-ecosystem` 预研：先冻结模板/CLI/宿主 SDK/预览协议边界，避免工具链各自长歪
 
 ## 0. 适用原则
@@ -641,7 +641,7 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] RVV `alpha=255` 专用融合路径：直接 `sample -> combine -> store`，绕开中间整行回写
 - [x] RVV `alpha<255` 专用融合路径：`sample -> combine -> blend/store` 单循环化（已通过 `run_cc_suite` + `build_riscv64_cross` + `run_riscv64_qemu_suite --require-rvv` 语义对照）
 - [x] RVV UV LUT 已收口到 8-bit 存储，降低采样带宽与 LUT 占用
-- [ ] RVV seed 热路径继续瘦身（减少逐 chunk 标量预处理与寄存器压力）
+- [x] RVV `seed/checker` 常量与基础 RGB 偏置已前折叠到行级参数，减少逐 chunk 标量预处理与分支
 - [ ] RVV 融合优化前后补 `perf_compare` 证据（至少 `rvv before/after` 一组 markdown 报告）
 - [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
 - [ ] riscv64 Linux 原生运行验证

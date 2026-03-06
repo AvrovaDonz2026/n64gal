@@ -109,16 +109,14 @@ static vuint32m4_t vn_rvv_hash32(vuint32m4_t value, size_t vl) {
 }
 
 typedef struct VN_RVVTexturedRowParams {
-    vn_u32 tex_mul;
-    vn_u32 tex_hi;
-    vn_u32 tex_lo3;
+    vn_u32 seed_xor;
+    vn_u32 checker_xor;
     vn_u32 v8;
-    vn_u32 v5;
-    int layer_r;
-    int layer_g;
-    int layer_b;
+    int base_r;
+    int base_g;
+    int base_b;
     int text_blue_bias;
-    vn_u8 flags;
+    int sprite_blue_bias;
     vn_u8 op;
 } VN_RVVTexturedRowParams;
 
@@ -132,16 +130,29 @@ static void vn_rvv_init_textured_row_params(VN_RVVTexturedRowParams* params,
         return;
     }
 
-    params->tex_mul = ((vn_u32)tex_id * 2654435761u);
-    params->tex_hi = ((vn_u32)tex_id << 16);
-    params->tex_lo3 = ((vn_u32)tex_id & 7u);
     params->v8 = (v8 & 0xFFu);
-    params->v5 = ((params->v8 >> 5) & 0xFFu);
-    params->layer_r = (int)layer * 7;
-    params->layer_g = (int)layer * 5;
-    params->layer_b = (int)layer * 3;
+    params->seed_xor = ((vn_u32)tex_id * 2654435761u) ^ params->v8 ^ ((vn_u32)tex_id << 16);
+    params->checker_xor = ((params->v8 >> 5) & 0xFFu) ^ ((vn_u32)tex_id & 7u);
+    params->base_r = (int)layer * 7;
+    params->base_g = (int)layer * 5;
+    params->base_b = (int)layer * 3;
+    if ((flags & 1u) != 0u) {
+        params->base_g += 14;
+    }
+    if ((flags & 2u) != 0u) {
+        params->base_b += 20;
+    }
+    if ((flags & 4u) != 0u) {
+        params->base_r += 28;
+        params->base_g -= 12;
+    }
+    if ((flags & 8u) != 0u) {
+        params->base_r += 12;
+        params->base_g += 12;
+        params->base_b -= 8;
+    }
     params->text_blue_bias = 24 + (int)layer * 6;
-    params->flags = flags;
+    params->sprite_blue_bias = 10;
     params->op = op;
 }
 
@@ -177,9 +188,7 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u8* u_lut,
     u = __riscv_vzext_vf2_u32m4(u16, vl);
 
     seed = __riscv_vsll_vx_u32m4(u, (size_t)8, vl);
-    seed = __riscv_vxor_vx_u32m4(seed, params->tex_mul, vl);
-    seed = __riscv_vxor_vx_u32m4(seed, params->v8, vl);
-    seed = __riscv_vxor_vx_u32m4(seed, params->tex_hi, vl);
+    seed = __riscv_vxor_vx_u32m4(seed, params->seed_xor, vl);
     h = vn_rvv_hash32(seed, vl);
 
     ur = __riscv_vand_vx_u32m4(h, 0xFFu, vl);
@@ -189,8 +198,7 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u8* u_lut,
     ub = __riscv_vand_vx_u32m4(ub, 0xFFu, vl);
 
     checker = __riscv_vsrl_vx_u32m4(u, (size_t)5, vl);
-    checker = __riscv_vxor_vx_u32m4(checker, params->v5, vl);
-    checker = __riscv_vxor_vx_u32m4(checker, params->tex_lo3, vl);
+    checker = __riscv_vxor_vx_u32m4(checker, params->checker_xor, vl);
     checker = __riscv_vand_vx_u32m4(checker, 1u, vl);
     mask_checker = __riscv_vmsne_vx_u32m4_b8(checker, 0u, vl);
 
@@ -223,25 +231,9 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u8* u_lut,
     b = __riscv_vmax_vx_i32m4(b, 0, vl);
     b = __riscv_vmin_vx_i32m4(b, 255, vl);
 
-    r = __riscv_vadd_vx_i32m4(r, params->layer_r, vl);
-    g = __riscv_vadd_vx_i32m4(g, params->layer_g, vl);
-    b = __riscv_vadd_vx_i32m4(b, params->layer_b, vl);
-
-    if ((params->flags & 1u) != 0u) {
-        g = __riscv_vadd_vx_i32m4(g, 14, vl);
-    }
-    if ((params->flags & 2u) != 0u) {
-        b = __riscv_vadd_vx_i32m4(b, 20, vl);
-    }
-    if ((params->flags & 4u) != 0u) {
-        r = __riscv_vadd_vx_i32m4(r, 28, vl);
-        g = __riscv_vsub_vx_i32m4(g, 12, vl);
-    }
-    if ((params->flags & 8u) != 0u) {
-        r = __riscv_vadd_vx_i32m4(r, 12, vl);
-        g = __riscv_vadd_vx_i32m4(g, 12, vl);
-        b = __riscv_vsub_vx_i32m4(b, 8, vl);
-    }
+    r = __riscv_vadd_vx_i32m4(r, params->base_r, vl);
+    g = __riscv_vadd_vx_i32m4(g, params->base_g, vl);
+    b = __riscv_vadd_vx_i32m4(b, params->base_b, vl);
 
     if (params->op == VN_OP_TEXT) {
         vint32m4_t y;
@@ -254,7 +246,7 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u8* u_lut,
         g = __riscv_vadd_vx_i32m4(y, 44, vl);
         b = __riscv_vadd_vx_i32m4(y, params->text_blue_bias, vl);
     } else if (params->op == VN_OP_SPRITE) {
-        b = __riscv_vadd_vx_i32m4(b, 10, vl);
+        b = __riscv_vadd_vx_i32m4(b, params->sprite_blue_bias, vl);
     }
 
     r = __riscv_vmax_vx_i32m4(r, 0, vl);
