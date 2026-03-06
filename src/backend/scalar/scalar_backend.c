@@ -12,6 +12,10 @@ static vn_u32* g_scalar_framebuffer = (vn_u32*)0;
 static vn_u32 g_scalar_stride = 0u;
 static vn_u32 g_scalar_height = 0u;
 static vn_u32 g_scalar_pixels = 0u;
+static vn_u8* g_scalar_u_lut = (vn_u8*)0;
+static vn_u8* g_scalar_v_lut = (vn_u8*)0;
+static vn_u32 g_scalar_u_lut_cap = 0u;
+static vn_u32 g_scalar_v_lut_cap = 0u;
 static int g_scalar_ready = VN_FALSE;
 
 static int vn_scalar_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_x0, vn_u32* out_y0, vn_u32* out_x1, vn_u32* out_y1) {
@@ -108,14 +112,32 @@ static void vn_scalar_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, 
     }
 }
 
-static vn_u32 vn_scalar_tex_coord(vn_u32 local, vn_u16 extent) {
+static void vn_scalar_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent) {
+    vn_u32 i;
     vn_u32 denom;
+    vn_u32 value;
 
-    if (extent <= 1u) {
-        return 0u;
+    if (out_lut == (vn_u8*)0 || count == 0u) {
+        return;
     }
+    if (extent <= 1u) {
+        for (i = 0u; i < count; ++i) {
+            out_lut[i] = 0u;
+        }
+        return;
+    }
+
     denom = (vn_u32)extent - 1u;
-    return (local * 255u) / denom;
+    value = local_start * 255u;
+    for (i = 0u; i < count; ++i) {
+        vn_u32 q;
+        q = value / denom;
+        if (q > 255u) {
+            q = 255u;
+        }
+        out_lut[i] = (vn_u8)q;
+        value += 255u;
+    }
 }
 
 static void vn_scalar_draw_textured_rect(const VNRenderOp* op) {
@@ -123,40 +145,66 @@ static void vn_scalar_draw_textured_rect(const VNRenderOp* op) {
     vn_u32 y0;
     vn_u32 x1;
     vn_u32 y1;
-    vn_u32 yy;
+    vn_u32 vis_w;
+    vn_u32 vis_h;
+    int local_x_start_i;
+    int local_y_start_i;
+    vn_u32 local_x_start;
+    vn_u32 local_y_start;
+    vn_u32 row_rel;
 
     if (op == (const VNRenderOp*)0 || g_scalar_framebuffer == (vn_u32*)0) {
+        return;
+    }
+    if (op->alpha == 0u) {
         return;
     }
     if (vn_scalar_clip_rect(op->x, op->y, op->w, op->h, &x0, &y0, &x1, &y1) == VN_FALSE) {
         return;
     }
 
-    for (yy = y0; yy < y1; ++yy) {
-        vn_u32 xx;
+    vis_w = x1 - x0;
+    vis_h = y1 - y0;
+    if (vis_w == 0u || vis_h == 0u) {
+        return;
+    }
+    if (g_scalar_u_lut == (vn_u8*)0 || g_scalar_v_lut == (vn_u8*)0) {
+        return;
+    }
+    if (vis_w > g_scalar_u_lut_cap || vis_h > g_scalar_v_lut_cap) {
+        return;
+    }
+
+    local_x_start_i = (int)x0 - (int)op->x;
+    local_y_start_i = (int)y0 - (int)op->y;
+    if (local_x_start_i < 0 || local_y_start_i < 0) {
+        return;
+    }
+    local_x_start = (vn_u32)local_x_start_i;
+    local_y_start = (vn_u32)local_y_start_i;
+
+    vn_scalar_build_coord_lut(g_scalar_u_lut, vis_w, local_x_start, op->w);
+    vn_scalar_build_coord_lut(g_scalar_v_lut, vis_h, local_y_start, op->h);
+
+    for (row_rel = 0u; row_rel < vis_h; ++row_rel) {
+        vn_u32 yy;
         vn_u32 row_off;
+        vn_u32 col_rel;
+        vn_u32 v8;
+
+        yy = y0 + row_rel;
         row_off = yy * g_scalar_stride;
-        for (xx = x0; xx < x1; ++xx) {
+        v8 = (vn_u32)g_scalar_v_lut[row_rel];
+        for (col_rel = 0u; col_rel < vis_w; ++col_rel) {
+            vn_u32 xx;
             vn_u32 idx;
-            int local_x_i;
-            int local_y_i;
-            vn_u32 local_x;
-            vn_u32 local_y;
             vn_u32 u8;
-            vn_u32 v8;
             vn_u32 texel;
             vn_u32 color;
 
+            xx = x0 + col_rel;
             idx = row_off + xx;
-            local_x_i = (int)xx - (int)op->x;
-            local_y_i = (int)yy - (int)op->y;
-            if (local_x_i < 0 || local_y_i < 0) {
-                continue;
-            }
-            local_x = (vn_u32)local_x_i;
-            local_y = (vn_u32)local_y_i;
-            u8 = vn_scalar_tex_coord(local_x, op->w);
-            v8 = vn_scalar_tex_coord(local_y, op->h);
+            u8 = (vn_u32)g_scalar_u_lut[col_rel];
             texel = vn_pp_sample_texel(op->tex_id, u8, v8);
             color = vn_pp_combine_texel(texel, op->layer, op->flags, op->op);
 
@@ -171,6 +219,8 @@ static void vn_scalar_draw_textured_rect(const VNRenderOp* op) {
 
 static int scalar_init(const RendererConfig* cfg) {
     vn_u32 pixels;
+    size_t u_lut_bytes;
+    size_t v_lut_bytes;
 
     if (cfg == (const RendererConfig*)0 || cfg->width == 0u || cfg->height == 0u) {
         return VN_E_INVALID_ARG;
@@ -185,12 +235,31 @@ static int scalar_init(const RendererConfig* cfg) {
     if (g_scalar_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
+    u_lut_bytes = (size_t)cfg->width * sizeof(vn_u8);
+    v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
+    g_scalar_u_lut = (vn_u8*)malloc(u_lut_bytes);
+    g_scalar_v_lut = (vn_u8*)malloc(v_lut_bytes);
+    if (g_scalar_u_lut == (vn_u8*)0 || g_scalar_v_lut == (vn_u8*)0) {
+        if (g_scalar_u_lut != (vn_u8*)0) {
+            free(g_scalar_u_lut);
+        }
+        if (g_scalar_v_lut != (vn_u8*)0) {
+            free(g_scalar_v_lut);
+        }
+        g_scalar_u_lut = (vn_u8*)0;
+        g_scalar_v_lut = (vn_u8*)0;
+        free(g_scalar_framebuffer);
+        g_scalar_framebuffer = (vn_u32*)0;
+        return VN_E_NOMEM;
+    }
     (void)memset(g_scalar_framebuffer, 0, (size_t)pixels * sizeof(vn_u32));
 
     g_scalar_cfg = *cfg;
     g_scalar_stride = (vn_u32)cfg->width;
     g_scalar_height = (vn_u32)cfg->height;
     g_scalar_pixels = pixels;
+    g_scalar_u_lut_cap = (vn_u32)cfg->width;
+    g_scalar_v_lut_cap = (vn_u32)cfg->height;
     g_scalar_ready = VN_TRUE;
     return VN_OK;
 }
@@ -199,10 +268,20 @@ static void scalar_shutdown(void) {
     if (g_scalar_framebuffer != (vn_u32*)0) {
         free(g_scalar_framebuffer);
     }
+    if (g_scalar_u_lut != (vn_u8*)0) {
+        free(g_scalar_u_lut);
+    }
+    if (g_scalar_v_lut != (vn_u8*)0) {
+        free(g_scalar_v_lut);
+    }
     g_scalar_framebuffer = (vn_u32*)0;
+    g_scalar_u_lut = (vn_u8*)0;
+    g_scalar_v_lut = (vn_u8*)0;
     g_scalar_stride = 0u;
     g_scalar_height = 0u;
     g_scalar_pixels = 0u;
+    g_scalar_u_lut_cap = 0u;
+    g_scalar_v_lut_cap = 0u;
     g_scalar_cfg.width = 0u;
     g_scalar_cfg.height = 0u;
     g_scalar_cfg.flags = 0u;

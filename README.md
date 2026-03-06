@@ -17,10 +17,26 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_runtime_run(config, result)` 结构化运行入口。
    - Session API：`create/step/is_done/set_choice/destroy`。
 2. 进行中：
-   - AVX2 从桩实现升级为真实算子路径。
+   - AVX2 收口：golden 图差异基线与误差阈值。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
+
+## 目标平台矩阵
+
+当前项目将平台支持目标明确为：
+
+1. `x64 + Linux`
+2. `x64 + Windows`
+3. `arm64 + Linux`
+4. `arm64 + Windows`
+5. `riscv64 + Linux`
+
+后端优先级策略：
+
+1. x64: `avx2` -> `scalar`
+2. arm64: `neon` -> `scalar`
+3. riscv64: `rvv` -> `scalar`
 
 ## 架构总览
 
@@ -105,6 +121,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/pack.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
+  src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
   src/backend/scalar/scalar_backend.c \
   -o /tmp/vn_player

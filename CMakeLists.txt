@@ -5,7 +5,11 @@ set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-add_compile_options(-Wall -Wextra -Werror -pedantic-errors)
+if(MSVC)
+    add_compile_options(/W4 /WX)
+else()
+    add_compile_options(-Wall -Wextra -Werror -pedantic-errors)
+endif()
 
 add_library(vn_core
     src/core/backend_registry.c

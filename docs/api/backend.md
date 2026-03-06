@@ -77,6 +77,7 @@ Render IR 单条指令。
 3. `CLEAR` 与不透明矩形填充使用 AVX2 向量写入；alpha 混合路径使用标量逐像素混合。
 4. 当强制选择 `avx2` 但当前 CPU 不支持时，渲染器会自动回退到 `scalar`。
 5. `SPRITE/TEXT` 走统一的 `tex -> combine` 采样链路（共享 `pixel_pipeline`），保证 `scalar/avx2` 输出语义一致。
+6. `SPRITE/TEXT` 纹理坐标映射使用 UV LUT（每帧按可见区域构建）以减少逐像素除法开销。
 
 ## 6. 后端能力位约定
 

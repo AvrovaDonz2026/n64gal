@@ -102,6 +102,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/pack.c \
   src/core/runtime_cli.c \
   src/frontend/render_ops.c \
+  src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
   src/backend/scalar/scalar_backend.c \
   -o /tmp/n64gal_perf_runner
