@@ -175,6 +175,12 @@
 - `examples/host-embed/session_loop.c`
 - `examples/host-embed/README.md`
 
+当前该示例已接入：
+
+1. `CMake` target: `example_host_embed`
+2. `ctest` item: `example_host_embed`
+3. `scripts/ci/run_cc_suite.sh` 本地 C89 套件
+
 ## Non-Goals
 
 当前 Host SDK 文档不承诺：

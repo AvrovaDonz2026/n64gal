@@ -10,6 +10,8 @@
 
 ## 本地编译（C89）
 
+### 方式 A：直接 `cc`
+
 ```bash
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   examples/host-embed/session_loop.c \
@@ -27,6 +29,22 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   -o /tmp/n64gal_host_embed_example
 ```
 
+### 方式 B：CMake / ctest（Linux）
+
+```bash
+cmake -S . -B build -DVN_BUILD_PLAYER=ON
+cmake --build build --target example_host_embed
+ctest --test-dir build --output-on-failure -R example_host_embed
+```
+
+### 方式 C：CMake / ctest（Windows x64 或 arm64）
+
+```powershell
+cmake -S . -B build -A x64 -DVN_BUILD_PLAYER=ON
+cmake --build build --config Release --target example_host_embed
+ctest --test-dir build -C Release --output-on-failure -R example_host_embed
+```
+
 ## 运行前准备
 
 ```bash
@@ -41,3 +59,8 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 2. 宿主应自己维护主循环，不要假设 `vn_runtime_session_step` 会阻塞一整帧墙钟时间。
 3. 分支选择通过 `vn_runtime_session_set_choice` 或 `choice_seq` 注入。
 4. 默认包路径是 `assets/demo/demo.vnpak`；嵌入到外部项目时应显式设置 `pack_path`。
+
+## CI
+
+1. `example_host_embed` 已接入 `CMake + ctest`。
+2. Linux/Windows CMake job 会复用相同示例源码，不再维护分叉版本。

@@ -956,7 +956,8 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 - [x] 明确输入桥接、文件桥接、日志桥接接口
 - [x] 输出版本协商矩阵与兼容规则
 - [x] 最小宿主嵌入示例（`examples/host-embed/session_loop.c`）
-- [ ] Linux/Windows 各补 1 个宿主演示
+- [x] `example_host_embed` 已接入 `CMake + ctest + run_cc_suite.sh`
+- [ ] Linux/Windows 各补 1 个平台专用宿主包装层示例（窗口/输入/文件对接）
 
 ### 验收命令
 
@@ -977,6 +978,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   -o /tmp/n64gal_host_embed_example
 /tmp/n64gal_host_embed_example
 ctest --test-dir build --output-on-failure -R runtime_session
+ctest --test-dir build --output-on-failure -R example_host_embed
 ```
 
 ### DoD

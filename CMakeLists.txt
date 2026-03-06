@@ -72,6 +72,12 @@ add_executable(test_runtime_session tests/unit/test_runtime_session.c)
 target_link_libraries(test_runtime_session PRIVATE vn_core)
 add_test(NAME unit_runtime_session COMMAND test_runtime_session)
 
+add_executable(example_host_embed
+    examples/host-embed/session_loop.c
+)
+target_link_libraries(example_host_embed PRIVATE vn_core)
+add_test(NAME example_host_embed COMMAND example_host_embed)
+
 if(VN_BUILD_PLAYER)
     set_tests_properties(smoke_scalar smoke_auto PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
@@ -84,5 +90,6 @@ set_tests_properties(
     unit_vm
     unit_runtime_api
     unit_runtime_session
+    example_host_embed
     PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )

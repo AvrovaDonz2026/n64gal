@@ -272,9 +272,10 @@ baseline/candidate 对照：
 
 1. Runtime API：[`docs/api/runtime.md`](./docs/api/runtime.md)
 2. Host SDK 指南：[`docs/host-sdk.md`](./docs/host-sdk.md)
-3. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
-4. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
-5. API 索引：[`docs/api/README.md`](./docs/api/README.md)
+3. 宿主嵌入示例：[`examples/host-embed/README.md`](./examples/host-embed/README.md)
+4. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
+5. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
+6. API 索引：[`docs/api/README.md`](./docs/api/README.md)
 
 ## 开发约束
 

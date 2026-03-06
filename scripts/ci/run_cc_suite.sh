@@ -48,7 +48,10 @@ for test_name in "${TESTS[@]}"; do
 done
 
 cc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
+cc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
 
 for test_name in "${TESTS[@]}"; do
   "$BUILD_DIR/$test_name"
 done
+
+"$BUILD_DIR/example_host_embed"
