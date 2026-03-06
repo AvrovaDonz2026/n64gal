@@ -26,8 +26,9 @@
 5. 当前约束：手头暂无 `native-riscv64/RVV` 设备，`ISSUE-020` 保留但暂列外部阻塞项；现阶段优先收口 `qemu` 证据链、golden 阈值与性能门限。
 6. `ISSUE-008` 第一阶段已落地：新增 `tests/perf/perf_thresholds.csv`、`tests/perf/check_perf_thresholds.sh`，并把 `linux-x64` 的 `scalar -> avx2` smoke compare 接成阻塞门限。
 7. `ISSUE-014` 已补 Linux suite artifact：`run_cc_suite.sh` / `run_riscv64_qemu_suite.sh` 会生成 `ci_logs/`、`ci_suite_summary.md` 与 `golden_artifacts/`，`ci-matrix` 已上传 `suite-linux-x64`、`suite-linux-arm64`、`suite-linux-riscv64-qemu-scalar`、`suite-linux-riscv64-qemu-rvv` artifact。
-8. `ISSUE-014` 本轮继续补 Windows suite artifact：`windows-x64` / `windows-arm64` 已接入 `suite-windows-x64` / `suite-windows-arm64` 上传，并额外复跑 `test_renderer_fallback`、`test_runtime_api`、`test_runtime_golden` 生成回退/ golden 证据；当前统一走 `scripts/ci/run_windows_suite.ps1`，待 GitHub CI 实跑复核。
+8. `ISSUE-014` 本轮继续补 Windows suite artifact：`windows-x64` / `windows-arm64` 已接入 `suite-windows-x64` / `suite-windows-arm64` 上传，并额外复跑 `test_renderer_fallback`、`test_runtime_api`、`test_runtime_golden` 生成回退/ golden 证据；当前统一走 `scripts/ci/run_windows_suite.ps1`。
 9. `ISSUE-014` 已新增 `scripts/ci/run_windows_suite.ps1`，把 Windows 的 `configure -> build -> ctest -> fallback/golden evidence -> suite summary` 收口到单一 PowerShell 入口，供 GitHub Actions 与本地复跑共用；即使 `ctest` 失败也会继续尝试写出 summary 与可用日志。
+10. GitHub Actions：`ci-matrix` push run `22772138491`（head `8e5dcd8`）已于 `2026-03-07 00:26 HKT` 完成并 `success`；其中 `windows-x64` 与 `windows-arm64` job 均为 `success`，Windows suite artifact 链已完成实跑复核。
 
 ### 平台目标（新增约束）
 
@@ -48,11 +49,11 @@
 7. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md`、`docs/platform-matrix.md` 已建立，后续随 API 变更持续维护
 8. CI/perf 追踪：`riscv-perf-report` 的 `workflow_dispatch` 首次 GitHub 端冒烟（run `22766736383`）已完成，artifact 与 step summary 已验证可用
 9. `ISSUE-008`（进行中）：性能门限文件、门限校验脚本与 `linux-x64` compare gate 已落地；P0 四件套优化本体（state-hash / dirty-tile / command cache / dynamic resolution）待继续
-10. `ISSUE-014`（进行中）：Linux x64 / Linux arm64 / Linux riscv64 qemu suite 日志与 golden artifact 归档链已落地；Windows x64 / Windows arm64 的 suite artifact 已统一收口到 `scripts/ci/run_windows_suite.ps1`，待 GitHub CI 实跑复核
+10. `ISSUE-014`（进行中）：Linux x64 / Linux arm64 / Linux riscv64 qemu suite 日志与 golden artifact 归档链已落地；Windows x64 / Windows arm64 的 suite artifact 已统一收口到 `scripts/ci/run_windows_suite.ps1`，且已在 GitHub Actions push run `22772138491` 上完成实跑复核
 
 ### 下一步（短周期）
 
-1. `ISSUE-014` 跟进：观察 Windows x64/arm64 上 `scripts/ci/run_windows_suite.ps1` + `build_config.h` + MSVC AVX2 路径的 CI 结果，并补齐 merge gate/artifact 说明。
+1. `ISSUE-014` 跟进：补齐 merge gate/branch protection 说明，并把 Windows suite 实跑 run `22772138491` 的 artifact 约定固化到文档。
 2. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）与 golden/perf 证据对齐。
 3. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`，其中 `native` 因设备缺失暂列 blocked。
 4. `ISSUE-008` 第二阶段：在已有 perf threshold gate 之上继续做 state-hash / dirty-tile / command cache / dynamic resolution 本体优化。
@@ -849,7 +850,7 @@ Windows 专属改动可短期 feature flag 化，但必须保留 Linux 主线稳
 - [x] Linux x64 / Linux arm64 native suite 日志 + summary artifact（`suite-linux-x64` / `suite-linux-arm64`）
 - [x] Linux riscv64 qemu suite 日志 + summary artifact（`suite-linux-riscv64-qemu-scalar` / `suite-linux-riscv64-qemu-rvv`）
 - [x] `test_runtime_golden` 已支持通过 `VN_GOLDEN_ARTIFACT_DIR` 落入 CI artifact 目录
-- [x] Windows x64 / Windows arm64 suite 日志 artifact（通过 `scripts/ci/run_windows_suite.ps1` 统一收口到 `suite-windows-x64` / `suite-windows-arm64`，待 GitHub CI 复核，且脚本已保证失败时仍产出 summary/日志）
+- [x] Windows x64 / Windows arm64 suite 日志 artifact（通过 `scripts/ci/run_windows_suite.ps1` 统一收口到 `suite-windows-x64` / `suite-windows-arm64`，并已在 GitHub Actions run `22772138491` 实跑验证，脚本在失败场景下仍会产出 summary/日志）
 - [ ] Job F1: Linux riscv64 native-nightly（真机功能 + perf）
 - [ ] 失败回退路径验证（每个平台至少 1 例）
 
@@ -872,7 +873,7 @@ OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./sc
 - [x] `linux-riscv64-qemu-scalar` 已转阻塞
 - [x] `linux-riscv64-qemu-rvv` 已转阻塞（2026-03-06，最近 12 轮 workflow 连续 success）
 - [x] `linux-riscv64-qemu-rvv-perf-report` 的 GitHub 端 artifact 已完成首次 workflow_dispatch 验证（本地 wrapper 与 GitHub run `22766736383` 均已跑通）
-- [ ] 每个平台均有回退链验证日志（workflow 已完成全平台接线；待 Windows CI 实跑复核后再勾）
+- [x] 每个平台均有回退链验证日志（Windows suite 已在 GitHub Actions run `22772138491` 完成实跑复核）
 - [ ] CI 失败阻塞 main 合并
 
 ### 回退策略

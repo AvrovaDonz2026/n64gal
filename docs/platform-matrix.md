@@ -89,6 +89,8 @@ pwsh -File scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakeP
 5. 生成 `ci_logs/*`、`ci_suite_summary.md` 与 `golden_artifacts/`。
 6. 即使 `ctest` 或单个复跑二进制失败，也会尽量保留 summary 与已生成日志。
 
+GitHub 侧最新已验证证据：`ci-matrix` push run `22772138491`（head `8e5dcd8`）于 `2026-03-07 00:26 HKT` 完成 `success`，`windows-x64` 与 `windows-arm64` 两个 job 均为 `success`。
+
 ### riscv64 交叉验证
 
 ```bash
