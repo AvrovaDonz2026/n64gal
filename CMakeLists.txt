@@ -28,6 +28,12 @@ add_library(vn_core
 
 target_include_directories(vn_core PUBLIC include)
 
+add_library(vn_preview
+    src/tools/preview_cli.c
+)
+target_link_libraries(vn_preview PUBLIC vn_core)
+target_include_directories(vn_preview PUBLIC include)
+
 enable_testing()
 
 option(VN_BUILD_PLAYER "Build vn_player demo executable" OFF)
@@ -39,6 +45,11 @@ if(VN_BUILD_PLAYER)
     add_test(NAME smoke_scalar COMMAND vn_player --backend=scalar --scene S0)
     add_test(NAME smoke_auto COMMAND vn_player --scene S0)
 endif()
+
+add_executable(vn_previewd
+    src/tools/previewd_main.c
+)
+target_link_libraries(vn_previewd PRIVATE vn_preview)
 
 add_executable(test_backend_registry tests/unit/test_backend_registry.c)
 target_link_libraries(test_backend_registry PRIVATE vn_core)
@@ -72,6 +83,10 @@ add_executable(test_runtime_session tests/unit/test_runtime_session.c)
 target_link_libraries(test_runtime_session PRIVATE vn_core)
 add_test(NAME unit_runtime_session COMMAND test_runtime_session)
 
+add_executable(test_preview_protocol tests/integration/test_preview_protocol.c)
+target_link_libraries(test_preview_protocol PRIVATE vn_preview)
+add_test(NAME integration_preview_protocol COMMAND test_preview_protocol)
+
 add_executable(example_host_embed
     examples/host-embed/session_loop.c
 )
@@ -90,6 +105,7 @@ set_tests_properties(
     unit_vm
     unit_runtime_api
     unit_runtime_session
+    integration_preview_protocol
     example_host_embed
     PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )

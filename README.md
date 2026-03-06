@@ -7,7 +7,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 3. C89 严格兼容。
 4. 便于跨架构后端扩展（amd64/AVX2 -> arm64/NEON -> riscv64/RVV）。
 
-当前代码以“库优先”方式组织：核心能力通过 `vn_runtime.h` 暴露，`vn_player` 仅作为可选 CLI 包装。
+当前代码以“库优先”方式组织：核心能力通过 `vn_runtime.h` 暴露，预览协议入口通过 `vn_preview.h` 暴露，`vn_player` 仅作为可选 CLI 包装。
 
 ## 项目状态（2026-03-06）
 
@@ -16,6 +16,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Frontend 输出统一 `VNRenderOp[]`。
    - `vn_runtime_run(config, result)` 结构化运行入口。
    - Session API：`create/step/is_done/set_choice/destroy`。
+   - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
 2. 进行中:
    - AVX2 收口：golden 图差异基线与误差阈值。
    - x64/arm64 + Linux/Windows CI 矩阵已全绿。
@@ -63,9 +64,12 @@ include/        对外头文件（backend/runtime/frontend/types/error）
 src/core/       运行时、渲染器、包格式、VM
 src/frontend/   Frontend -> RenderOp 构建
 src/backend/    各后端实现（scalar/avx2/...）
+src/tools/      无 GUI 工具入口（如 `vn_previewd`）
 tools/scriptc/  场景脚本编译器
 tools/packer/   vnpak 打包工具
+tools/previewd/ 预览协议说明与示例
 tests/unit/     单元测试
+tests/integration/ 预览协议等集成测试
 tests/perf/     基准脚本与 CSV 输出
 examples/       宿主嵌入与集成示例
 docs/api/       API 文档
@@ -106,7 +110,7 @@ cmake -S . -B build
 cmake --build build
 ```
 
-默认仅构建 `vn_core` 与测试目标。  
+默认构建 `vn_core`、`vn_preview`、`vn_previewd` 与测试目标。
 如果需要可执行包装器 `vn_player`：
 
 ```bash
@@ -133,6 +137,26 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   -o /tmp/vn_player
 ```
 
+如需单独编译无 GUI 预览入口：
+
+```bash
+cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
+  src/tools/previewd_main.c \
+  src/tools/preview_cli.c \
+  src/core/backend_registry.c \
+  src/core/renderer.c \
+  src/core/vm.c \
+  src/core/pack.c \
+  src/core/runtime_cli.c \
+  src/frontend/render_ops.c \
+  src/backend/common/pixel_pipeline.c \
+  src/backend/avx2/avx2_backend.c \
+  src/backend/neon/neon_backend.c \
+  src/backend/rvv/rvv_backend.c \
+  src/backend/scalar/scalar_backend.c \
+  -o /tmp/vn_previewd
+```
+
 ## 运行示例（CLI）
 
 ```bash
@@ -157,6 +181,40 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 1. `1-9` 设置分支索引
 2. `t` 切换 trace
 3. `q` 退出循环
+
+## 预览协议与无 GUI 预览
+
+默认构建产物包含 `vn_previewd`，用于 editor/CI/脚本驱动的结构化预览。
+
+```bash
+./build/vn_previewd \
+  --project-dir=. \
+  --scene=S2 \
+  --resolution=600x800 \
+  --frames=8 \
+  --trace \
+  --command=set_choice:1 \
+  --command=inject_input:choice:1 \
+  --command=step_frame:8
+```
+
+也可以使用请求文件：
+
+```bash
+cat >/tmp/preview.req <<'EOF'
+preview_protocol=v1
+project_dir=.
+scene_name=S2
+frames=8
+trace=1
+command=set_choice:1
+command=inject_input:choice:1
+command=step_frame:8
+EOF
+./build/vn_previewd --request=/tmp/preview.req --response=/tmp/preview.json
+```
+
+完整协议见 [`docs/preview-protocol.md`](./docs/preview-protocol.md)。
 
 ## 库 API 使用
 
@@ -249,6 +307,8 @@ baseline/candidate 对照：
 5. `perf_report_template.md`
 
 完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。
+
+预览协议与无 GUI 预览入口见 [`docs/preview-protocol.md`](./docs/preview-protocol.md) 与 [`tools/previewd/README.md`](./tools/previewd/README.md)。
 
 ## 后端支持状态
 

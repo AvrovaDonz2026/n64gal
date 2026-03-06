@@ -910,26 +910,44 @@ ctest --test-dir build --output-on-failure
 
 ### 任务清单
 
-- [ ] 定义输入参数：工程目录/场景/分辨率/backend/trace
-- [ ] 定义输出：首帧状态/结构化错误/日志/性能摘要
-- [ ] 支持控制：`reload scene`、`step frame`、`set choice`、`inject input`
-- [ ] 初版以 CLI + 文件协议落地，后续再升级本地 IPC
+- [x] 定义输入参数：工程目录/场景/分辨率/backend/trace
+- [x] 定义输出：首帧状态/结构化错误/日志/性能摘要
+- [x] 支持控制：`reload scene`、`step frame`、`set choice`、`inject input`（`v1` 当前仅实现 `choice:<n>`）
+- [x] 初版以 CLI + 文件协议落地，后续再升级本地 IPC
 
 ### 验收命令
 
 ```bash
-./build/vn_player --scene S0 --trace --hold-end
+cat > /tmp/preview.req <<'EOF'
+preview_protocol=v1
+project_dir=.
+scene_name=S2
+frames=8
+trace=1
+command=set_choice:1
+command=inject_input:choice:1
+command=step_frame:8
+EOF
+./build/vn_previewd --request=/tmp/preview.req --response=/tmp/preview.json
 ```
 
 ### DoD
 
-- [ ] CLI 与自动化脚本共用同一预览入口
-- [ ] Linux/Windows 预览命令语义一致
-- [ ] 结构化错误输出可被编辑器消费
+- [x] CLI 与自动化脚本共用同一预览入口（`vn_previewd` / `vn_preview_run_cli`）
+- [x] Linux/Windows 预览命令语义一致（统一 `argv/request file -> JSON`）
+- [x] 结构化错误输出可被编辑器消费
 
 ### 回退策略
 
 IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结。
+
+### 当前实现备注
+
+1. 入口：`include/vn_preview.h` + `src/tools/preview_cli.c` + `src/tools/previewd_main.c`
+2. 文档：`docs/preview-protocol.md`
+3. 测试：`tests/integration/test_preview_protocol.c`，并已接入 `run_cc_suite.sh` 与 `ctest`
+4. `perf_summary` 当前是 host 侧 step 包围时间摘要，不替代正式 perf 报告
+5. `inject_input` 在 `v1` 当前仅覆盖 `choice:<n>`，其余输入种类后续扩展
 
 ---
 

@@ -24,6 +24,9 @@ COMMON_SRC=(
   src/backend/rvv/rvv_backend.c
   src/backend/scalar/scalar_backend.c
 )
+PREVIEW_SRC=(
+  src/tools/preview_cli.c
+)
 CFLAGS=(
   -std=c89
   -Wall
@@ -47,11 +50,14 @@ for test_name in "${TESTS[@]}"; do
   cc "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
 done
 
+cc "${CFLAGS[@]}" tests/integration/test_preview_protocol.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_preview_protocol"
 cc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
+cc "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_previewd"
 cc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
 
 for test_name in "${TESTS[@]}"; do
   "$BUILD_DIR/$test_name"
 done
 
+"$BUILD_DIR/test_preview_protocol"
 "$BUILD_DIR/example_host_embed"

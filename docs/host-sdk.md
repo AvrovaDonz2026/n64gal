@@ -153,7 +153,7 @@
 | `script bytecode` | `v1` | 运行时只保证读取已声明兼容版本 |
 | `vnpak` | `v2` 当前默认，兼容读取 `v1` | 生成端默认写 `v2`，读取端兼容 `v1/v2` |
 | `vnsave` | `planned` | 未正式对外，未来发布必须附迁移规则 |
-| `preview protocol` | `planned` | 先在文档层冻结，再做工具实现 |
+| `preview protocol` | `v1` | `vn_previewd` / `vn_preview_run_cli` 固定 `CLI + 文件 -> JSON` 语义，后续仅追加字段 |
 
 规则：
 
@@ -188,6 +188,6 @@
 1. 多会话并发安全
 2. 自定义文件系统回调
 3. 动态插件 ABI
-4. GUI 编辑器内部通信协议
+4. GUI 编辑器内部通信协议（已落地的 `preview protocol v1` 除外）
 
 这些都属于后续 `M4-engine-ecosystem` 范围，必须在协议和版本面冻结后再推进。

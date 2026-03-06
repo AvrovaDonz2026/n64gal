@@ -7,3 +7,5 @@ tests/perf/perf_report_template.md
 tests/perf/*.raw.*.log
 tests/perf/*.raw.*.err
 tests/perf/compare_run/
+tests/integration/*.tmp
+tests/integration/*.tmp.json
