@@ -23,6 +23,7 @@
 2. `f5eaa54`：新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh`。
 3. `1792d6e`：修复 `riscv-perf-report` workflow 解析错误（`runner.temp -> github.workspace`）。
 4. GitHub Actions：`ci-matrix` 在 `1792d6e` 对应 push 已 `success`；`riscv-perf-report` 的首次 `workflow_dispatch` 冒烟（run `22766736383`）已于 `2026-03-06 22:17 HKT` 完成并 `success`，artifact 与 step summary 均已产出。
+5. 当前约束：手头暂无 `native-riscv64/RVV` 设备，`ISSUE-020` 保留但暂列外部阻塞项；现阶段优先收口 `qemu` 证据链、golden 阈值与性能门限。
 
 ### 平台目标（新增约束）
 
@@ -49,9 +50,9 @@
 2. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 3. `ISSUE-008` 前置：建立性能回归基线门限文件
 4. `ISSUE-014` 跟进：观察 Windows x64/arm64 上 `build_config.h` + MSVC AVX2 路径的 CI 结果
-5. `ISSUE-014` 收口：`linux-riscv64-qemu-rvv` 已转阻塞，`linux-riscv64-qemu-rvv-perf-report` 已接入 workflow_dispatch/schedule，且首个 dispatch run `22766736383` 已成功产出 artifact；继续补 native-nightly
-6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
-7. `ISSUE-011` 收口：RVV qemu perf_compare 证据已补齐（`docs/perf-rvv-2026-03-06.md`），并已接入可重复 artifact 流程；继续推进 native-nightly
+5. `ISSUE-014` 收口：`linux-riscv64-qemu-rvv` 已转阻塞，`linux-riscv64-qemu-rvv-perf-report` 已接入 workflow_dispatch/schedule，且首个 dispatch run `22766736383` 已成功产出 artifact；当前继续补 fallback/golden/perf 门限
+6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`，其中 `native` 因设备缺失暂列 blocked
+7. `ISSUE-011` 收口：RVV qemu perf_compare 证据已补齐（`docs/perf-rvv-2026-03-06.md`），并已接入可重复 artifact 流程；现阶段优先继续做 qemu 侧门限与一致性收口
 8. `M4-engine-ecosystem` 预研：先冻结模板/CLI/宿主 SDK/预览协议边界，避免工具链各自长歪
 
 ## 0. 适用原则
@@ -64,15 +65,22 @@
 
 ## 1. Milestone 规划
 
-| Milestone | 周期 | 目标 |
-|---|---|---|
-| `M0-core-scalar` | W1-W2 | 前后端分离骨架 + scalar 基线（Linux/Windows） |
-| `M1-amd64-avx2` | W3-W6 | amd64 AVX2 首发性能（Linux/Windows） |
-| `M2-arm64-neon` | W7-W10 | arm64 NEON 平台化（Linux/Windows） |
-| `M3-riscv64-rvv` | W11-W14 | riscv64 RVV 扩展 |
-| `M4-engine-ecosystem` | W15-W20 | 模板、工具链、宿主 SDK、预览协议与兼容矩阵 |
+| Milestone | 周期 | 目标 | 当前判定 |
+|---|---|---|---|
+| `M0-core-scalar` | W1-W2 | 前后端分离骨架 + scalar 基线 + Session API/pack/perf 基础链 | 已完成，转维护态 |
+| `M1-amd64-avx2` | W3-W6 | amd64 AVX2 首发性能 + 平台抽象收口（Linux/Windows） | 基本完成，剩 `ISSUE-007/008` 收口项 |
+| `M2-arm64-neon` | W7-W10 | arm64 NEON 平台化 + 一致性测试 + 跨 OS CI | 基本完成，剩 `ISSUE-010/014` 尾项 |
+| `M3-riscv64-rvv` | W11-W14 | riscv64 RVV 扩展 + qemu 阻塞链 + 原生 nightly/perf | 当前主线，先收口 `qemu/golden/perf`；`native` 因硬件缺失暂缓 |
+| `M4-engine-ecosystem` | W15-W20 | 模板、工具链、宿主 SDK、预览协议、迁移器与生态治理 | 已前置部分文档/工具，禁止抢占 M3 阻塞资源 |
 
-### 1.1 平台兼容矩阵（必须覆盖）
+### 1.1 阶段切换规则
+
+1. `M0` 已完成，除兼容性修复和文档补档外，不再新增基础骨架类需求。
+2. `M1/M2` 当前按“维护尾项”处理，允许继续收口 golden 阈值、性能门限和 fallback 证据，但优先级低于 `M3` 发版阻塞。
+3. `M3` 仍是当前主线里程碑，但在缺少原生设备时，先把可控部分收口到 `cross-build -> qemu-scalar -> qemu-rvv -> qemu perf artifact + golden/perf 门限`；`native-nightly` 作为外部依赖保留。
+4. `M4` 允许继续做不打断主线的文档/协议/工具前置，但不得挤占 `qemu` 证据链收口、golden/perf 门限和平台稳定性修复的资源。
+
+### 1.2 平台兼容矩阵（必须覆盖）
 
 | 平台 | 后端优先级 | 当前状态 |
 |---|---|---|
@@ -80,7 +88,7 @@
 | Windows x64 | `avx2` -> `scalar` | 已完成（MSVC x64 CI 全绿） |
 | Linux arm64 | `neon` -> `scalar` | 已完成（arm64 Linux CI 全绿） |
 | Windows arm64 | `neon` -> `scalar` | 已完成（Windows arm64 CI 全绿） |
-| Linux riscv64 | `rvv` -> `scalar` | 进行中（`rvv` 后端最小路径已接入，交叉编译与 `qemu-user` 冒烟通过，待原生验证） |
+| Linux riscv64 | `rvv` -> `scalar` | 进行中（`cross/qemu-scalar/qemu-rvv/qemu perf artifact` 已打通，待 `native-nightly` 与原生 perf 证据） |
 
 ## 2. 标签建议
 
@@ -150,41 +158,41 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 
 ---
 
-## 5. 开工看板（W1 可直接执行）
+## 5. 滚动执行看板（当前阶段）
 
-### 5.1 今天就做（Day0）
+### 5.1 当前主线（按优先级执行）
 
-1. 创建 Milestone：`M0-core-scalar` 到 `M3-riscv64-rvv`
-2. 创建标签：`type:*`、`arch:*`、`priority:*`
-3. 新建 Issue：至少先建 `ISSUE-001` 到 `ISSUE-006`
-4. 建立项目看板列：`Todo / In Progress / Review / Done / Blocked`
-5. 把 `ISSUE-001`、`ISSUE-002`、`ISSUE-003` 拖入 `In Progress`
+1. `ISSUE-007`：补齐 golden 差异阈值、可视化对照与失败产物说明，把 `pixel-exact` 对照从“可跑”收口到“可长期判定”。
+2. `ISSUE-008`：建立性能回归门限文件与开关矩阵，避免后续 `avx2/neon/rvv` 调优没有统一阈值。
+3. `ISSUE-014`：补齐 fallback 验证日志、merge gate 说明与平台矩阵结果归档，减少“CI 绿但证据链不完整”的灰区。
+4. `ISSUE-011`：继续收口 RVV 的 qemu 侧一致性、perf 证据和可回退路径，不把 native 设备缺口混进日常开发阻塞。
+5. `ISSUE-020`：保留为外部前置项；等有 `native-riscv64/RVV` 设备或 runner 资源后再恢复到主线最高优先级。
 
-### 5.2 首批并行分配（建议）
+### 5.2 当前并行分配（建议）
 
 | 角色 | 领取 Issue | 目标产物 |
 |---|---|---|
-| Owner-A（Frontend） | ISSUE-002 | `build_render_ops` 可跑通 |
-| Owner-B（Backend） | ISSUE-001 + ISSUE-003 | `vn_backend.h` + scalar 首帧 |
-| Owner-C（Tools） | ISSUE-004 | `demo.vnpak` 可生成 |
-| Owner-D（QA/CI） | ISSUE-005 + ISSUE-006 | `perf.csv` + C89 门禁 |
+| Owner-A（Runtime/QA） | `ISSUE-007` + `ISSUE-010` | golden 阈值、差异产物、后端一致性基线 |
+| Owner-B（SIMD/Perf） | `ISSUE-008` + `ISSUE-011` | 性能门限文件、RVV/AVX2/NEON 热路径对照 |
+| Owner-C（Infra/CI） | `ISSUE-014` | fallback 日志、merge gate、artifact 归档与平台矩阵维护 |
+| Owner-D（Docs/Tooling） | `ISSUE-017` + `ISSUE-022` + `ISSUE-024` | API 文档维护、Creator Toolchain 入口、宿主接入说明 |
 
-### 5.3 首周 PR 顺序（建议）
+### 5.3 建议 PR 顺序（下一阶段）
 
-1. `PR-001`：接口冻结（ISSUE-001）
-2. `PR-002`：Frontend IR 输出（ISSUE-002）
-3. `PR-003`：Scalar 后端（ISSUE-003）
-4. `PR-004`：资源链路（ISSUE-004）
-5. `PR-005`：Perf + C89 门禁（ISSUE-005/006）
-6. `PR-006`：AVX2 原型（ISSUE-007）
+1. `PR-M3-001`：golden 差异阈值与可视化对照文档（`ISSUE-007`）
+2. `PR-M3-002`：性能回归门限文件与开关矩阵（`ISSUE-008`）
+3. `PR-M3-003`：fallback 验证日志/平台矩阵归档补齐（`ISSUE-014`）
+4. `PR-M3-004`：RVV qemu 侧一致性与 perf 证据继续收口（`ISSUE-011`）
+5. `PR-M4-001`：Creator Toolchain stage-1（先聚合 `probe/perf`，再接 `migrate`）（`ISSUE-022`）
+6. `PR-M3-X`：待 `native-riscv64/RVV` 设备到位后，再恢复 `ISSUE-020` 的 runner/nightly 计划
 
-### 5.4 每日收口标准
+### 5.4 当前收口标准
 
-每天结束前必须满足：
+当前阶段每轮结束前必须满足：
 
-1. 至少 1 条 issue 状态前进（Todo -> In Progress 或 In Progress -> Review）
-2. 至少 1 条可复现命令写入 issue 评论
-3. Blocker 在当日明确 owner 和截止时间
+1. 影响 runtime/backend/ci 的变更，必须在 `issue.md` 或对应文档里留下可复现命令、artifact 路径或 workflow run 号。
+2. 在缺少 `native-riscv64/RVV` 设备时，`ISSUE-020` 保留为 blocked；新增生态/实验性任务不得中断当前的 qemu/golden/perf 收口主线。
+3. 新引入的 perf/golden 结论必须可对照、可回退、可在 CI 或脚本中复现。
 
 ---
 
@@ -1088,7 +1096,7 @@ cmake --build build-wasm
 
 ### 任务清单
 
-- [ ] 接入至少 1 台可重复使用的 riscv64 Linux runner / 开发板
+- [ ] 接入至少 1 台可重复使用的 riscv64 Linux runner / 开发板（当前 blocked：暂无设备）
 - [ ] 建立 native nightly 的构建、测试与 perf 采样命令
 - [ ] 固化 `scalar` / `rvv` 原生功能冒烟
 - [ ] 固化 `S0-S3` 原生 perf 报告与 artifact
@@ -1104,7 +1112,7 @@ cmake --build build-wasm
 ### DoD
 
 - [ ] 发布前存在原生 riscv64 功能与 perf 证据链
-- [ ] qemu 结果与 native 结果的定位边界清晰
+- [x] qemu 结果与 native 结果的定位边界清晰
 - [ ] nightly 失败可追溯到 runner / toolchain / backend 具体层级
 
 ### 回退策略
