@@ -78,7 +78,6 @@ jobs:
 
   linux-riscv64-qemu-rvv:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Install riscv64 qemu toolchain
