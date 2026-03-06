@@ -74,10 +74,16 @@ Render IR 单条指令。
 
 1. `avx2` 在 `init` 阶段做运行时检测（仅 CPU 支持 AVX2 时启用）。
 2. 支持 `VN_OP_CLEAR/VN_OP_SPRITE/VN_OP_TEXT/VN_OP_FADE` 四类指令。
-3. 不透明填充路径走 AVX2 向量写入；alpha 混合路径当前使用标量逐像素混合。
+3. `CLEAR` 与不透明矩形填充使用 AVX2 向量写入；alpha 混合路径使用标量逐像素混合。
 4. 当强制选择 `avx2` 但当前 CPU 不支持时，渲染器会自动回退到 `scalar`。
+5. `SPRITE/TEXT` 走统一的 `tex -> combine` 采样链路（共享 `pixel_pipeline`），保证 `scalar/avx2` 输出语义一致。
 
 ## 6. 后端能力位约定
 
 1. `scalar`: `has_simd=0`, `has_lut_blend=0`, `has_tmem_cache=0`
 2. `avx2`（当前阶段）: `has_simd=1`, `has_lut_blend=0`, `has_tmem_cache=0`
+
+## 7. 一致性验证
+
+1. 新增 `test_backend_consistency`：同一组 `VNRenderOp` 在 `scalar` 与 `avx2` 下渲染后比较 framebuffer CRC32。
+2. 当机器不支持 AVX2 时，该测试会输出 `skipped (no avx2 support)` 并通过。

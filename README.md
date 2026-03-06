@@ -218,7 +218,7 @@ ctest --test-dir build --output-on-failure
 ## 后端支持状态
 
 1. `scalar`：可用，作为行为基线与回退目标。
-2. `avx2`：最小可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE`），CPU 不支持时自动回退 `scalar`。
+2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
 3. `neon`：预留。
 4. `rvv`：预留。
 

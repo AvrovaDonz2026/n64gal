@@ -14,6 +14,7 @@ add_library(vn_core
     src/core/pack.c
     src/core/runtime_cli.c
     src/frontend/render_ops.c
+    src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
     src/backend/scalar/scalar_backend.c
 )
@@ -47,6 +48,10 @@ add_test(NAME unit_vnpak COMMAND test_vnpak)
 add_executable(test_renderer_fallback tests/unit/test_renderer_fallback.c)
 target_link_libraries(test_renderer_fallback PRIVATE vn_core)
 add_test(NAME unit_renderer_fallback COMMAND test_renderer_fallback)
+
+add_executable(test_backend_consistency tests/unit/test_backend_consistency.c)
+target_link_libraries(test_backend_consistency PRIVATE vn_core)
+add_test(NAME unit_backend_consistency COMMAND test_backend_consistency)
 
 add_executable(test_vm tests/unit/test_vm.c)
 target_link_libraries(test_vm PRIVATE vn_core)

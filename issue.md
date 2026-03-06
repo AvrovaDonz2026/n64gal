@@ -23,7 +23,7 @@
 
 ### 下一步（短周期）
 
-1. `ISSUE-007` 收口：补 texture/combine 实采样与 scalar 对照基线
+1. `ISSUE-007` 收口：补 golden 图差异基线与误差阈值
 2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
@@ -405,8 +405,9 @@ cmake --build build -j
 - [x] 覆盖 `VN_OP_CLEAR/VN_OP_SPRITE/VN_OP_TEXT/VN_OP_FADE` 执行链路
 - [x] `--backend=avx2` 强制切换（CPU 支持时使用 avx2，不支持时回退 scalar）
 - [x] amd64 自动优先选择 `avx2`
-- [ ] `tex/combine` 真采样路径（当前为最小占位着色）
-- [ ] 与 scalar 差异对照测试（golden / 误差阈值）
+- [x] `tex/combine` 真采样路径（共享 `pixel_pipeline`，`scalar/avx2` 同语义）
+- [x] 与 scalar 一致性对照测试（`test_backend_consistency` CRC 对照）
+- [ ] golden 图差异测试（误差阈值）
 
 ### 验收命令
 

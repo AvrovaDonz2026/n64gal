@@ -5,6 +5,8 @@
 #include "vn_renderer.h"
 #include "vn_error.h"
 
+#include "../common/pixel_pipeline.h"
+
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
 #include <immintrin.h>
 #define VN_AVX2_IMPL_AVAILABLE 1
@@ -19,56 +21,7 @@ static vn_u32 g_avx2_height = 0u;
 static vn_u32 g_avx2_pixels = 0u;
 static int g_avx2_ready = VN_FALSE;
 
-static vn_u32 vn_make_gray(vn_u8 gray) {
-    return (vn_u32)(0xFF000000u | ((vn_u32)gray << 16) | ((vn_u32)gray << 8) | (vn_u32)gray);
-}
-
-static vn_u32 vn_make_color_from_tex(vn_u16 tex_id, vn_u8 layer_bias) {
-    vn_u8 r;
-    vn_u8 g;
-    vn_u8 b;
-
-    r = (vn_u8)((tex_id * 37u + layer_bias * 17u) & 0xFFu);
-    g = (vn_u8)((tex_id * 73u + layer_bias * 29u + 64u) & 0xFFu);
-    b = (vn_u8)((tex_id * 19u + layer_bias * 41u + 128u) & 0xFFu);
-    return (vn_u32)(0xFF000000u | ((vn_u32)r << 16) | ((vn_u32)g << 8) | (vn_u32)b);
-}
-
-static vn_u32 vn_blend_rgb(vn_u32 dst, vn_u32 src, vn_u8 alpha) {
-    vn_u32 inv;
-    vn_u32 dr;
-    vn_u32 dg;
-    vn_u32 db;
-    vn_u32 sr;
-    vn_u32 sg;
-    vn_u32 sb;
-    vn_u32 rr;
-    vn_u32 rg;
-    vn_u32 rb;
-
-    if (alpha >= 255u) {
-        return src;
-    }
-    if (alpha == 0u) {
-        return dst;
-    }
-
-    inv = (vn_u32)(255u - alpha);
-    dr = (dst >> 16) & 0xFFu;
-    dg = (dst >> 8) & 0xFFu;
-    db = dst & 0xFFu;
-    sr = (src >> 16) & 0xFFu;
-    sg = (src >> 8) & 0xFFu;
-    sb = src & 0xFFu;
-
-    rr = (sr * (vn_u32)alpha + dr * inv + 127u) / 255u;
-    rg = (sg * (vn_u32)alpha + dg * inv + 127u) / 255u;
-    rb = (sb * (vn_u32)alpha + db * inv + 127u) / 255u;
-
-    return (vn_u32)(0xFF000000u | (rr << 16) | (rg << 8) | rb);
-}
-
-static int vn_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_x0, vn_u32* out_y0, vn_u32* out_x1, vn_u32* out_y1) {
+static int vn_avx2_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_x0, vn_u32* out_y0, vn_u32* out_x1, vn_u32* out_y1) {
     int x0;
     int y0;
     int x1;
@@ -147,14 +100,14 @@ static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
 }
 #endif
 
-static void vn_clear_frame(vn_u8 gray) {
+static void vn_avx2_clear_frame(vn_u8 gray) {
     if (g_avx2_framebuffer == (vn_u32*)0 || g_avx2_pixels == 0u) {
         return;
     }
-    vn_avx2_fill_u32(g_avx2_framebuffer, g_avx2_pixels, vn_make_gray(gray));
+    vn_avx2_fill_u32(g_avx2_framebuffer, g_avx2_pixels, vn_pp_make_gray(gray));
 }
 
-static void vn_fill_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, vn_u8 alpha) {
+static void vn_avx2_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, vn_u8 alpha) {
     vn_u32 x0;
     vn_u32 y0;
     vn_u32 x1;
@@ -164,7 +117,7 @@ static void vn_fill_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, v
     if (g_avx2_framebuffer == (vn_u32*)0) {
         return;
     }
-    if (vn_clip_rect(x, y, w, h, &x0, &y0, &x1, &y1) == VN_FALSE) {
+    if (vn_avx2_clip_rect(x, y, w, h, &x0, &y0, &x1, &y1) == VN_FALSE) {
         return;
     }
 
@@ -184,7 +137,68 @@ static void vn_fill_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, v
         for (xx = x0; xx < x1; ++xx) {
             vn_u32 idx;
             idx = row_off + xx;
-            g_avx2_framebuffer[idx] = vn_blend_rgb(g_avx2_framebuffer[idx], color, alpha);
+            g_avx2_framebuffer[idx] = vn_pp_blend_rgb(g_avx2_framebuffer[idx], color, alpha);
+        }
+    }
+}
+
+static vn_u32 vn_avx2_tex_coord(vn_u32 local, vn_u16 extent) {
+    vn_u32 denom;
+
+    if (extent <= 1u) {
+        return 0u;
+    }
+    denom = (vn_u32)extent - 1u;
+    return (local * 255u) / denom;
+}
+
+static void vn_avx2_draw_textured_rect(const VNRenderOp* op) {
+    vn_u32 x0;
+    vn_u32 y0;
+    vn_u32 x1;
+    vn_u32 y1;
+    vn_u32 yy;
+
+    if (op == (const VNRenderOp*)0 || g_avx2_framebuffer == (vn_u32*)0) {
+        return;
+    }
+    if (vn_avx2_clip_rect(op->x, op->y, op->w, op->h, &x0, &y0, &x1, &y1) == VN_FALSE) {
+        return;
+    }
+
+    for (yy = y0; yy < y1; ++yy) {
+        vn_u32 xx;
+        vn_u32 row_off;
+        row_off = yy * g_avx2_stride;
+        for (xx = x0; xx < x1; ++xx) {
+            vn_u32 idx;
+            int local_x_i;
+            int local_y_i;
+            vn_u32 local_x;
+            vn_u32 local_y;
+            vn_u32 u8;
+            vn_u32 v8;
+            vn_u32 texel;
+            vn_u32 color;
+
+            idx = row_off + xx;
+            local_x_i = (int)xx - (int)op->x;
+            local_y_i = (int)yy - (int)op->y;
+            if (local_x_i < 0 || local_y_i < 0) {
+                continue;
+            }
+            local_x = (vn_u32)local_x_i;
+            local_y = (vn_u32)local_y_i;
+            u8 = vn_avx2_tex_coord(local_x, op->w);
+            v8 = vn_avx2_tex_coord(local_y, op->h);
+            texel = vn_pp_sample_texel(op->tex_id, u8, v8);
+            color = vn_pp_combine_texel(texel, op->layer, op->flags, op->op);
+
+            if (op->alpha >= 255u) {
+                g_avx2_framebuffer[idx] = color;
+            } else {
+                g_avx2_framebuffer[idx] = vn_pp_blend_rgb(g_avx2_framebuffer[idx], color, op->alpha);
+            }
         }
     }
 }
@@ -249,17 +263,11 @@ static int avx2_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
         const VNRenderOp* op;
         op = &ops[i];
         if (op->op == VN_OP_CLEAR) {
-            vn_clear_frame(op->alpha);
-        } else if (op->op == VN_OP_SPRITE) {
-            vn_u32 color;
-            color = vn_make_color_from_tex(op->tex_id, (vn_u8)(op->layer * 11u + 40u));
-            vn_fill_rect(op->x, op->y, op->w, op->h, color, op->alpha);
-        } else if (op->op == VN_OP_TEXT) {
-            vn_u32 color;
-            color = vn_make_color_from_tex(op->tex_id, (vn_u8)(op->layer * 17u + 90u));
-            vn_fill_rect(op->x, op->y, op->w, op->h, color, op->alpha);
+            vn_avx2_clear_frame(op->alpha);
+        } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
+            vn_avx2_draw_textured_rect(op);
         } else if (op->op == VN_OP_FADE) {
-            vn_fill_rect(0, 0, g_avx2_cfg.width, g_avx2_cfg.height, 0xFF000000u, op->alpha);
+            vn_avx2_fill_rect_uniform(0, 0, g_avx2_cfg.width, g_avx2_cfg.height, 0xFF000000u, op->alpha);
         } else {
             return VN_E_FORMAT;
         }
@@ -292,4 +300,11 @@ static const VNRenderBackend g_avx2_backend = {
 
 int vn_register_avx2_backend(void) {
     return vn_backend_register(&g_avx2_backend);
+}
+
+vn_u32 vn_avx2_backend_debug_frame_crc32(void) {
+    if (g_avx2_ready == VN_FALSE) {
+        return 0u;
+    }
+    return vn_pp_frame_crc32(g_avx2_framebuffer, g_avx2_pixels);
 }
