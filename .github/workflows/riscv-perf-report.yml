@@ -1,0 +1,60 @@
+name: riscv-perf-report
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_rev:
+        description: Baseline git revision for RVV compare
+        required: false
+        default: 75ee8f9
+      candidate_rev:
+        description: Candidate git revision for RVV compare
+        required: false
+        default: HEAD
+      scenes:
+        description: Comma-separated scene list
+        required: false
+        default: S0,S3
+      duration_sec:
+        description: Perf capture duration in seconds
+        required: false
+        default: '4'
+      warmup_sec:
+        description: Perf warmup duration in seconds
+        required: false
+        default: '2'
+  schedule:
+    - cron: '0 18 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-riscv64-qemu-rvv-perf-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BASELINE_REV: ${{ github.event.inputs.baseline_rev || '75ee8f9' }}
+      CANDIDATE_REV: ${{ github.event.inputs.candidate_rev || 'HEAD' }}
+      PERF_SCENES: ${{ github.event.inputs.scenes || 'S0,S3' }}
+      PERF_DURATION_SEC: ${{ github.event.inputs.duration_sec || '4' }}
+      PERF_WARMUP_SEC: ${{ github.event.inputs.warmup_sec || '2' }}
+      OUT_DIR: ${{ runner.temp }}/perf_rvv_compare
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install riscv64 qemu toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
+      - name: Generate QEMU RVV perf report
+        run: ./scripts/ci/run_riscv64_qemu_perf_report.sh
+      - name: Publish perf summary
+        run: cat "$OUT_DIR/compare/perf_compare_revs.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload perf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-riscv64-qemu-rvv
+          path: ${{ runner.temp }}/perf_rvv_compare
+          retention-days: 14

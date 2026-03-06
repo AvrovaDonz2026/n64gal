@@ -325,14 +325,17 @@ baseline/candidate 对照：
 
 ## CI
 
-1. GitHub Actions 矩阵工作流：`.github/workflows/ci-matrix.yml`
-2. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
-3. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
-4. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
-5. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
-6. `linux-x64` 会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照）
-7. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
-8. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
+1. GitHub Actions 主矩阵工作流：`.github/workflows/ci-matrix.yml`
+2. GitHub Actions RVV perf 报告工作流：`.github/workflows/riscv-perf-report.yml`
+3. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
+4. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
+5. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
+6. riscv64 qemu perf 报告脚本：`scripts/ci/run_riscv64_qemu_perf_report.sh`
+7. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
+8. `linux-x64` 会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照）
+9. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown）
+10. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+11. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
 
 ## API 文档
 

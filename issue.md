@@ -38,9 +38,9 @@
 2. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 3. `ISSUE-008` 前置：建立性能回归基线门限文件
 4. `ISSUE-014` 跟进：观察 Windows x64/arm64 上 `build_config.h` + MSVC AVX2 路径的 CI 结果
-5. `ISSUE-014` 收口：`linux-riscv64-qemu-rvv` 已转阻塞，继续补 native-nightly 与 perf 采样
+5. `ISSUE-014` 收口：`linux-riscv64-qemu-rvv` 已转阻塞，`linux-riscv64-qemu-rvv-perf-report` 已接入 workflow_dispatch/schedule，继续补 native-nightly
 6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
-7. `ISSUE-011` 收口：RVV qemu perf_compare 证据已补齐（`docs/perf-rvv-2026-03-06.md`），继续推进 native-nightly
+7. `ISSUE-011` 收口：RVV qemu perf_compare 证据已补齐（`docs/perf-rvv-2026-03-06.md`），并已接入可重复 artifact 流程；继续推进 native-nightly
 8. `M4-engine-ecosystem` 预研：先冻结模板/CLI/宿主 SDK/预览协议边界，避免工具链各自长歪
 
 ## 0. 适用原则
@@ -654,6 +654,7 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 ./scripts/ci/build_riscv64_cross.sh
 ./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
 ./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
+OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./scripts/ci/run_riscv64_qemu_perf_report.sh
 ./tests/perf/run_perf.sh --backend rvv --scenes S0,S1,S2,S3
 CC=riscv64-linux-gnu-gcc \
 VN_PERF_CFLAGS='-march=rv64gcv -mabi=lp64d' \
@@ -779,6 +780,8 @@ Windows 专属改动可短期 feature flag 化，但必须保留 Linux 主线稳
 ### 交付物
 
 - `.github/workflows/ci-matrix.yml`
+- `.github/workflows/riscv-perf-report.yml`
+- `scripts/ci/run_riscv64_qemu_perf_report.sh`
 - 平台矩阵结果汇总文档
 
 ### 任务清单
@@ -791,6 +794,7 @@ Windows 专属改动可短期 feature flag 化，但必须保留 Linux 主线稳
 - [x] Job E0: Linux riscv64 cross-build（交叉构建）
 - [x] Job E1: Linux riscv64 qemu-scalar（`scalar`/回退链/pack/runtime，阻塞）
 - [x] Job F0: Linux riscv64 qemu-rvv（`rvv` 冒烟，2026-03-06 起转为阻塞）
+- [x] Job F0-report: Linux riscv64 qemu-rvv perf-report（workflow_dispatch/nightly artifact）
 - [ ] Job F1: Linux riscv64 native-nightly（真机功能 + perf）
 - [ ] 失败回退路径验证（每个平台至少 1 例）
 
@@ -801,6 +805,7 @@ ctest --test-dir build --output-on-failure
 ./scripts/ci/build_riscv64_cross.sh
 ./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
 ./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
+OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./scripts/ci/run_riscv64_qemu_perf_report.sh
 ```
 
 ### DoD
@@ -809,6 +814,7 @@ ctest --test-dir build --output-on-failure
 - [ ] `linux-riscv64-cross` 阻塞并稳定
 - [x] `linux-riscv64-qemu-scalar` 已转阻塞
 - [x] `linux-riscv64-qemu-rvv` 已转阻塞（2026-03-06，最近 12 轮 workflow 连续 success）
+- [x] `linux-riscv64-qemu-rvv-perf-report` 可在 `workflow_dispatch`/`schedule` 下稳定产出 markdown artifact（非阻塞，仅作趋势证据）
 - [ ] 每个平台均有回退链验证日志
 - [ ] CI 失败阻塞 main 合并
 
