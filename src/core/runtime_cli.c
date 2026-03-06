@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#include <conio.h>
+#else
 #include <unistd.h>
 #include <fcntl.h>
 #include <termios.h>
@@ -174,6 +176,35 @@ static void keyboard_init(KeyboardInput* kb) {
 #endif
 }
 
+static int runtime_apply_key_code(vn_u32 key_code,
+                                  vn_u8* out_choice,
+                                  int* out_has_choice,
+                                  int* out_toggle_trace,
+                                  int* out_quit) {
+    if (key_code >= (vn_u32)'1' && key_code <= (vn_u32)'9') {
+        if (out_choice != (vn_u8*)0) {
+            *out_choice = (vn_u8)(key_code - (vn_u32)'1');
+        }
+        if (out_has_choice != (int*)0) {
+            *out_has_choice = VN_TRUE;
+        }
+        return VN_OK;
+    }
+    if (key_code == (vn_u32)'t' || key_code == (vn_u32)'T') {
+        if (out_toggle_trace != (int*)0) {
+            *out_toggle_trace = VN_TRUE;
+        }
+        return VN_OK;
+    }
+    if (key_code == (vn_u32)'q' || key_code == (vn_u32)'Q') {
+        if (out_quit != (int*)0) {
+            *out_quit = VN_TRUE;
+        }
+        return VN_OK;
+    }
+    return VN_E_UNSUPPORTED;
+}
+
 static int keyboard_enable(KeyboardInput* kb) {
 #if defined(_WIN32)
     if (kb == (KeyboardInput*)0) {
@@ -182,7 +213,11 @@ static int keyboard_enable(KeyboardInput* kb) {
     if (kb->enabled == VN_FALSE) {
         return VN_OK;
     }
-    return VN_E_UNSUPPORTED;
+    if (kb->active == VN_TRUE) {
+        return VN_OK;
+    }
+    kb->active = VN_TRUE;
+    return VN_OK;
 #else
     struct termios raw;
     int flags;
@@ -229,7 +264,10 @@ static int keyboard_enable(KeyboardInput* kb) {
 
 static void keyboard_disable(KeyboardInput* kb) {
 #if defined(_WIN32)
-    (void)kb;
+    if (kb == (KeyboardInput*)0) {
+        return;
+    }
+    kb->active = VN_FALSE;
 #else
     if (kb == (KeyboardInput*)0 || kb->active == VN_FALSE) {
         return;
@@ -263,6 +301,7 @@ static void keyboard_poll(KeyboardInput* kb,
     for (;;) {
         unsigned char ch;
         ssize_t read_count;
+        int rc;
 
         read_count = read(0, &ch, 1u);
         if (read_count <= 0) {
@@ -275,55 +314,74 @@ static void keyboard_poll(KeyboardInput* kb,
             break;
         }
 
-        if (ch >= (unsigned char)'1' && ch <= (unsigned char)'9') {
-            if (out_choice != (vn_u8*)0) {
-                *out_choice = (vn_u8)(ch - (unsigned char)'1');
-            }
-            if (out_has_choice != (int*)0) {
-                *out_has_choice = VN_TRUE;
-            }
-            continue;
-        }
-        if (ch == (unsigned char)'t' || ch == (unsigned char)'T') {
-            if (out_toggle_trace != (int*)0) {
-                *out_toggle_trace = VN_TRUE;
-            }
-            continue;
-        }
-        if (ch == (unsigned char)'q' || ch == (unsigned char)'Q') {
+        rc = runtime_apply_key_code((vn_u32)ch,
+                                    out_choice,
+                                    out_has_choice,
+                                    out_toggle_trace,
+                                    out_quit);
+        if (rc == VN_OK && out_quit != (int*)0 && *out_quit != VN_FALSE) {
             kb->quit_requested = VN_TRUE;
-            if (out_quit != (int*)0) {
-                *out_quit = VN_TRUE;
-            }
-            continue;
         }
     }
 #else
-    (void)out_choice;
-    (void)out_has_choice;
-    (void)out_toggle_trace;
-    (void)out_quit;
+    while (_kbhit() != 0) {
+        int ch;
+        int rc;
+
+        ch = _getch();
+        if (ch == 0 || ch == 224) {
+            if (_kbhit() != 0) {
+                (void)_getch();
+            }
+            continue;
+        }
+
+        rc = runtime_apply_key_code((vn_u32)(unsigned char)ch,
+                                    out_choice,
+                                    out_has_choice,
+                                    out_toggle_trace,
+                                    out_quit);
+        if (rc == VN_OK && out_quit != (int*)0 && *out_quit != VN_FALSE) {
+            kb->quit_requested = VN_TRUE;
+        }
+    }
 #endif
 }
 
 static int runtime_session_inject_key_code(VNRuntimeSession* session, vn_u32 key_code) {
+    vn_u8 choice_index;
+    int has_choice;
+    int toggle_trace;
+    int quit_now;
+    int rc;
+
     if (session == (VNRuntimeSession*)0) {
         return VN_E_INVALID_ARG;
     }
-    if (key_code >= (vn_u32)'1' && key_code <= (vn_u32)'9') {
-        session->injected_choice_index = (vn_u8)(key_code - (vn_u32)'1');
+
+    choice_index = 0u;
+    has_choice = VN_FALSE;
+    toggle_trace = VN_FALSE;
+    quit_now = VN_FALSE;
+    rc = runtime_apply_key_code(key_code,
+                                &choice_index,
+                                &has_choice,
+                                &toggle_trace,
+                                &quit_now);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    if (has_choice != VN_FALSE) {
+        session->injected_choice_index = choice_index;
         session->injected_has_choice = VN_TRUE;
-        return VN_OK;
     }
-    if (key_code == (vn_u32)'t' || key_code == (vn_u32)'T') {
+    if (toggle_trace != VN_FALSE) {
         session->injected_trace_toggle_count += 1u;
-        return VN_OK;
     }
-    if (key_code == (vn_u32)'q' || key_code == (vn_u32)'Q') {
+    if (quit_now != VN_FALSE) {
         session->injected_quit = VN_TRUE;
-        return VN_OK;
     }
-    return VN_E_UNSUPPORTED;
+    return VN_OK;
 }
 
 static void runtime_session_merge_injected_input(VNRuntimeSession* session,

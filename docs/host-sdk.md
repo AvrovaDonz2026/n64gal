@@ -193,7 +193,7 @@
 ## Linux And Windows Integration Notes
 
 1. Linux/Windows 的宿主都应优先使用相同的 Session API。
-2. 键盘调试模式不是跨平台宿主输入方案；Windows 上可能返回 `VN_E_UNSUPPORTED`。
+2. 键盘调试模式不是跨平台宿主输入方案；Linux/Windows CLI 现在共享 `1-9` / `t` / `q` 语义，但宿主仍应优先使用 Session 输入注入接口。
 3. 路径和二进制文件模式由 runtime/pack 层处理，宿主不应假定文本模式 I/O 足够。
 4. 后端选择应默认使用 `backend_name="auto"`，除非宿主明确要做诊断或基准对比。
 

@@ -39,7 +39,7 @@
 8. `trace`
    - 非 0 打印逐帧状态与性能采样（`frame_ms/vm_ms/build_ms/raster_ms/audio_ms/rss_mb`）
 9. `keyboard`
-   - 非 0 启用键盘输入（TTY 环境）
+   - 非 0 启用键盘输入（Linux TTY / Windows console 调试模式）
 10. `emit_logs`
    - 非 0 输出日志，0 时静默运行
 11. `hold_on_end`
@@ -256,6 +256,6 @@ int run_scene_once(void) {
 ## 9. 当前已知约束
 
 1. 运行时会话当前是单实例全局渲染后端模型，不支持并发多会话。
-2. Windows 平台暂未提供键盘非阻塞输入实现（会返回 `VN_E_UNSUPPORTED`）。
+2. Windows 平台的 `keyboard` 调试模式已接入 `_kbhit/_getch`；非 console 环境仍不应把它视为宿主输入接口。
 3. `VN_INPUT_KIND_KEY` 当前只保证 `1-9`、`t/T`、`q/Q` 的运行时语义。
 4. `vn_runtime_run_cli` 保留进程级退出码语义（参数错误返回 `2`，运行失败返回 `1`）。

@@ -25,14 +25,14 @@
 ### 进行中（当前主线）
 
 1. Runtime API 化：`vn_runtime_run(config, result)` + Session API（`create/step/destroy`）已可用
-2. 输入链路：Session 输入注入 API（`vn_runtime_session_inject_input`）已落地，待继续收口 Windows 终端键盘适配
+2. 输入链路：Session 输入注入 API 已落地，CLI 键盘语义已在 Linux/Windows 收口到同一套 `1-9` / `t` / `q` 规则
 3. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`）
 4. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md` 已建立，后续随 API 变更持续维护
 
 ### 下一步（短周期）
 
 1. `ISSUE-007` 收口：补 golden 图差异基线与误差阈值
-2. 平台输入收口：把 Windows 终端键盘适配接到现有 Session 输入接口
+2. `ISSUE-013` 收口：继续补路径/文件 I/O 与编译器差异的跨平台统一层
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
 5. `ISSUE-014` 收口：`linux-riscv64-qemu-scalar` 已接入并待远端稳定观察，继续推进 `qemu-rvv` 告警链
@@ -727,7 +727,7 @@ ctest --test-dir build --output-on-failure
 ### 任务清单
 
 - [ ] 统一时间/休眠接口（Linux + Windows）
-- [ ] 统一终端输入接口（键盘输入在 Windows 可用）
+- [x] 统一终端输入接口（Linux/Windows CLI 键盘语义一致）
 - [ ] 路径与文件 I/O 兼容性收口（分隔符/二进制模式）
 - [ ] 编译器差异收口（GCC/Clang/MSVC）
 

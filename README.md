@@ -173,7 +173,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 6. `--choice-index=<N>`
 7. `--choice-seq=0,1,0`
 8. `--trace`
-9. `--keyboard`（类 Unix TTY）
+9. `--keyboard`（Linux TTY / Windows console 调试模式）
 10. `--quiet`
 
 键盘模式按键：
