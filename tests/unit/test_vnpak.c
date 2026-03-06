@@ -113,9 +113,9 @@ int main(void) {
     vn_u32 read_count;
     int rc;
 
-    path_v1 = "/tmp/test_demo_v1.vnpak";
-    path_v2 = "/tmp/test_demo_v2.vnpak";
-    path_overlap = "/tmp/test_demo_overlap.vnpak";
+    path_v1 = "test_demo_v1.vnpak";
+    path_v2 = "test_demo_v2.vnpak";
+    path_overlap = "test_demo_overlap.vnpak";
     expected0[0] = 0x00u;
     expected0[1] = 0x11u;
     expected0[2] = 0x22u;
@@ -241,6 +241,10 @@ int main(void) {
         (void)fprintf(stderr, "expected VN_E_FORMAT for overlap pack rc=%d\n", rc);
         return 1;
     }
+
+    (void)remove(path_v1);
+    (void)remove(path_v2);
+    (void)remove(path_overlap);
 
     (void)printf("test_vnpak ok\n");
     return 0;

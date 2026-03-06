@@ -71,3 +71,18 @@ add_test(NAME unit_runtime_api COMMAND test_runtime_api)
 add_executable(test_runtime_session tests/unit/test_runtime_session.c)
 target_link_libraries(test_runtime_session PRIVATE vn_core)
 add_test(NAME unit_runtime_session COMMAND test_runtime_session)
+
+if(VN_BUILD_PLAYER)
+    set_tests_properties(smoke_scalar smoke_auto PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+endif()
+set_tests_properties(
+    unit_backend_registry
+    unit_render_ops
+    unit_vnpak
+    unit_renderer_fallback
+    unit_backend_consistency
+    unit_vm
+    unit_runtime_api
+    unit_runtime_session
+    PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
