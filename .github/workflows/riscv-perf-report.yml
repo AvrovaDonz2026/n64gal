@@ -39,7 +39,7 @@ jobs:
       PERF_SCENES: ${{ github.event.inputs.scenes || 'S0,S3' }}
       PERF_DURATION_SEC: ${{ github.event.inputs.duration_sec || '4' }}
       PERF_WARMUP_SEC: ${{ github.event.inputs.warmup_sec || '2' }}
-      OUT_DIR: ${{ runner.temp }}/perf_rvv_compare
+      OUT_DIR: ${{ github.workspace }}/build_ci_riscv64_perf
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,5 +56,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: perf-riscv64-qemu-rvv
-          path: ${{ runner.temp }}/perf_rvv_compare
+          path: ${{ github.workspace }}/build_ci_riscv64_perf
           retention-days: 14
