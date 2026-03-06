@@ -57,7 +57,7 @@
 | 平台 | 后端优先级 | 当前状态 |
 |---|---|---|
 | Linux x64 | `avx2` -> `scalar` | 进行中 |
-| Windows x64 | `avx2` -> `scalar` | 待接入 |
+| Windows x64 | `avx2` -> `scalar` | 进行中（`_WIN32` 模拟编译/运行通过） |
 | Linux arm64 | `neon` -> `scalar` | 规划中 |
 | Windows arm64 | `neon` -> `scalar` | 规划中 |
 | Linux riscv64 | `rvv` -> `scalar` | 规划中 |

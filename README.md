@@ -16,8 +16,9 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Frontend 输出统一 `VNRenderOp[]`。
    - `vn_runtime_run(config, result)` 结构化运行入口。
    - Session API：`create/step/is_done/set_choice/destroy`。
-2. 进行中：
+2. 进行中:
    - AVX2 收口：golden 图差异基线与误差阈值。
+   - Windows x64 兼容：`_WIN32` 模拟编译/运行已通过，原生 CI 待补。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。

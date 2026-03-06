@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #if !defined(_WIN32)
 #include <unistd.h>
 #include <fcntl.h>
@@ -84,7 +85,13 @@ static double runtime_now_ms(void) {
     }
     return ((double)tv.tv_sec * 1000.0) + ((double)tv.tv_usec / 1000.0);
 #else
-    return 0.0;
+    clock_t now_ticks;
+
+    now_ticks = clock();
+    if (now_ticks == (clock_t)-1) {
+        return 0.0;
+    }
+    return ((double)now_ticks * 1000.0) / (double)CLOCKS_PER_SEC;
 #endif
 }
 
@@ -165,7 +172,12 @@ static void keyboard_init(KeyboardInput* kb) {
 
 static int keyboard_enable(KeyboardInput* kb) {
 #if defined(_WIN32)
-    (void)kb;
+    if (kb == (KeyboardInput*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (kb->enabled == VN_FALSE) {
+        return VN_OK;
+    }
     return VN_E_UNSUPPORTED;
 #else
     struct termios raw;
@@ -282,6 +294,11 @@ static void keyboard_poll(KeyboardInput* kb,
             continue;
         }
     }
+#else
+    (void)out_choice;
+    (void)out_has_choice;
+    (void)out_toggle_trace;
+    (void)out_quit;
 #endif
 }
 
