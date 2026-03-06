@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "vn_error.h"
 #include "vn_runtime.h"
@@ -7,10 +8,13 @@ int main(void) {
     VNRunConfig cfg;
     VNRunResult res;
     VNRuntimeSession* session;
+    const char* backend_name;
     int rc;
     vn_u32 frames_seen;
 
     session = (VNRuntimeSession*)0;
+    backend_name = "unknown";
+    (void)memset((void*)&res, 0, sizeof(res));
     frames_seen = 0u;
     vn_run_config_init(&cfg);
     cfg.scene_name = "S2";
@@ -48,8 +52,12 @@ int main(void) {
         frames_seen = res.frames_executed;
     }
 
+    if (res.backend_name != (const char*)0) {
+        backend_name = res.backend_name;
+    }
+
     (void)printf("host_embed ok backend=%s frames=%u text=%u wait=%u end=%u choice=%u ops=%u\n",
-                 res.backend_name,
+                 backend_name,
                  (unsigned int)frames_seen,
                  (unsigned int)res.text_id,
                  (unsigned int)res.vm_waiting,
