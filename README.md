@@ -310,7 +310,7 @@ baseline/candidate 对照：
 4. `compare/perf_compare.md`
 5. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 

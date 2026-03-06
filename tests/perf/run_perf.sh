@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SOURCE_ROOT="${VN_PERF_SOURCE_ROOT:-$SCRIPT_ROOT}"
 
 BACKEND="scalar"
 SCENES="S0,S1,S2,S3"
@@ -14,11 +14,20 @@ RESOLUTION="600x800"
 FRAMES_OVERRIDE=""
 KEEP_RAW=0
 MAX_PASSES=2048
+PERF_CC="${CC:-cc}"
+PERF_RUNNER_BIN="${VN_PERF_RUNNER_BIN:-/tmp/n64gal_perf_runner}"
+PERF_RUNNER_PREFIX="${VN_PERF_RUNNER_PREFIX:-}"
+PERF_CFLAGS="${VN_PERF_CFLAGS:-}"
+PERF_LDFLAGS="${VN_PERF_LDFLAGS:-}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --backend)
       BACKEND="$2"
+      shift 2
+      ;;
+    --source-root)
+      SOURCE_ROOT="$2"
       shift 2
       ;;
     --scenes)
@@ -60,6 +69,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ ! -d "$SOURCE_ROOT" ]]; then
+  echo "source-root not found: $SOURCE_ROOT" >&2
+  exit 2
+fi
+SOURCE_ROOT="$(cd "$SOURCE_ROOT" && pwd)"
+cd "$SOURCE_ROOT"
+
 if [[ "$DT_MS" -le 0 ]]; then
   echo "dt-ms must be > 0" >&2
   exit 2
@@ -92,23 +108,46 @@ TOTAL_MS=$(( DURATION_SEC * 1000 ))
 
 mkdir -p "$OUT_DIR"
 
-"$ROOT_DIR/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
+"$SOURCE_ROOT/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
 
-cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
-  src/main.c \
-  src/core/backend_registry.c \
-  src/core/renderer.c \
-  src/core/vm.c \
-  src/core/pack.c \
-  src/core/platform.c \
-  src/core/runtime_cli.c \
-  src/frontend/render_ops.c \
-  src/backend/common/pixel_pipeline.c \
-  src/backend/avx2/avx2_backend.c \
-  src/backend/neon/neon_backend.c \
-  src/backend/rvv/rvv_backend.c \
-  src/backend/scalar/scalar_backend.c \
-  -o /tmp/n64gal_perf_runner
+COMPILE_CMD=(
+  "$PERF_CC"
+  -std=c89
+  -pedantic-errors
+  -Wall
+  -Wextra
+  -Werror
+)
+if [[ -n "$PERF_CFLAGS" ]]; then
+  # shellcheck disable=SC2206
+  EXTRA_CFLAGS=( $PERF_CFLAGS )
+  COMPILE_CMD+=("${EXTRA_CFLAGS[@]}")
+fi
+COMPILE_CMD+=(
+  -Iinclude
+  src/main.c
+  src/core/backend_registry.c
+  src/core/renderer.c
+  src/core/vm.c
+  src/core/pack.c
+  src/core/platform.c
+  src/core/runtime_cli.c
+  src/frontend/render_ops.c
+  src/backend/common/pixel_pipeline.c
+  src/backend/avx2/avx2_backend.c
+  src/backend/neon/neon_backend.c
+  src/backend/rvv/rvv_backend.c
+  src/backend/scalar/scalar_backend.c
+  -o
+  "$PERF_RUNNER_BIN"
+)
+if [[ -n "$PERF_LDFLAGS" ]]; then
+  # shellcheck disable=SC2206
+  EXTRA_LDFLAGS=( $PERF_LDFLAGS )
+  COMPILE_CMD+=("${EXTRA_LDFLAGS[@]}")
+fi
+
+"${COMPILE_CMD[@]}"
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {
@@ -137,16 +176,23 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
     RAW_LOG="$OUT_DIR/perf_${SCENE}.raw.${PASS}.log"
     RAW_ERR="$OUT_DIR/perf_${SCENE}.raw.${PASS}.err"
 
-    /tmp/n64gal_perf_runner \
-      --backend="$BACKEND" \
-      --scene="$SCENE" \
-      --resolution="$RESOLUTION" \
-      --frames="$FRAMES" \
-      --dt-ms="$DT_MS" \
-      --trace \
-      --hold-end \
-      >"$RAW_LOG" \
-      2>"$RAW_ERR"
+    RUNNER_CMD=(
+      "$PERF_RUNNER_BIN"
+      --backend="$BACKEND"
+      --scene="$SCENE"
+      --resolution="$RESOLUTION"
+      --frames="$FRAMES"
+      --dt-ms="$DT_MS"
+      --trace
+      --hold-end
+    )
+    if [[ -n "$PERF_RUNNER_PREFIX" ]]; then
+      # shellcheck disable=SC2206
+      RUNNER_PREFIX=( $PERF_RUNNER_PREFIX )
+      RUNNER_CMD=("${RUNNER_PREFIX[@]}" "${RUNNER_CMD[@]}")
+    fi
+
+    "${RUNNER_CMD[@]}" >"$RAW_LOG" 2>"$RAW_ERR"
 
     STATE_TMP="$(mktemp)"
     awk \
@@ -271,9 +317,9 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   echo "[perf] wrote $OUT_CSV samples=$SAMPLE_COUNT p95=${P95_FRAME_MS}ms passes=$PASS"
 done
 
-cp "$ROOT_DIR/tests/perf/report_template.md" "$OUT_DIR/perf_report_template.md"
-rm -f /tmp/n64gal_perf_runner
+cp "$SCRIPT_ROOT/tests/perf/report_template.md" "$OUT_DIR/perf_report_template.md"
+rm -f "$PERF_RUNNER_BIN"
 
 echo "[perf] wrote $SUMMARY_CSV"
 echo "[perf] wrote $OUT_DIR/perf_report_template.md"
-echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS"
+echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT"

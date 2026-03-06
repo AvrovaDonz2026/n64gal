@@ -99,7 +99,7 @@ R1 的核心价值是：
 2. `vn_player_rvv --scene=S0` 自动选择链最终输出 `backend=rvv`
 3. `test_backend_consistency_riscv64` 在 `qemu-user` 下继续对齐 `scalar`
 
-R2 只回答“RVV 路径能否稳定运行且保持语义一致”，不回答“RVV 是否足够快”。
+R2 只回答“RVV 路径能否稳定运行且保持语义一致”，不回答“RVV 是否足够快”。当前已补一份基于 `qemu-user` 的短窗口趋势报告（`docs/perf-rvv-2026-03-06.md`），可用于回归证据，但不能替代 R3 原生 perf。
 
 ### 4.4 R3: native-riscv64
 
