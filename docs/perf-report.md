@@ -73,7 +73,7 @@
 当前已落地的 profile：
 
 1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke gate。
-2. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，当前默认保留为可选接线。
+2. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，现已接到 `.github/workflows/riscv-perf-report.yml`，默认以 `soft` 模式产出报告但不直接打红 workflow。
 
 直接对已有 compare 结果做门限检查：
 
@@ -84,7 +84,7 @@
   --profile linux-x64-scalar-avx2-smoke
 ```
 
-如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成。
+如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成；`run_perf_compare_revs.sh` 还支持 `--threshold-soft-fail`，适合先在噪声较大的 runner 上保留报告、不立即转阻塞。
 
 ## Baseline vs Candidate Revision
 
@@ -100,6 +100,9 @@
   --warmup-sec 1 \
   --dt-ms 16 \
   --resolution 600x800 \
+  --threshold-file tests/perf/perf_thresholds.csv \
+  --threshold-profile linux-riscv64-qemu-rvv-rev-smoke \
+  --threshold-soft-fail \
   --out-dir /tmp/n64gal_perf_rvv_compare
 ```
 
@@ -118,6 +121,9 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
   --warmup-sec 1 \
   --dt-ms 16 \
   --resolution 600x800 \
+  --threshold-file tests/perf/perf_thresholds.csv \
+  --threshold-profile linux-riscv64-qemu-rvv-rev-smoke \
+  --threshold-soft-fail \
   --out-dir /tmp/n64gal_perf_rvv_compare
 ```
 
@@ -139,7 +145,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 这份报告对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
 
-另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
+另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；当前默认还会接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold mode，并把 `perf_threshold_report.md` 一并追加到 step summary / artifact。首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
 
 ## CI Artifact
 

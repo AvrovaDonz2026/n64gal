@@ -164,6 +164,9 @@
 7. `choice_selected_index`
 8. `op_count`
 9. `backend_name`
+10. `perf_flags_effective`
+11. `op_cache_hits`
+12. `op_cache_misses`
 
 这些字段足以支撑：
 
@@ -171,6 +174,7 @@
 2. 自动化检查
 3. 基本 perf 采样
 4. 场景结束判断
+5. 命令缓存命中率诊断与 perf 回归定位
 
 ## Version Negotiation Matrix
 

@@ -44,6 +44,11 @@
    - 非 0 输出日志，0 时静默运行
 11. `hold_on_end`
    - 非 0 时脚本到达 `END` 后继续维持帧循环直到 `frames` 用尽（主要用于 perf 采样）
+12. `perf_flags`
+   - 运行时性能特性开关位图
+   - 默认值为 `VN_RUNTIME_PERF_DEFAULT_FLAGS`
+   - 当前已公开：`VN_RUNTIME_PERF_OP_CACHE`（Frontend `VNRenderOp[]` LRU 命令缓存）
+   - 当前实现会折叠 `frame_index` 派生的前端伪动画键值，并在命中时按当前帧回写 `SPRITE/FADE` 动态字段，避免因占位动画导致缓存长期 0 hit
 
 ### `VNInputEvent`
 
@@ -81,6 +86,8 @@
 6. `choice_count`, `choice_selected_index`, `choice_text_id`
 7. `op_count`
 8. `backend_name`
+9. `perf_flags_effective`
+10. `op_cache_hits`, `op_cache_misses`
 
 ## 4. API 函数
 
@@ -116,6 +123,7 @@
 2. 支持 `choice_seq`、`vn_runtime_session_set_choice` 与 `vn_runtime_session_inject_input` 的输入注入。
 3. `vn_runtime_session_inject_input` 注入的事件会在下一次 `step` 时消费。
 4. 当运行结束且 `vm_error != 0` 时返回非 0。
+5. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 
@@ -159,6 +167,9 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
 1. `--hold-end`
    - 对应 `VNRunConfig.hold_on_end=1`
    - 用于场景脚本提前结束时仍持续输出帧采样数据
+2. `--perf-op-cache=<on|off>`
+   - 切换 `VN_RUNTIME_PERF_OP_CACHE`
+   - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
 
 ## 5. 最小示例（推荐集成方式）
 

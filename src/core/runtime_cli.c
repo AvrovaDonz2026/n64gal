@@ -19,6 +19,7 @@
 #include "platform.h"
 
 #define VN_MAX_CHOICE_SEQ 64u
+#define VN_OP_CACHE_CAP 320u
 
 typedef struct {
     vn_u8 items[VN_MAX_CHOICE_SEQ];
@@ -47,6 +48,28 @@ typedef struct {
 #endif
 } KeyboardInput;
 
+typedef struct {
+    vn_u32 op_count;
+    vn_u32 clear_gray;
+    vn_u32 clear_flags;
+    vn_u32 scene_id;
+    vn_u32 sprite_flags;
+    vn_u32 text_tex_id;
+    vn_u32 text_flags;
+    vn_u32 text_alpha;
+    vn_u32 fade_flags;
+    vn_u32 fade_mask;
+} RenderOpCacheKey;
+
+typedef struct {
+    vn_u32 valid;
+    vn_u32 key;
+    vn_u32 stamp;
+    RenderOpCacheKey render_key;
+    VNRenderOp ops[16];
+    vn_u32 op_count;
+} RenderOpCacheEntry;
+
 struct VNRuntimeSession {
     RendererConfig renderer_cfg;
     VNRuntimeState state;
@@ -56,6 +79,7 @@ struct VNRuntimeSession {
     ChoiceFeed choice_feed;
     FadePlayer fade_player;
     KeyboardInput keyboard;
+    RenderOpCacheEntry op_cache[VN_OP_CACHE_CAP];
     vn_u8* script_buf;
     vn_u32 script_size;
     vn_u32 frames_limit;
@@ -63,6 +87,10 @@ struct VNRuntimeSession {
     vn_u32 trace;
     vn_u32 emit_logs;
     vn_u32 hold_on_end;
+    vn_u32 perf_flags;
+    vn_u32 op_cache_stamp;
+    vn_u32 op_cache_hits;
+    vn_u32 op_cache_misses;
     vn_u32 frames_executed;
     vn_u32 last_op_count;
     vn_u32 last_choice_serial;
@@ -127,6 +155,7 @@ void vn_run_config_init(VNRunConfig* cfg) {
     cfg->keyboard = 0u;
     cfg->emit_logs = 1u;
     cfg->hold_on_end = 0u;
+    cfg->perf_flags = VN_RUNTIME_PERF_DEFAULT_FLAGS;
     cfg->choice_index = 0u;
     cfg->choice_seq_count = 0u;
 }
@@ -146,6 +175,265 @@ static void runtime_result_reset(void) {
     g_last_run_result.choice_text_id = 0u;
     g_last_run_result.op_count = 0u;
     g_last_run_result.backend_name = "none";
+    g_last_run_result.perf_flags_effective = 0u;
+    g_last_run_result.op_cache_hits = 0u;
+    g_last_run_result.op_cache_misses = 0u;
+}
+
+static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
+    return ((perf_flags & flag) != 0u) ? VN_TRUE : VN_FALSE;
+}
+
+static vn_u32 runtime_supported_perf_flags(void) {
+    return VN_RUNTIME_PERF_OP_CACHE;
+}
+
+static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) {
+    if (perf_flags == (vn_u32*)0) {
+        return;
+    }
+    if (enabled != VN_FALSE) {
+        *perf_flags |= flag;
+    } else {
+        *perf_flags &= ~flag;
+    }
+}
+
+static vn_u32 runtime_render_sprite_phase(const VNRuntimeState* state) {
+    if (state == (const VNRuntimeState*)0) {
+        return 0u;
+    }
+    return state->frame_index % 160u;
+}
+
+static vn_u32 runtime_render_fade_phase(const VNRuntimeState* state) {
+    if (state == (const VNRuntimeState*)0) {
+        return 0u;
+    }
+    return state->frame_index & 0x3Fu;
+}
+
+static void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeState* state) {
+    vn_u32 scene_id;
+    vn_u32 text_flags;
+
+    if (out_key == (RenderOpCacheKey*)0) {
+        return;
+    }
+    (void)memset(out_key, 0, sizeof(*out_key));
+    if (state == (const VNRuntimeState*)0) {
+        return;
+    }
+
+    scene_id = state->scene_id;
+    text_flags = 0u;
+    if (state->text_speed_ms > 0u) {
+        text_flags |= 1u;
+    }
+    if (state->choice_count > 0u) {
+        text_flags |= 2u;
+    }
+    if (state->vm_error != 0u) {
+        text_flags |= 4u;
+    }
+    if (state->choice_selected_index > 0u) {
+        text_flags |= 8u;
+    }
+
+    if (state->vm_fade_active != 0u || state->vm_waiting != 0u || scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
+        out_key->op_count = 4u;
+    } else {
+        out_key->op_count = 3u;
+    }
+    out_key->clear_gray = state->clear_color & 0xFFu;
+    out_key->clear_flags = (state->resource_count > 0u) ? 1u : 0u;
+    out_key->scene_id = scene_id;
+    out_key->sprite_flags = (state->se_id != 0u) ? 1u : 0u;
+    if (state->text_id != 0u) {
+        out_key->text_tex_id = state->text_id;
+    } else {
+        out_key->text_tex_id = 100u + scene_id;
+    }
+    out_key->text_flags = text_flags;
+    out_key->text_alpha = (state->vm_ended != 0u) ? 180u : 255u;
+
+    if (out_key->op_count > 3u) {
+        if (state->vm_fade_active != 0u) {
+            out_key->fade_flags = 2u;
+            out_key->fade_mask = state->fade_layer_mask & 0xFFFFu;
+        } else {
+            out_key->fade_flags = (state->vm_waiting != 0u) ? 1u : 0u;
+            out_key->fade_mask = 0u;
+        }
+    }
+}
+
+static void runtime_render_patch_cached_ops(const VNRuntimeState* state,
+                                            VNRenderOp* ops,
+                                            vn_u32 op_count) {
+    vn_u32 i;
+    vn_u32 fade_phase;
+    vn_i16 sprite_x;
+
+    if (state == (const VNRuntimeState*)0 ||
+        ops == (VNRenderOp*)0 ||
+        op_count == 0u) {
+        return;
+    }
+
+    sprite_x = (vn_i16)(40 + runtime_render_sprite_phase(state));
+    fade_phase = runtime_render_fade_phase(state);
+    for (i = 0u; i < op_count; ++i) {
+        if (ops[i].op == VN_OP_SPRITE) {
+            ops[i].x = sprite_x;
+            ops[i].flags = (vn_u8)(state->se_id != 0u ? 1u : 0u);
+        } else if (ops[i].op == VN_OP_FADE) {
+            if (state->vm_fade_active != 0u) {
+                ops[i].tex_id = (vn_u16)(state->fade_layer_mask & 0xFFFFu);
+                ops[i].alpha = (vn_u8)(state->fade_alpha & 0xFFu);
+                ops[i].flags = 2u;
+            } else {
+                ops[i].tex_id = 0u;
+                ops[i].alpha = (vn_u8)(state->vm_waiting != 0u ? (120u + fade_phase) : (fade_phase * 3u));
+                ops[i].flags = (vn_u8)(state->vm_waiting != 0u ? 1u : 0u);
+            }
+        }
+    }
+}
+
+static vn_u32 runtime_render_key_hash(const RenderOpCacheKey* key_data) {
+    vn_u32 hash;
+    vn_u32 value;
+
+    if (key_data == (const RenderOpCacheKey*)0) {
+        return 0u;
+    }
+
+    hash = 2166136261u;
+#define VN_HASH_VALUE(expr)     value = (vn_u32)(expr);     hash ^= value;     hash *= 16777619u
+    VN_HASH_VALUE(key_data->op_count);
+    VN_HASH_VALUE(key_data->clear_gray);
+    VN_HASH_VALUE(key_data->clear_flags);
+    VN_HASH_VALUE(key_data->scene_id);
+    VN_HASH_VALUE(key_data->sprite_flags);
+    VN_HASH_VALUE(key_data->text_tex_id);
+    VN_HASH_VALUE(key_data->text_flags);
+    VN_HASH_VALUE(key_data->text_alpha);
+    VN_HASH_VALUE(key_data->fade_flags);
+    VN_HASH_VALUE(key_data->fade_mask);
+#undef VN_HASH_VALUE
+    return hash;
+}
+
+static int runtime_render_key_equal(const RenderOpCacheKey* a, const RenderOpCacheKey* b) {
+    if (a == (const RenderOpCacheKey*)0 || b == (const RenderOpCacheKey*)0) {
+        return VN_FALSE;
+    }
+    return (a->op_count == b->op_count &&
+            a->clear_gray == b->clear_gray &&
+            a->clear_flags == b->clear_flags &&
+            a->scene_id == b->scene_id &&
+            a->sprite_flags == b->sprite_flags &&
+            a->text_tex_id == b->text_tex_id &&
+            a->text_flags == b->text_flags &&
+            a->text_alpha == b->text_alpha &&
+            a->fade_flags == b->fade_flags &&
+            a->fade_mask == b->fade_mask) ? VN_TRUE : VN_FALSE;
+}
+
+static int runtime_build_render_ops_cached(VNRuntimeSession* session,
+                                           const VNRuntimeState* state,
+                                           VNRenderOp* out_ops,
+                                           vn_u32* io_count,
+                                           int* out_cache_hit) {
+    RenderOpCacheKey render_key;
+    vn_u32 key;
+    vn_u32 i;
+    vn_u32 victim_index;
+    vn_u32 victim_stamp;
+    int victim_found;
+
+    if (session == (VNRuntimeSession*)0 ||
+        state == (const VNRuntimeState*)0 ||
+        out_ops == (VNRenderOp*)0 ||
+        io_count == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (out_cache_hit != (int*)0) {
+        *out_cache_hit = VN_FALSE;
+    }
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_OP_CACHE) == VN_FALSE) {
+        return build_render_ops(state, out_ops, io_count);
+    }
+
+    runtime_render_key_init(&render_key, state);
+    key = runtime_render_key_hash(&render_key);
+    victim_index = 0u;
+    victim_stamp = 0u;
+    victim_found = VN_FALSE;
+
+    for (i = 0u; i < VN_OP_CACHE_CAP; ++i) {
+        RenderOpCacheEntry* entry;
+
+        entry = &session->op_cache[i];
+        if (entry->valid != 0u &&
+            entry->key == key &&
+            runtime_render_key_equal(&entry->render_key, &render_key) != VN_FALSE) {
+            if (*io_count < entry->op_count) {
+                *io_count = entry->op_count;
+                return VN_E_NOMEM;
+            }
+            (void)memcpy(out_ops, entry->ops, (size_t)entry->op_count * sizeof(VNRenderOp));
+            runtime_render_patch_cached_ops(state, out_ops, entry->op_count);
+            *io_count = entry->op_count;
+            session->op_cache_stamp += 1u;
+            entry->stamp = session->op_cache_stamp;
+            session->op_cache_hits += 1u;
+            if (out_cache_hit != (int*)0) {
+                *out_cache_hit = VN_TRUE;
+            }
+            return VN_OK;
+        }
+        if (entry->valid == 0u) {
+            if (victim_found == VN_FALSE) {
+                victim_index = i;
+                victim_found = VN_TRUE;
+            }
+            continue;
+        }
+        if (victim_found == VN_FALSE || entry->stamp < victim_stamp) {
+            victim_index = i;
+            victim_stamp = entry->stamp;
+            victim_found = VN_TRUE;
+        }
+    }
+
+    session->op_cache_misses += 1u;
+    {
+        int rc;
+        vn_u32 built_count;
+        RenderOpCacheEntry* entry;
+
+        built_count = *io_count;
+        rc = build_render_ops(state, out_ops, &built_count);
+        *io_count = built_count;
+        if (rc != VN_OK) {
+            return rc;
+        }
+        if (victim_found == VN_FALSE) {
+            return VN_OK;
+        }
+
+        entry = &session->op_cache[victim_index];
+        entry->valid = 1u;
+        entry->key = key;
+        entry->render_key = render_key;
+        entry->op_count = built_count;
+        (void)memcpy(entry->ops, out_ops, (size_t)built_count * sizeof(VNRenderOp));
+        session->op_cache_stamp += 1u;
+        entry->stamp = session->op_cache_stamp;
+    }
+    return VN_OK;
 }
 
 static void keyboard_init(KeyboardInput* kb) {
@@ -554,6 +842,21 @@ static int parse_scene_id(const char* value, vn_u32* out_scene_id) {
     return VN_E_FORMAT;
 }
 
+static int parse_toggle_value(const char* value, int* out_enabled) {
+    if (value == (const char*)0 || out_enabled == (int*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (strcmp(value, "1") == 0 || strcmp(value, "on") == 0 || strcmp(value, "true") == 0) {
+        *out_enabled = VN_TRUE;
+        return VN_OK;
+    }
+    if (strcmp(value, "0") == 0 || strcmp(value, "off") == 0 || strcmp(value, "false") == 0) {
+        *out_enabled = VN_FALSE;
+        return VN_OK;
+    }
+    return VN_E_FORMAT;
+}
+
 static vn_u32 scene_script_res_id(vn_u32 scene_id) {
     if (scene_id == VN_SCENE_S1) {
         return 1u;
@@ -752,6 +1055,9 @@ static void runtime_result_write(const VNRuntimeSession* session, VNRunResult* o
     out_result->choice_text_id = session->state.choice_text_id;
     out_result->op_count = session->last_op_count;
     out_result->backend_name = renderer_backend_name();
+    out_result->perf_flags_effective = session->perf_flags;
+    out_result->op_cache_hits = session->op_cache_hits;
+    out_result->op_cache_misses = session->op_cache_misses;
 }
 
 static void runtime_result_publish(const VNRuntimeSession* session) {
@@ -854,6 +1160,7 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     session->trace = active_cfg->trace;
     session->emit_logs = active_cfg->emit_logs;
     session->hold_on_end = active_cfg->hold_on_end;
+    session->perf_flags = active_cfg->perf_flags & runtime_supported_perf_flags();
     session->default_choice_index = active_cfg->choice_index;
     session->keyboard.enabled = (active_cfg->keyboard != 0u) ? VN_TRUE : VN_FALSE;
     session->last_op_count = 0u;
@@ -929,6 +1236,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
     double audio_ms;
     double rss_mb;
     int rc;
+    int build_cache_hit;
     int keyboard_has_choice;
     int keyboard_toggle_trace;
     int keyboard_quit;
@@ -978,8 +1286,13 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
             fade_player_step(&session->fade_player, &session->vm, session->dt_ms);
             state_apply_fade(&session->state, &session->fade_player);
 
+            build_cache_hit = VN_FALSE;
             op_count = 16u;
-            rc = build_render_ops(&session->state, session->ops, &op_count);
+            rc = runtime_build_render_ops_cached(session,
+                                                 &session->state,
+                                                 session->ops,
+                                                 &op_count,
+                                                 &build_cache_hit);
             t_after_build = runtime_now_ms();
             if (rc != VN_OK) {
                 (void)fprintf(stderr, "build_render_ops failed rc=%d frame=%u\n",
@@ -1012,7 +1325,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 rss_mb = runtime_rss_mb();
 
                 if (session->trace != 0u && session->emit_logs != 0u) {
-                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u\n",
+                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u\n",
                                  (unsigned int)session->state.frame_index,
                                  frame_ms,
                                  vm_ms,
@@ -1030,7 +1343,10 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)session->state.choice_count,
                                  (unsigned int)session->state.choice_selected_index,
                                  (unsigned int)session->state.choice_text_id,
-                                 (unsigned int)op_count);
+                                 (unsigned int)op_count,
+                                 (unsigned int)(build_cache_hit != VN_FALSE),
+                                 (unsigned int)session->op_cache_hits,
+                                 (unsigned int)session->op_cache_misses);
                 }
 
                 if (session->state.vm_error != 0u) {
@@ -1052,7 +1368,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         session->summary_emitted == VN_FALSE &&
         session->exit_code == 0 &&
         session->emit_logs != 0u) {
-        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u\n",
+        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X op_cache_hits=%u op_cache_misses=%u\n",
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
                      (unsigned int)session->renderer_cfg.height,
@@ -1072,7 +1388,10 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      (unsigned int)session->state.choice_text_id,
                      (unsigned int)session->state.vm_error,
                      (unsigned int)session->last_op_count,
-                     (unsigned int)session->keyboard.active);
+                     (unsigned int)session->keyboard.active,
+                     (unsigned int)session->perf_flags,
+                     (unsigned int)session->op_cache_hits,
+                     (unsigned int)session->op_cache_misses);
         session->summary_emitted = VN_TRUE;
     }
 
@@ -1273,6 +1592,27 @@ int vn_runtime_run_cli(int argc, char** argv) {
             run_cfg.trace = 1u;
         } else if (strcmp(arg, "--hold-end") == 0) {
             run_cfg.hold_on_end = 1u;
+        } else if (strcmp(arg, "--perf-op-cache") == 0) {
+            int enabled;
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --perf-op-cache\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_toggle_value(argv[i], &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-op-cache: %s\n", argv[i]);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
+        } else if (strncmp(arg, "--perf-op-cache=", 16) == 0) {
+            int enabled;
+            rc = parse_toggle_value(arg + 16, &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-op-cache: %s\n", arg + 16);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
         } else if (strcmp(arg, "--quiet") == 0) {
             run_cfg.emit_logs = 0u;
         }

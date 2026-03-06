@@ -23,6 +23,14 @@ on:
         description: Perf warmup duration in seconds
         required: false
         default: '2'
+      threshold_mode:
+        description: Threshold handling mode (off/soft/hard)
+        required: false
+        default: soft
+      threshold_profile:
+        description: Threshold profile name
+        required: false
+        default: linux-riscv64-qemu-rvv-rev-smoke
   schedule:
     - cron: '0 18 * * *'
 
@@ -39,6 +47,9 @@ jobs:
       PERF_SCENES: ${{ github.event.inputs.scenes || 'S0,S3' }}
       PERF_DURATION_SEC: ${{ github.event.inputs.duration_sec || '4' }}
       PERF_WARMUP_SEC: ${{ github.event.inputs.warmup_sec || '2' }}
+      PERF_THRESHOLD_MODE: ${{ github.event.inputs.threshold_mode || 'soft' }}
+      PERF_THRESHOLD_PROFILE: ${{ github.event.inputs.threshold_profile || 'linux-riscv64-qemu-rvv-rev-smoke' }}
+      PERF_THRESHOLD_FILE: tests/perf/perf_thresholds.csv
       OUT_DIR: ${{ github.workspace }}/build_ci_riscv64_perf
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +62,12 @@ jobs:
       - name: Generate QEMU RVV perf report
         run: ./scripts/ci/run_riscv64_qemu_perf_report.sh
       - name: Publish perf summary
-        run: cat "$OUT_DIR/compare/perf_compare_revs.md" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          cat "$OUT_DIR/compare/perf_compare_revs.md" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$OUT_DIR/compare/perf_threshold_report.md" ]; then
+            echo >> "$GITHUB_STEP_SUMMARY"
+            cat "$OUT_DIR/compare/perf_threshold_report.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload perf artifact
         uses: actions/upload-artifact@v4
         with:

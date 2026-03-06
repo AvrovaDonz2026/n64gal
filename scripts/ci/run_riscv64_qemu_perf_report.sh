@@ -17,6 +17,7 @@ PERF_RESOLUTION="${PERF_RESOLUTION:-600x800}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_ci_riscv64_perf}"
 PERF_THRESHOLD_FILE="${PERF_THRESHOLD_FILE:-}"
 PERF_THRESHOLD_PROFILE="${PERF_THRESHOLD_PROFILE:-}"
+PERF_THRESHOLD_MODE="${PERF_THRESHOLD_MODE:-off}"
 
 require_tool() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -34,16 +35,35 @@ if [ ! -d "$QEMU_SYSROOT" ]; then
   exit 1
 fi
 
+case "$PERF_THRESHOLD_MODE" in
+  off|soft|hard)
+    ;;
+  *)
+    echo "invalid PERF_THRESHOLD_MODE: $PERF_THRESHOLD_MODE" >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$PERF_THRESHOLD_MODE" != "off" && -z "$PERF_THRESHOLD_PROFILE" ]]; then
+  PERF_THRESHOLD_PROFILE="linux-riscv64-qemu-rvv-rev-smoke"
+fi
+if [[ "$PERF_THRESHOLD_MODE" != "off" && -z "$PERF_THRESHOLD_FILE" ]]; then
+  PERF_THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
+fi
+
 mkdir -p "$OUT_DIR"
 BASELINE_REV="$(git rev-parse --verify "$BASELINE_REV")"
 CANDIDATE_REV="$(git rev-parse --verify "$CANDIDATE_REV")"
 
 THRESHOLD_ARGS=()
-if [[ -n "$PERF_THRESHOLD_PROFILE" ]]; then
+if [[ "$PERF_THRESHOLD_MODE" != "off" ]]; then
+  THRESHOLD_ARGS+=(--threshold-profile "$PERF_THRESHOLD_PROFILE")
   if [[ -n "$PERF_THRESHOLD_FILE" ]]; then
     THRESHOLD_ARGS+=(--threshold-file "$PERF_THRESHOLD_FILE")
   fi
-  THRESHOLD_ARGS+=(--threshold-profile "$PERF_THRESHOLD_PROFILE")
+  if [[ "$PERF_THRESHOLD_MODE" == "soft" ]]; then
+    THRESHOLD_ARGS+=(--threshold-soft-fail)
+  fi
 fi
 
 CC=riscv64-linux-gnu-gcc \
@@ -62,6 +82,7 @@ VN_PERF_RUNNER_PREFIX="$QEMU_BIN -cpu $QEMU_RVV_CPU -L $QEMU_SYSROOT" \
   "${THRESHOLD_ARGS[@]}"
 
 REPORT_MD="$OUT_DIR/compare/perf_compare_revs.md"
+THRESHOLD_REPORT_MD="$OUT_DIR/compare/perf_threshold_report.md"
 if [ ! -f "$REPORT_MD" ]; then
   echo "missing report: $REPORT_MD" >&2
   exit 1
@@ -69,3 +90,9 @@ fi
 
 echo "[riscv64-qemu-perf] baseline=$BASELINE_REV candidate=$CANDIDATE_REV"
 echo "[riscv64-qemu-perf] report=$REPORT_MD"
+if [[ "$PERF_THRESHOLD_MODE" != "off" ]]; then
+  echo "[riscv64-qemu-perf] threshold_profile=$PERF_THRESHOLD_PROFILE mode=$PERF_THRESHOLD_MODE"
+  if [[ -f "$THRESHOLD_REPORT_MD" ]]; then
+    echo "[riscv64-qemu-perf] threshold_report=$THRESHOLD_REPORT_MD"
+  fi
+fi

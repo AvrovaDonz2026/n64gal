@@ -17,6 +17,7 @@ FRAMES_OVERRIDE=""
 KEEP_RAW=0
 THRESHOLD_FILE=""
 THRESHOLD_PROFILE=""
+THRESHOLD_SOFT_FAIL=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -72,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       THRESHOLD_PROFILE="$2"
       shift 2
       ;;
+    --threshold-soft-fail)
+      THRESHOLD_SOFT_FAIL=1
+      shift 1
+      ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
@@ -101,6 +106,9 @@ BASELINE_OUT="$OUT_DIR/baseline"
 CANDIDATE_OUT="$OUT_DIR/candidate"
 COMPARE_OUT="$OUT_DIR/compare"
 META_MD="$COMPARE_OUT/perf_compare_revs.md"
+THRESHOLD_STATUS="disabled"
+THRESHOLD_REPORT_MD=""
+THRESHOLD_RESULTS_CSV=""
 
 mkdir -p "$BASELINE_SRC" "$CANDIDATE_SRC" "$BASELINE_OUT" "$CANDIDATE_OUT" "$COMPARE_OUT"
 
@@ -155,11 +163,24 @@ if [[ -n "$THRESHOLD_PROFILE" ]]; then
   if [[ -z "$THRESHOLD_FILE" ]]; then
     THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
   fi
-  ./tests/perf/check_perf_thresholds.sh \
+  THRESHOLD_REPORT_MD="$COMPARE_OUT/perf_threshold_report.md"
+  THRESHOLD_RESULTS_CSV="$COMPARE_OUT/perf_threshold_results.csv"
+  if ./tests/perf/check_perf_thresholds.sh \
     --compare-csv "$COMPARE_OUT/perf_compare.csv" \
     --threshold-file "$THRESHOLD_FILE" \
     --profile "$THRESHOLD_PROFILE" \
-    --out-dir "$COMPARE_OUT"
+    --out-dir "$COMPARE_OUT"; then
+    THRESHOLD_STATUS="pass"
+  else
+    threshold_rc=$?
+    if [[ "$THRESHOLD_SOFT_FAIL" -ne 0 ]]; then
+      THRESHOLD_STATUS="fail-soft"
+      echo "[perf-revs] threshold profile=$THRESHOLD_PROFILE soft-failed rc=$threshold_rc report=$THRESHOLD_REPORT_MD" >&2
+    else
+      THRESHOLD_STATUS="fail-hard"
+      exit "$threshold_rc"
+    fi
+  fi
 fi
 
 HOST_UNAME="$(uname -a)"
@@ -189,8 +210,26 @@ fi
   if [[ -n "$RUNNER_VERSION" ]]; then
     echo "- Runner version: \`$RUNNER_VERSION\`"
   fi
+  if [[ -n "$THRESHOLD_PROFILE" ]]; then
+    echo "- Threshold profile: \`$THRESHOLD_PROFILE\`"
+    echo "- Threshold mode: $([[ "$THRESHOLD_SOFT_FAIL" -ne 0 ]] && echo soft || echo hard)"
+    echo "- Threshold status: \`$THRESHOLD_STATUS\`"
+    if [[ -n "$THRESHOLD_REPORT_MD" ]]; then
+      echo "- Threshold report: \`$THRESHOLD_REPORT_MD\`"
+    fi
+    if [[ -n "$THRESHOLD_RESULTS_CSV" ]]; then
+      echo "- Threshold results csv: \`$THRESHOLD_RESULTS_CSV\`"
+    fi
+  fi
   echo
   cat "$COMPARE_OUT/perf_compare.md"
+  if [[ -n "$THRESHOLD_REPORT_MD" && -f "$THRESHOLD_REPORT_MD" ]]; then
+    echo
+    cat "$THRESHOLD_REPORT_MD"
+  fi
 } > "$META_MD"
 
 echo "[perf-revs] wrote $META_MD"
+if [[ -n "$THRESHOLD_PROFILE" ]]; then
+  echo "[perf-revs] threshold profile=$THRESHOLD_PROFILE status=$THRESHOLD_STATUS"
+fi
