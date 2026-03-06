@@ -34,7 +34,8 @@
 2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
-5. `ISSUE-014` 进行中：GitHub Actions CI matrix 工作流已落地，待远端 runner 实跑
+5. `ISSUE-014` 收口：x64/arm64 + Linux/Windows CI 已全绿，下一步补 `riscv64 qemu-user` 阻塞链
+6. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`
 
 ## 0. 适用原则
 
@@ -57,11 +58,11 @@
 
 | 平台 | 后端优先级 | 当前状态 |
 |---|---|---|
-| Linux x64 | `avx2` -> `scalar` | 进行中 |
-| Windows x64 | `avx2` -> `scalar` | 进行中（`_WIN32` 模拟编译/运行通过） |
-| Linux arm64 | `neon` -> `scalar` | 进行中（`neon` 后端最小路径已接入，aarch64 交叉编译通过） |
-| Windows arm64 | `neon` -> `scalar` | 规划中（待原生编译链） |
-| Linux riscv64 | `rvv` -> `scalar` | 进行中（`rvv` 后端最小路径已接入，交叉编译通过） |
+| Linux x64 | `avx2` -> `scalar` | 已完成（CI 全绿，perf smoke 已接入） |
+| Windows x64 | `avx2` -> `scalar` | 已完成（MSVC x64 CI 全绿） |
+| Linux arm64 | `neon` -> `scalar` | 已完成（arm64 Linux CI 全绿） |
+| Windows arm64 | `neon` -> `scalar` | 已完成（Windows arm64 CI 全绿） |
+| Linux riscv64 | `rvv` -> `scalar` | 进行中（`rvv` 后端最小路径已接入，交叉编译与 `qemu-user` 冒烟通过，待原生验证） |
 
 ## 2. 标签建议
 
@@ -608,27 +609,34 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] `rvv` 后端最小可运行路径与注册链
 - [x] 启动选择链支持 `avx2 -> neon -> rvv -> scalar`
 - [x] `riscv64-linux-gnu-gcc` 交叉编译通过
+- [x] `scripts/ci/build_riscv64_cross.sh` 已覆盖 `vn_player` 与核心单测交叉构建
+- [x] `scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv` 已验证 `scalar`/回退链/pack/runtime/session`
+- [x] `scripts/ci/run_riscv64_qemu_suite.sh --require-rvv` 已验证 `vn_player_rvv` 在 `qemu-user` 下实际落到 `backend=rvv`
 - [x] RVV `fill` 核心算子（向量填充）
 - [ ] RVV `blend/tex/combine` 核心算子
+- [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
 - [ ] riscv64 Linux 原生运行验证
-- [ ] 工具链版本固定与构建说明
+- [ ] 工具链版本固定与构建说明（`docs/riscv-toolchain.md` 持续维护）
 
 ### 验收命令
 
 ```bash
-./build/vn_player --backend=rvv --scene S0
+./scripts/ci/build_riscv64_cross.sh
+./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
+./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
 ./tests/perf/run_perf.sh --backend rvv --scenes S0,S1,S2,S3
 ```
 
 ### DoD
 
+- [ ] `riscv64` 验证链分层落地：`cross-build -> qemu-scalar -> qemu-rvv -> native-riscv64`
 - [ ] riscv64：`S0-S2 >=35fps`, `S3 >=30fps`
 - [ ] rvv 与 scalar 差异图误差 <1%
 - [ ] rvv 初始化失败自动切回 scalar
 
 ### 回退策略
 
-RVV 不稳定时先发布 `riscv64 + scalar`，RVV 标记实验特性。
+功能验证先以 `riscv64 + scalar` 与 `qemu-user` 阻塞链保证主线稳定；RVV 不稳定时保留为实验特性，等待原生 riscv64 验证完成后再提升权重。
 
 ---
 
@@ -738,29 +746,37 @@ Windows 专属改动可短期 feature flag 化，但必须保留 Linux 主线稳
 ### 任务清单
 
 - [x] `.github/workflows/ci-matrix.yml` 已接入 x64/arm64/riscv64 组合
-- [ ] Job A: Linux x64（scalar + avx2）
-- [ ] Job B: Windows x64（scalar + avx2）
-- [ ] Job C: Linux arm64（scalar + neon）
-- [ ] Job D: Windows arm64（scalar + neon）
-- [ ] Job E: Linux riscv64（scalar + rvv）
+- [x] Job A: Linux x64（scalar + avx2）
+- [x] Job B: Windows x64（scalar + avx2）
+- [x] Job C: Linux arm64（scalar + neon）
+- [x] Job D: Windows arm64（scalar + neon）
+- [x] Job E0: Linux riscv64 cross-build（交叉构建）
+- [ ] Job E1: Linux riscv64 qemu-scalar（`scalar`/回退链/pack/runtime，阻塞）
+- [ ] Job F0: Linux riscv64 qemu-rvv（`rvv` 冒烟，`M3` 前告警）
+- [ ] Job F1: Linux riscv64 native-nightly（真机功能 + perf）
 - [ ] 失败回退路径验证（每个平台至少 1 例）
 
 ### 验收命令
 
 ```bash
 ctest --test-dir build --output-on-failure
+./scripts/ci/build_riscv64_cross.sh
+./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
+./scripts/ci/run_riscv64_qemu_suite.sh --require-rvv
 ```
 
 ### DoD
 
-- [ ] x64/arm64 四象限 job 全绿
-- [ ] riscv64 Linux job 在 M3 前为告警，M3 后转阻塞
+- [x] x64/arm64 四象限 job 全绿
+- [ ] `linux-riscv64-cross` 阻塞并稳定
+- [ ] `linux-riscv64-qemu-scalar` 转阻塞
+- [ ] `linux-riscv64-qemu-rvv` 在 `M3` 前为告警，M3 后转阻塞
 - [ ] 每个平台均有回退链验证日志
 - [ ] CI 失败阻塞 main 合并
 
 ### 回退策略
 
-单平台不可用时允许短期降级为告警，但必须附修复 owner 和截止日期。
+`riscv64` 必须拆成 `cross-build`、`qemu-scalar`、`qemu-rvv`、`native-nightly` 四层；单层不稳定时只允许降级当前层级，不允许把“已知不可运行”的更高层结果冒充主线稳定性证据。
 
 ---
 
@@ -771,3 +787,4 @@ ctest --test-dir build --output-on-failure
 - `ISSUE-017`：API 文档集维护规范（`docs/api/*` + 变更日志）
 - `ISSUE-018`：错误码与日志可观测性升级（统一 trace id）
 - `ISSUE-019`：WebAssembly 实验性后端（非主线阻塞）
+- `ISSUE-020`：riscv64 原生 runner / 开发板接入与 nightly perf 采样

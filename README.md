@@ -18,8 +18,9 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - Session API：`create/step/is_done/set_choice/destroy`。
 2. 进行中:
    - AVX2 收口：golden 图差异基线与误差阈值。
-   - Windows x64 兼容：`_WIN32` 模拟编译/运行已通过，原生 CI 待补。
-   - `neon`/`rvv` 最小后端已接入，待原生平台验证与 SIMD 算子补齐。
+   - x64/arm64 + Linux/Windows CI 矩阵已全绿。
+   - `neon` 最小后端已接入，待原生 arm64 进一步补算子与压测。
+   - `rvv` 最小后端已接入，`riscv64` 交叉构建与 `qemu-user` 冒烟已验证，待原生平台验证与其余 RVV 算子补齐。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。
@@ -241,13 +242,15 @@ ctest --test-dir build --output-on-failure
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
 3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译已通过，当前待补原生 arm64 验证与其余核心算子。
-4. `rvv`：最小可运行后端已接入，`fill` SIMD 算子已落地，当前待补原生 riscv64 Linux 验证与其余 RVV 算子。
+4. `rvv`：最小可运行后端已接入，`fill` SIMD 算子已落地；当前已验证 `riscv64` 交叉构建与 `qemu-user` 功能冒烟，待补原生 riscv64 Linux 验证与其余 RVV 算子。
 
 ## CI
 
 1. GitHub Actions 矩阵工作流：`.github/workflows/ci-matrix.yml`
 2. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
 3. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
+4. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
+5. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
 
 ## API 文档
 

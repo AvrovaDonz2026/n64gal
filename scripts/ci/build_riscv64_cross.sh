@@ -32,7 +32,23 @@ RVV_FLAGS=(
   -march=rv64gcv
   -mabi=lp64d
 )
+TESTS=(
+  test_backend_registry
+  test_render_ops
+  test_vnpak
+  test_renderer_fallback
+  test_backend_consistency
+  test_vm
+  test_runtime_api
+  test_runtime_session
+)
 
+echo "[riscv64-cross] build dir: $BUILD_DIR"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player_riscv64"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player_rvv"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" -c src/backend/rvv/rvv_backend.c -o "$BUILD_DIR/rvv_backend.o"
+
+for test_name in "${TESTS[@]}"; do
+  echo "[riscv64-cross] compiling $test_name"
+  riscv64-linux-gnu-gcc "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/${test_name}_riscv64"
+done

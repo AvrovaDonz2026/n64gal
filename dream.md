@@ -470,10 +470,11 @@ DoD：
 DoD：
 
 1. 完成 `rvv` 后端并可在 riscv64 启动
-2. riscv64 在自适应档位下 `S0-S2` 达到 >=35fps，`S3` >=30fps
-3. `rvv` 与 `scalar` 对照测试通过（差异图误差 <1%）
-4. 回退链稳定：`rvv` 失败自动切回 `scalar`
-5. 发布《后端移植指南》：新增 ISA 后端仅需实现 `vn_backend.h` 约定接口
+2. `riscv64` 验证链分层完成：`cross-build -> qemu-scalar -> qemu-rvv -> native-riscv64`
+3. riscv64 在自适应档位下 `S0-S2` 达到 >=35fps，`S3` >=30fps
+4. `rvv` 与 `scalar` 对照测试通过（差异图误差 <1%）
+5. 回退链稳定：`rvv` 失败自动切回 `scalar`
+6. 发布《后端移植指南》：新增 ISA 后端仅需实现 `vn_backend.h` 约定接口
 
 ---
 
@@ -531,11 +532,12 @@ ctest --test-dir build --output-on-failure
 
 1. Linux x86_64 Debug/Release 构建成功（`scalar + avx2`）
 2. arm64/riscv64 交叉编译成功（至少 `scalar` 后端）
-3. 单元测试通过率 100%
-4. 场景 `S0-S2` 自动跑测，产出 `perf.csv`
-5. C89 合规检查通过（`-std=c89 -pedantic-errors` + 禁用 C99 特性扫描）
-6. 后端一致性测试通过（`scalar` 对照 `avx2/neon/rvv` 差异图 <1%）
-7. 打包器对样例资源生成确定性输出（同输入同哈希）
+3. `riscv64` 必须分层验证：`cross-build` 阻塞、`qemu-scalar` 阻塞、`qemu-rvv` 在 `M3` 前可告警、原生 riscv64 perf 为发布前阻塞
+4. 单元测试通过率 100%
+5. 场景 `S0-S2` 自动跑测，产出 `perf.csv`
+6. C89 合规检查通过（`-std=c89 -pedantic-errors` + 禁用 C99 特性扫描）
+7. 后端一致性测试通过（`scalar` 对照 `avx2/neon/rvv` 差异图 <1%）
+8. 打包器对样例资源生成确定性输出（同输入同哈希）
 
 ### 12.3 C89 合规清单（评审必查）
 
@@ -562,18 +564,22 @@ done
 ```text
 Job A: x86_64 + scalar
 Job B: x86_64 + avx2
-Job C: arm64 + scalar (cross)
-Job D: arm64 + neon   (cross)
-Job E: riscv64 + scalar (cross)
-Job F: riscv64 + rvv    (允许 non-blocking，M3 前)
+Job C: arm64 + scalar (native)
+Job D: arm64 + neon   (native)
+Job E0: riscv64 + scalar/runtime/tests (cross-build)
+Job E1: riscv64 + scalar/runtime/tests (qemu-user)
+Job F0: riscv64 + rvv (qemu-user, M3 前 non-blocking)
+Job F1: riscv64 + scalar/rvv + perf (native nightly)
 ```
 
 要求：
 
 1. Job A/B 为阻塞项（M1 起）
 2. Job C/D 为阻塞项（M2 起）
-3. Job E 为阻塞项、Job F 为告警项（M3 前）；M3 完成后 Job F 转阻塞
-4. 任一后端失败必须验证 `scalar` 回退路径仍可运行
+3. Job E0/E1 为阻塞项，保证 `riscv64 + scalar` 不是“只会编译”
+4. Job F0 为告警项（M3 前），M3 完成后转阻塞
+5. Job F1 负责真机功能与 perf 证据链，不进入普通 PR 阶段
+6. 任一后端失败必须验证 `scalar` 回退路径仍可运行
 
 ---
 

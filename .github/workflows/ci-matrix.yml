@@ -59,3 +59,14 @@ jobs:
           sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
       - name: Cross build riscv64
         run: ./scripts/ci/build_riscv64_cross.sh
+
+  linux-riscv64-qemu-scalar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install riscv64 qemu toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
+      - name: QEMU scalar smoke
+        run: ./scripts/ci/run_riscv64_qemu_suite.sh --skip-rvv
