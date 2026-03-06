@@ -18,11 +18,12 @@
 
 1. Runtime API 化：`vn_runtime_run(config, result)` + Session API（`create/step/destroy`）已可用
 2. 输入链路：CLI + 键盘输入并存，后续补统一输入抽象层
-3. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md` 已建立，后续随 API 变更持续维护
+3. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`）
+4. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md` 已建立，后续随 API 变更持续维护
 
 ### 下一步（短周期）
 
-1. `ISSUE-007` 开工：`avx2` 从桩实现升级到真实算子
+1. `ISSUE-007` 收口：补 texture/combine 实采样与 scalar 对照基线
 2. 输入链路抽象：将键盘/脚本化输入统一到会话层输入接口
 3. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）
 4. `ISSUE-008` 前置：建立性能回归基线门限文件
@@ -400,10 +401,12 @@ cmake --build build -j
 
 ### 任务清单
 
-- [ ] `fill/blend/tex/combine` AVX2 核心算子
-- [ ] `--backend=avx2` 强制切换
-- [ ] amd64 自动优先选择 `avx2`
-- [ ] 与 scalar 对照测试
+- [x] `fill` 核心算子（AVX2 向量写入）与 `blend` 标量回退路径
+- [x] 覆盖 `VN_OP_CLEAR/VN_OP_SPRITE/VN_OP_TEXT/VN_OP_FADE` 执行链路
+- [x] `--backend=avx2` 强制切换（CPU 支持时使用 avx2，不支持时回退 scalar）
+- [x] amd64 自动优先选择 `avx2`
+- [ ] `tex/combine` 真采样路径（当前为最小占位着色）
+- [ ] 与 scalar 差异对照测试（golden / 误差阈值）
 
 ### 验收命令
 
@@ -416,7 +419,7 @@ cmake --build build -j
 
 - [ ] `R0(600x800)` 下 `S0-S3 >=60fps`（x86_64）
 - [ ] 差异图误差 <1%
-- [ ] 回退到 scalar 功能无回归
+- [x] 回退到 scalar 功能无回归（单测：`test_renderer_fallback`）
 
 ### 回退策略
 

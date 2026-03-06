@@ -64,3 +64,20 @@ Render IR 单条指令。
 1. 新后端仅实现 `VNRenderBackend` 接口，不改 Frontend。
 2. ISA 私有头文件不得泄漏到 Frontend。
 3. 行为一致性以 `scalar` 为基准。
+
+## 5. 当前实现状态（2026-03-06）
+
+1. `scalar`：完整基线实现，可作为默认回退后端。
+2. `avx2`：已实现最小可运行链路。
+
+实现说明：
+
+1. `avx2` 在 `init` 阶段做运行时检测（仅 CPU 支持 AVX2 时启用）。
+2. 支持 `VN_OP_CLEAR/VN_OP_SPRITE/VN_OP_TEXT/VN_OP_FADE` 四类指令。
+3. 不透明填充路径走 AVX2 向量写入；alpha 混合路径当前使用标量逐像素混合。
+4. 当强制选择 `avx2` 但当前 CPU 不支持时，渲染器会自动回退到 `scalar`。
+
+## 6. 后端能力位约定
+
+1. `scalar`: `has_simd=0`, `has_lut_blend=0`, `has_tmem_cache=0`
+2. `avx2`（当前阶段）: `has_simd=1`, `has_lut_blend=0`, `has_tmem_cache=0`

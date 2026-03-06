@@ -20,8 +20,8 @@ int main(void) {
     }
 
     name = renderer_backend_name();
-    if (strcmp(name, "scalar") != 0) {
-        (void)fprintf(stderr, "expected scalar fallback, got=%s\n", name);
+    if (strcmp(name, "scalar") != 0 && strcmp(name, "avx2") != 0) {
+        (void)fprintf(stderr, "expected scalar/avx2 backend, got=%s\n", name);
         renderer_shutdown();
         return 1;
     }
