@@ -27,6 +27,8 @@ static vn_u32* g_rvv_framebuffer = (vn_u32*)0;
 static vn_u32 g_rvv_stride = 0u;
 static vn_u32 g_rvv_height = 0u;
 static vn_u32 g_rvv_pixels = 0u;
+static vn_u32* g_rvv_row_colors = (vn_u32*)0;
+static vn_u32 g_rvv_row_colors_cap = 0u;
 static vn_u8* g_rvv_u_lut = (vn_u8*)0;
 static vn_u8* g_rvv_v_lut = (vn_u8*)0;
 static vn_u32 g_rvv_u_lut_cap = 0u;
@@ -101,23 +103,169 @@ static vuint32m4_t vn_rvv_div255_round_u32(vuint32m4_t value, size_t vl) {
     return __riscv_vsrl_vx_u32m4(bias, (size_t)8, vl);
 }
 
-static void vn_rvv_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
+static void vn_rvv_combine_texels_inplace(vn_u32* colors, vn_u32 count, vn_u8 layer, vn_u8 flags, vn_u8 op) {
+    vn_u32 i;
+    int layer_r;
+    int layer_g;
+    int layer_b;
+    int text_blue_bias;
+
+    layer_r = (int)layer * 7;
+    layer_g = (int)layer * 5;
+    layer_b = (int)layer * 3;
+    text_blue_bias = 24 + (int)layer * 6;
+
+    i = 0u;
+    while (i < count) {
+        size_t vl;
+        vuint32m4_t texel;
+        vuint32m4_t ur;
+        vuint32m4_t ug;
+        vuint32m4_t ub;
+        vint32m4_t r;
+        vint32m4_t g;
+        vint32m4_t b;
+        vuint32m4_t out;
+
+        vl = __riscv_vsetvl_e32m4((size_t)(count - i));
+        texel = __riscv_vle32_v_u32m4(colors + i, vl);
+
+        ur = __riscv_vsrl_vx_u32m4(texel, (size_t)16, vl);
+        ur = __riscv_vand_vx_u32m4(ur, 0xFFu, vl);
+        ug = __riscv_vsrl_vx_u32m4(texel, (size_t)8, vl);
+        ug = __riscv_vand_vx_u32m4(ug, 0xFFu, vl);
+        ub = __riscv_vand_vx_u32m4(texel, 0xFFu, vl);
+
+        r = __riscv_vreinterpret_v_u32m4_i32m4(ur);
+        g = __riscv_vreinterpret_v_u32m4_i32m4(ug);
+        b = __riscv_vreinterpret_v_u32m4_i32m4(ub);
+
+        r = __riscv_vadd_vx_i32m4(r, layer_r, vl);
+        g = __riscv_vadd_vx_i32m4(g, layer_g, vl);
+        b = __riscv_vadd_vx_i32m4(b, layer_b, vl);
+
+        if ((flags & 1u) != 0u) {
+            g = __riscv_vadd_vx_i32m4(g, 14, vl);
+        }
+        if ((flags & 2u) != 0u) {
+            b = __riscv_vadd_vx_i32m4(b, 20, vl);
+        }
+        if ((flags & 4u) != 0u) {
+            r = __riscv_vadd_vx_i32m4(r, 28, vl);
+            g = __riscv_vsub_vx_i32m4(g, 12, vl);
+        }
+        if ((flags & 8u) != 0u) {
+            r = __riscv_vadd_vx_i32m4(r, 12, vl);
+            g = __riscv_vadd_vx_i32m4(g, 12, vl);
+            b = __riscv_vsub_vx_i32m4(b, 8, vl);
+        }
+
+        if (op == VN_OP_TEXT) {
+            vint32m4_t y;
+
+            y = __riscv_vmul_vx_i32m4(r, 54, vl);
+            y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(g, 183, vl), vl);
+            y = __riscv_vadd_vv_i32m4(y, __riscv_vmul_vx_i32m4(b, 19, vl), vl);
+            y = __riscv_vsra_vx_i32m4(y, (size_t)8, vl);
+            r = __riscv_vadd_vx_i32m4(y, 52, vl);
+            g = __riscv_vadd_vx_i32m4(y, 44, vl);
+            b = __riscv_vadd_vx_i32m4(y, text_blue_bias, vl);
+        } else if (op == VN_OP_SPRITE) {
+            b = __riscv_vadd_vx_i32m4(b, 10, vl);
+        }
+
+        r = __riscv_vmax_vx_i32m4(r, 0, vl);
+        r = __riscv_vmin_vx_i32m4(r, 255, vl);
+        g = __riscv_vmax_vx_i32m4(g, 0, vl);
+        g = __riscv_vmin_vx_i32m4(g, 255, vl);
+        b = __riscv_vmax_vx_i32m4(b, 0, vl);
+        b = __riscv_vmin_vx_i32m4(b, 255, vl);
+
+        ur = __riscv_vreinterpret_v_i32m4_u32m4(r);
+        ug = __riscv_vreinterpret_v_i32m4_u32m4(g);
+        ub = __riscv_vreinterpret_v_i32m4_u32m4(b);
+        ur = __riscv_vsll_vx_u32m4(ur, (size_t)16, vl);
+        ug = __riscv_vsll_vx_u32m4(ug, (size_t)8, vl);
+        out = __riscv_vor_vv_u32m4(ur, ug, vl);
+        out = __riscv_vor_vv_u32m4(out, ub, vl);
+        out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
+
+        __riscv_vse32_v_u32m4(colors + i, out, vl);
+        i += (vn_u32)vl;
+    }
+}
+
+static void vn_rvv_blend_u32(vn_u32* dst, const vn_u32* src, vn_u32 count, vn_u8 alpha) {
     vn_u32 i;
     vn_u32 inv;
-    vn_u32 sr;
-    vn_u32 sg;
-    vn_u32 sb;
+
+    inv = (vn_u32)(255u - alpha);
+    i = 0u;
+    while (i < count) {
+        size_t vl;
+        vuint32m4_t dst_px;
+        vuint32m4_t src_px;
+        vuint32m4_t dr;
+        vuint32m4_t dg;
+        vuint32m4_t db;
+        vuint32m4_t sr;
+        vuint32m4_t sg;
+        vuint32m4_t sb;
+        vuint32m4_t rr;
+        vuint32m4_t rg;
+        vuint32m4_t rb;
+        vuint32m4_t out;
+
+        vl = __riscv_vsetvl_e32m4((size_t)(count - i));
+        dst_px = __riscv_vle32_v_u32m4(dst + i, vl);
+        src_px = __riscv_vle32_v_u32m4(src + i, vl);
+
+        dr = __riscv_vsrl_vx_u32m4(dst_px, (size_t)16, vl);
+        dr = __riscv_vand_vx_u32m4(dr, 0xFFu, vl);
+        dg = __riscv_vsrl_vx_u32m4(dst_px, (size_t)8, vl);
+        dg = __riscv_vand_vx_u32m4(dg, 0xFFu, vl);
+        db = __riscv_vand_vx_u32m4(dst_px, 0xFFu, vl);
+
+        sr = __riscv_vsrl_vx_u32m4(src_px, (size_t)16, vl);
+        sr = __riscv_vand_vx_u32m4(sr, 0xFFu, vl);
+        sg = __riscv_vsrl_vx_u32m4(src_px, (size_t)8, vl);
+        sg = __riscv_vand_vx_u32m4(sg, 0xFFu, vl);
+        sb = __riscv_vand_vx_u32m4(src_px, 0xFFu, vl);
+
+        rr = __riscv_vmul_vx_u32m4(dr, inv, vl);
+        rr = __riscv_vadd_vv_u32m4(rr, __riscv_vmul_vx_u32m4(sr, (vn_u32)alpha, vl), vl);
+        rr = vn_rvv_div255_round_u32(rr, vl);
+
+        rg = __riscv_vmul_vx_u32m4(dg, inv, vl);
+        rg = __riscv_vadd_vv_u32m4(rg, __riscv_vmul_vx_u32m4(sg, (vn_u32)alpha, vl), vl);
+        rg = vn_rvv_div255_round_u32(rg, vl);
+
+        rb = __riscv_vmul_vx_u32m4(db, inv, vl);
+        rb = __riscv_vadd_vv_u32m4(rb, __riscv_vmul_vx_u32m4(sb, (vn_u32)alpha, vl), vl);
+        rb = vn_rvv_div255_round_u32(rb, vl);
+
+        rr = __riscv_vsll_vx_u32m4(rr, (size_t)16, vl);
+        rg = __riscv_vsll_vx_u32m4(rg, (size_t)8, vl);
+        out = __riscv_vor_vv_u32m4(rr, rg, vl);
+        out = __riscv_vor_vv_u32m4(out, rb, vl);
+        out = __riscv_vadd_vx_u32m4(out, 0xFF000000u, vl);
+
+        __riscv_vse32_v_u32m4(dst + i, out, vl);
+        i += (vn_u32)vl;
+    }
+}
+
+static void vn_rvv_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
+    vn_u32 i;
     vn_u32 src_r_prod;
     vn_u32 src_g_prod;
     vn_u32 src_b_prod;
+    vn_u32 inv;
 
     inv = (vn_u32)(255u - alpha);
-    sr = (color >> 16) & 0xFFu;
-    sg = (color >> 8) & 0xFFu;
-    sb = color & 0xFFu;
-    src_r_prod = sr * (vn_u32)alpha;
-    src_g_prod = sg * (vn_u32)alpha;
-    src_b_prod = sb * (vn_u32)alpha;
+    src_r_prod = ((color >> 16) & 0xFFu) * (vn_u32)alpha;
+    src_g_prod = ((color >> 8) & 0xFFu) * (vn_u32)alpha;
+    src_b_prod = (color & 0xFFu) * (vn_u32)alpha;
 
     i = 0u;
     while (i < count) {
@@ -169,6 +317,26 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     i = 0u;
     while (i < count) {
         dst[i] = value;
+        i += 1u;
+    }
+}
+
+static void vn_rvv_combine_texels_inplace(vn_u32* colors, vn_u32 count, vn_u8 layer, vn_u8 flags, vn_u8 op) {
+    vn_u32 i;
+
+    i = 0u;
+    while (i < count) {
+        colors[i] = vn_pp_combine_texel(colors[i], layer, flags, op);
+        i += 1u;
+    }
+}
+
+static void vn_rvv_blend_u32(vn_u32* dst, const vn_u32* src, vn_u32 count, vn_u8 alpha) {
+    vn_u32 i;
+
+    i = 0u;
+    while (i < count) {
+        dst[i] = vn_pp_blend_rgb(dst[i], src[i], alpha);
         i += 1u;
     }
 }
@@ -278,10 +446,10 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
     if (vis_w == 0u || vis_h == 0u) {
         return;
     }
-    if (g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0) {
+    if (g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0 || g_rvv_row_colors == (vn_u32*)0) {
         return;
     }
-    if (vis_w > g_rvv_u_lut_cap || vis_h > g_rvv_v_lut_cap) {
+    if (vis_w > g_rvv_u_lut_cap || vis_h > g_rvv_v_lut_cap || vis_w > g_rvv_row_colors_cap) {
         return;
     }
 
@@ -301,34 +469,34 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
         vn_u32 row_off;
         vn_u32 col_rel;
         vn_u32 v8;
+        vn_u32* row_ptr;
 
         yy = y0 + row_rel;
         row_off = yy * g_rvv_stride;
         v8 = (vn_u32)g_rvv_v_lut[row_rel];
+        row_ptr = g_rvv_framebuffer + row_off + x0;
         for (col_rel = 0u; col_rel < vis_w; ++col_rel) {
-            vn_u32 xx;
-            vn_u32 idx;
             vn_u32 u8;
-            vn_u32 texel;
-            vn_u32 color;
 
-            xx = x0 + col_rel;
-            idx = row_off + xx;
             u8 = (vn_u32)g_rvv_u_lut[col_rel];
-            texel = vn_pp_sample_texel(op->tex_id, u8, v8);
-            color = vn_pp_combine_texel(texel, op->layer, op->flags, op->op);
+            g_rvv_row_colors[col_rel] = vn_pp_sample_texel(op->tex_id, u8, v8);
+        }
 
-            if (op->alpha >= 255u) {
-                g_rvv_framebuffer[idx] = color;
-            } else {
-                g_rvv_framebuffer[idx] = vn_pp_blend_rgb(g_rvv_framebuffer[idx], color, op->alpha);
-            }
+        /* Keep tex sampling scalar for parity, then batch combine/writeback in RVV-width chunks. */
+        vn_rvv_combine_texels_inplace(g_rvv_row_colors, vis_w, op->layer, op->flags, op->op);
+
+        if (op->alpha >= 255u) {
+            (void)memcpy(row_ptr, g_rvv_row_colors, (size_t)vis_w * sizeof(vn_u32));
+        } else {
+            /* Batch the framebuffer writeback so alpha blend and store run in RVV-width chunks. */
+            vn_rvv_blend_u32(row_ptr, g_rvv_row_colors, vis_w, op->alpha);
         }
     }
 }
 
 static int rvv_init(const RendererConfig* cfg) {
     vn_u32 pixels;
+    size_t row_colors_bytes;
     size_t u_lut_bytes;
     size_t v_lut_bytes;
 
@@ -348,17 +516,23 @@ static int rvv_init(const RendererConfig* cfg) {
     if (g_rvv_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
+    row_colors_bytes = (size_t)cfg->width * sizeof(vn_u32);
     u_lut_bytes = (size_t)cfg->width * sizeof(vn_u8);
     v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
+    g_rvv_row_colors = (vn_u32*)malloc(row_colors_bytes);
     g_rvv_u_lut = (vn_u8*)malloc(u_lut_bytes);
     g_rvv_v_lut = (vn_u8*)malloc(v_lut_bytes);
-    if (g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0) {
+    if (g_rvv_row_colors == (vn_u32*)0 || g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0) {
+        if (g_rvv_row_colors != (vn_u32*)0) {
+            free(g_rvv_row_colors);
+        }
         if (g_rvv_u_lut != (vn_u8*)0) {
             free(g_rvv_u_lut);
         }
         if (g_rvv_v_lut != (vn_u8*)0) {
             free(g_rvv_v_lut);
         }
+        g_rvv_row_colors = (vn_u32*)0;
         g_rvv_u_lut = (vn_u8*)0;
         g_rvv_v_lut = (vn_u8*)0;
         free(g_rvv_framebuffer);
@@ -371,6 +545,7 @@ static int rvv_init(const RendererConfig* cfg) {
     g_rvv_stride = (vn_u32)cfg->width;
     g_rvv_height = (vn_u32)cfg->height;
     g_rvv_pixels = pixels;
+    g_rvv_row_colors_cap = (vn_u32)cfg->width;
     g_rvv_u_lut_cap = (vn_u32)cfg->width;
     g_rvv_v_lut_cap = (vn_u32)cfg->height;
     g_rvv_ready = VN_TRUE;
@@ -381,6 +556,9 @@ static void rvv_shutdown(void) {
     if (g_rvv_framebuffer != (vn_u32*)0) {
         free(g_rvv_framebuffer);
     }
+    if (g_rvv_row_colors != (vn_u32*)0) {
+        free(g_rvv_row_colors);
+    }
     if (g_rvv_u_lut != (vn_u8*)0) {
         free(g_rvv_u_lut);
     }
@@ -388,11 +566,13 @@ static void rvv_shutdown(void) {
         free(g_rvv_v_lut);
     }
     g_rvv_framebuffer = (vn_u32*)0;
+    g_rvv_row_colors = (vn_u32*)0;
     g_rvv_u_lut = (vn_u8*)0;
     g_rvv_v_lut = (vn_u8*)0;
     g_rvv_stride = 0u;
     g_rvv_height = 0u;
     g_rvv_pixels = 0u;
+    g_rvv_row_colors_cap = 0u;
     g_rvv_u_lut_cap = 0u;
     g_rvv_v_lut_cap = 0u;
     g_rvv_cfg.width = 0u;

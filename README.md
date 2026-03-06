@@ -242,7 +242,7 @@ ctest --test-dir build --output-on-failure
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
 3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译已通过，当前待补原生 arm64 验证与其余核心算子。
-4. `rvv`：最小可运行后端已接入，统一色 `fill` 与半透明 `fade/fill` 路径已向量化；当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证与其余 RVV 算子。
+4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `combine + alpha` 写回路径已向量化；当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟以及 `scalar vs rvv` CRC 一致性，待补原生 riscv64 Linux 验证与其余 RVV 算子。
 
 ## CI
 

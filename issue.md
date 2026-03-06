@@ -616,7 +616,9 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - [x] `test_backend_consistency_rvv` 已验证 `scalar vs rvv` framebuffer CRC 一致
 - [x] RVV `fill` 核心算子（向量填充）
 - [x] RVV 统一色半透明 `fade/fill` 路径已向量化
-- [ ] RVV `blend/tex/combine` 核心算子
+- [x] RVV `SPRITE/TEXT` 的 varying-src alpha 写回路径已批量化并使用向量混合
+- [x] RVV `SPRITE/TEXT` 的 `combine` 阶段已按行批量化并使用向量处理
+- [ ] RVV `tex/hash` 采样核心算子（继续压榨热点，尽可能提升更多性能）
 - [ ] 将 `qemu-rvv` 从告警提升到阻塞前的稳定性采样
 - [ ] riscv64 Linux 原生运行验证
 - [ ] 工具链版本固定与构建说明（`docs/riscv-toolchain.md` 持续维护）
