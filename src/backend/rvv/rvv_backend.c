@@ -25,8 +25,8 @@ static vn_u32* g_rvv_framebuffer = (vn_u32*)0;
 static vn_u32 g_rvv_stride = 0u;
 static vn_u32 g_rvv_height = 0u;
 static vn_u32 g_rvv_pixels = 0u;
-static vn_u32* g_rvv_u_lut = (vn_u32*)0;
-static vn_u32* g_rvv_v_lut = (vn_u32*)0;
+static vn_u8* g_rvv_u_lut = (vn_u8*)0;
+static vn_u8* g_rvv_v_lut = (vn_u8*)0;
 static vn_u32 g_rvv_u_lut_cap = 0u;
 static vn_u32 g_rvv_v_lut_cap = 0u;
 static int g_rvv_ready = VN_FALSE;
@@ -145,10 +145,12 @@ static void vn_rvv_init_textured_row_params(VN_RVVTexturedRowParams* params,
     params->op = op;
 }
 
-static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u32* u_lut,
+static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u8* u_lut,
                                                vn_u32 offset,
                                                const VN_RVVTexturedRowParams* params,
                                                size_t vl) {
+    vuint8m1_t u8;
+    vuint16m2_t u16;
     vuint32m4_t u;
     vuint32m4_t seed;
     vuint32m4_t h;
@@ -170,8 +172,9 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u32* u_lut,
     vint32m4_t b_bright;
     vuint32m4_t out;
 
-    u = __riscv_vle32_v_u32m4(u_lut + offset, vl);
-    u = __riscv_vand_vx_u32m4(u, 0xFFu, vl);
+    u8 = __riscv_vle8_v_u8m1(u_lut + offset, vl);
+    u16 = __riscv_vzext_vf2_u16m2(u8, vl);
+    u = __riscv_vzext_vf2_u32m4(u16, vl);
 
     seed = __riscv_vsll_vx_u32m4(u, (size_t)8, vl);
     seed = __riscv_vxor_vx_u32m4(seed, params->tex_mul, vl);
@@ -273,7 +276,7 @@ static vuint32m4_t vn_rvv_sample_combine_chunk(const vn_u32* u_lut,
 }
 
 static void vn_rvv_sample_texels_row(vn_u32* colors,
-                                     const vn_u32* u_lut,
+                                     const vn_u8* u_lut,
                                      vn_u32 count,
                                      vn_u32 v8,
                                      vn_u16 tex_id,
@@ -298,7 +301,7 @@ static void vn_rvv_sample_texels_row(vn_u32* colors,
 }
 
 static void vn_rvv_sample_blend_texels_row(vn_u32* dst,
-                                           const vn_u32* u_lut,
+                                           const vn_u8* u_lut,
                                            vn_u32 count,
                                            vn_u32 v8,
                                            vn_u16 tex_id,
@@ -435,7 +438,7 @@ static void vn_rvv_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
 }
 
 static void vn_rvv_sample_texels_row(vn_u32* colors,
-                                     const vn_u32* u_lut,
+                                     const vn_u8* u_lut,
                                      vn_u32 count,
                                      vn_u32 v8,
                                      vn_u16 tex_id,
@@ -452,7 +455,7 @@ static void vn_rvv_sample_texels_row(vn_u32* colors,
 }
 
 static void vn_rvv_sample_blend_texels_row(vn_u32* dst,
-                                           const vn_u32* u_lut,
+                                           const vn_u8* u_lut,
                                            vn_u32 count,
                                            vn_u32 v8,
                                            vn_u16 tex_id,
@@ -520,17 +523,17 @@ static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_
     }
 }
 
-static void vn_rvv_build_coord_lut(vn_u32* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent) {
+static void vn_rvv_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent) {
     vn_u32 i;
     vn_u32 denom;
     vn_u32 value;
 
-    if (out_lut == (vn_u32*)0 || count == 0u) {
+    if (out_lut == (vn_u8*)0 || count == 0u) {
         return;
     }
     if (extent <= 1u) {
         for (i = 0u; i < count; ++i) {
-            out_lut[i] = 0u;
+            out_lut[i] = (vn_u8)0u;
         }
         return;
     }
@@ -543,7 +546,7 @@ static void vn_rvv_build_coord_lut(vn_u32* out_lut, vn_u32 count, vn_u32 local_s
         if (q > 255u) {
             q = 255u;
         }
-        out_lut[i] = q;
+        out_lut[i] = (vn_u8)q;
         value += 255u;
     }
 }
@@ -576,7 +579,7 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
     if (vis_w == 0u || vis_h == 0u) {
         return;
     }
-    if (g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0) {
+    if (g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0) {
         return;
     }
     if (vis_w > g_rvv_u_lut_cap || vis_h > g_rvv_v_lut_cap) {
@@ -602,7 +605,7 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
 
         yy = y0 + row_rel;
         row_off = yy * g_rvv_stride;
-        v8 = g_rvv_v_lut[row_rel];
+        v8 = (vn_u32)g_rvv_v_lut[row_rel];
         row_ptr = g_rvv_framebuffer + row_off + x0;
 
         if (op->alpha >= 255u) {
@@ -651,19 +654,19 @@ static int rvv_init(const RendererConfig* cfg) {
     if (g_rvv_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
-    u_lut_bytes = (size_t)cfg->width * sizeof(vn_u32);
-    v_lut_bytes = (size_t)cfg->height * sizeof(vn_u32);
-    g_rvv_u_lut = (vn_u32*)malloc(u_lut_bytes);
-    g_rvv_v_lut = (vn_u32*)malloc(v_lut_bytes);
-    if (g_rvv_u_lut == (vn_u32*)0 || g_rvv_v_lut == (vn_u32*)0) {
-        if (g_rvv_u_lut != (vn_u32*)0) {
+    u_lut_bytes = (size_t)cfg->width * sizeof(vn_u8);
+    v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
+    g_rvv_u_lut = (vn_u8*)malloc(u_lut_bytes);
+    g_rvv_v_lut = (vn_u8*)malloc(v_lut_bytes);
+    if (g_rvv_u_lut == (vn_u8*)0 || g_rvv_v_lut == (vn_u8*)0) {
+        if (g_rvv_u_lut != (vn_u8*)0) {
             free(g_rvv_u_lut);
         }
-        if (g_rvv_v_lut != (vn_u32*)0) {
+        if (g_rvv_v_lut != (vn_u8*)0) {
             free(g_rvv_v_lut);
         }
-        g_rvv_u_lut = (vn_u32*)0;
-        g_rvv_v_lut = (vn_u32*)0;
+        g_rvv_u_lut = (vn_u8*)0;
+        g_rvv_v_lut = (vn_u8*)0;
         free(g_rvv_framebuffer);
         g_rvv_framebuffer = (vn_u32*)0;
         return VN_E_NOMEM;
@@ -684,15 +687,15 @@ static void rvv_shutdown(void) {
     if (g_rvv_framebuffer != (vn_u32*)0) {
         free(g_rvv_framebuffer);
     }
-    if (g_rvv_u_lut != (vn_u32*)0) {
+    if (g_rvv_u_lut != (vn_u8*)0) {
         free(g_rvv_u_lut);
     }
-    if (g_rvv_v_lut != (vn_u32*)0) {
+    if (g_rvv_v_lut != (vn_u8*)0) {
         free(g_rvv_v_lut);
     }
     g_rvv_framebuffer = (vn_u32*)0;
-    g_rvv_u_lut = (vn_u32*)0;
-    g_rvv_v_lut = (vn_u32*)0;
+    g_rvv_u_lut = (vn_u8*)0;
+    g_rvv_v_lut = (vn_u8*)0;
     g_rvv_stride = 0u;
     g_rvv_height = 0u;
     g_rvv_pixels = 0u;
