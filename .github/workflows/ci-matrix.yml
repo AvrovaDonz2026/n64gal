@@ -1,0 +1,61 @@
+name: ci-matrix
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native C89 suite
+        run: ./scripts/ci/run_cc_suite.sh
+      - name: Perf smoke
+        run: ./tests/perf/run_perf.sh --backend avx2 --scenes S0 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --out-dir "$RUNNER_TEMP/perf_smoke"
+
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DVN_BUILD_PLAYER=ON
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native C89 suite
+        run: ./scripts/ci/run_cc_suite.sh
+
+  windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -A ARM64 -DVN_BUILD_PLAYER=ON
+      - name: Build
+        run: cmake --build build --config Release
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  linux-riscv64-cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install riscv64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
+      - name: Cross build riscv64
+        run: ./scripts/ci/build_riscv64_cross.sh

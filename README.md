@@ -243,6 +243,12 @@ ctest --test-dir build --output-on-failure
 3. `neon`：最小可运行后端已接入，目标架构可启用，当前待补原生 arm64 验证与 SIMD 算子。
 4. `rvv`：最小可运行后端已接入，目标架构可启用，当前待补原生 riscv64 Linux 验证与 RVV 算子。
 
+## CI
+
+1. GitHub Actions 矩阵工作流：`.github/workflows/ci-matrix.yml`
+2. Linux 原生 C89 套件脚本：`scripts/ci/run_cc_suite.sh`
+3. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
+
 ## API 文档
 
 1. Runtime API：[`docs/api/runtime.md`](./docs/api/runtime.md)
