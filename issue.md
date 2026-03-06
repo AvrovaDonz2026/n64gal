@@ -31,6 +31,7 @@
 10. GitHub Actions：`ci-matrix` push run `22772138491`（head `8e5dcd8`）已于 `2026-03-07 00:26 HKT` 完成并 `success`；其中 `windows-x64` 与 `windows-arm64` job 均为 `success`，Windows suite artifact 链已完成实跑复核。
 11. `ISSUE-008` 本轮继续补 `qemu-rvv` revision compare gate：`run_perf_compare_revs.sh` 已支持 `--threshold-soft-fail`，`scripts/ci/run_riscv64_qemu_perf_report.sh` / `.github/workflows/riscv-perf-report.yml` 已接入 `linux-riscv64-qemu-rvv-rev-smoke` profile，当前默认以 `soft` 模式产出 threshold report 并保留观察噪声。
 12. `ISSUE-008` 已把 Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存接入主线：`VNRunConfig.perf_flags` / `VNRunResult.perf_flags_effective|frame_reuse_hits|frame_reuse_misses|op_cache_hits|op_cache_misses` 已公开，CLI 已支持 `--perf-frame-reuse=<on|off>` 与 `--perf-op-cache=<on|off>`，前者会在稳定状态下直接复用 framebuffer，后者命中后仍按当前帧回写 `SPRITE/FADE` 动态字段，`test_runtime_api` 已覆盖两条路径与关闭路径。默认主线现已具备“整帧复用 -> 命令缓存 -> 正常构建/光栅”的分层回退链。
+13. `ci-matrix` push run `22775198899`（head `1e997d5`）暴露出两处 Windows 共性问题：`src/core/runtime_cli.c` 的 `t_after_raster` 在 MSVC `/W4 /WX` 下触发 `C4701`，以及 `scripts/ci/run_windows_suite.ps1` 在 `native-command | Tee-Object` 后错误读取退出码，导致 build 失败后仍继续跑 `ctest`。两处现已在主线修复，后续以新 run 复核。
 
 ### 平台目标（新增约束）
 

@@ -41,8 +41,12 @@ function Invoke-LoggedNative {
     )
 
     Write-Host "[ci-windows] $StepName"
-    & $FilePath @ArgumentList 2>&1 | Tee-Object -FilePath $LogPath
-    $NativeExitCode = $LASTEXITCODE
+    $script:NativeExitCode = 0
+    & {
+        & $FilePath @ArgumentList 2>&1
+        $script:NativeExitCode = $LASTEXITCODE
+    } | Tee-Object -FilePath $LogPath
+    $NativeExitCode = $script:NativeExitCode
     if ($NativeExitCode -ne 0) {
         $script:Failures += "$StepName=$NativeExitCode"
         $script:StepStatus[$StepName] = "failed($NativeExitCode)"

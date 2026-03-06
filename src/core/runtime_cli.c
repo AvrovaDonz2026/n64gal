@@ -1351,6 +1351,8 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
             t_frame_start = runtime_now_ms();
             vm_step(&session->vm, session->dt_ms);
             t_after_vm = runtime_now_ms();
+            t_after_build = t_after_vm;
+            t_after_raster = t_after_vm;
             state_from_vm(&session->state, &session->vm);
             fade_player_step(&session->fade_player, &session->vm, session->dt_ms);
             state_apply_fade(&session->state, &session->fade_player);
