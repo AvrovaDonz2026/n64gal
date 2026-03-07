@@ -12,7 +12,7 @@
 | `arm64` | Windows | `neon -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakePlatform ARM64` + GitHub Actions Windows arm64 | `suite-windows-arm64`, `perf-windows-arm64` |
 | `riscv64` | Linux | `rvv -> scalar` | 交叉构建与 QEMU 已接入，原生验证进行中 | `scripts/ci/build_riscv64_cross.sh` + `scripts/ci/run_riscv64_qemu_suite.sh` | `suite-linux-riscv64-qemu-scalar`, `suite-linux-riscv64-qemu-rvv`, `perf-riscv64-qemu-rvv` |
 
-注：`linux-x64` 的 `perf-linux-x64` 当前固定 smoke scenes 为 `S1,S3`；`linux-arm64` / `windows-x64` / `windows-arm64` 当前也已接入同一套 smoke artifact 流程，分别使用平台优先 SIMD backend（`avx2` 或 `neon`）。`S0` 仅保留在全量 sweep 与 `qemu-rvv` bring-up smoke。
+注：native 平台的 `perf-*` artifact 当前都固定 smoke scenes 为 `S1,S3`；`linux-x64`、`linux-arm64`、`windows-arm64` 已分别挂 `linux-x64-scalar-avx2-smoke`、`linux-arm64-scalar-neon-smoke`、`windows-arm64-scalar-neon-smoke` 正收益 gate，`windows-x64` 则挂 `windows-x64-scalar-avx2-smoke` regression-envelope gate。`S0` 仅保留在全量 sweep 与 `qemu-rvv` bring-up smoke。
 
 ## 平台层原则
 

@@ -76,7 +76,7 @@ jobs:
             build_ci_windows_x64/golden_artifacts
       - name: Perf smoke suite
         shell: bash
-        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-x64 --simd-backend avx2 --skip-build --runner-bin build/Release/vn_player.exe --no-threshold --out-dir build_ci_perf_windows_x64
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-x64 --simd-backend avx2 --skip-build --runner-bin build/Release/vn_player.exe --threshold-file tests/perf/perf_thresholds.csv --threshold-profile windows-x64-scalar-avx2-smoke --out-dir build_ci_perf_windows_x64
       - name: Publish perf summary
         if: always()
         shell: pwsh
@@ -131,7 +131,7 @@ jobs:
             build_ci_cc/ci_suite_summary.md
             build_ci_cc/golden_artifacts
       - name: Perf smoke suite
-        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-arm64 --simd-backend neon --skip-build --runner-bin build_ci_cc/vn_player --no-threshold --out-dir build_ci_perf_linux_arm64
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-arm64 --simd-backend neon --skip-build --runner-bin build_ci_cc/vn_player --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-arm64-scalar-neon-smoke --out-dir build_ci_perf_linux_arm64
       - name: Publish perf summary
         if: always()
         run: |
@@ -187,7 +187,7 @@ jobs:
             build_ci_windows_arm64/golden_artifacts
       - name: Perf smoke suite
         shell: bash
-        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-arm64 --simd-backend neon --skip-build --runner-bin build/Release/vn_player.exe --no-threshold --out-dir build_ci_perf_windows_arm64
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-arm64 --simd-backend neon --skip-build --runner-bin build/Release/vn_player.exe --threshold-file tests/perf/perf_thresholds.csv --threshold-profile windows-arm64-scalar-neon-smoke --out-dir build_ci_perf_windows_arm64
       - name: Publish perf summary
         if: always()
         shell: pwsh

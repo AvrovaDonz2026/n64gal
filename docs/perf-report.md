@@ -130,8 +130,11 @@
 
 当前已落地的 profile：
 
-1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke gate。
-2. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，现已接到 `.github/workflows/riscv-perf-report.yml`，默认以 `soft` 模式产出报告但不直接打红 workflow。
+1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke hard gate。
+2. `linux-arm64-scalar-neon-smoke`：GitHub `ubuntu-24.04-arm` 上的 `scalar -> neon` smoke hard gate。
+3. `windows-x64-scalar-avx2-smoke`：GitHub `windows-latest` 上的 `scalar -> avx2` regression-envelope gate；当前用于防止 AVX2 在 Windows x64 runner 上继续明显恶化。
+4. `windows-arm64-scalar-neon-smoke`：GitHub `windows-11-arm` 上的 `scalar -> neon` smoke hard gate。
+5. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，现已接到 `.github/workflows/riscv-perf-report.yml`，默认以 `soft` 模式产出报告但不直接打红 workflow。
 
 直接对已有 compare 结果做门限检查：
 
@@ -217,10 +220,10 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 当前原生目标平台都通过参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 生成 perf artifact：
 
-1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；其中 `scalar -> avx2` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，是唯一已转 hard gate 的 native perf smoke。
-2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
-3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
-4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
+1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。
+2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
+3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，但它是 regression-envelope gate，而不是“必须正收益” gate。
+4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 
 其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
