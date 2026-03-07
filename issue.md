@@ -42,10 +42,11 @@
 21. `ISSUE-008` 的 `qemu-rvv` revision compare 目前仍保留 `S0,S3` 作为 bring-up smoke，用于跨 revision 趋势留痕与 RVV 路径冒烟；它不再作为 x64 主线 gate 的代表样本，待 native RVV 设备到位后再统一评估是否也切到更重场景。
 22. `bfe95d2`：继续同步 perf 文档与跟踪项，明确 `linux-x64` 的 smoke / dirty compare 基线现在统一为 `S1,S3`，而 `qemu-rvv` revision compare 仍暂保留 `S0,S3`；同时 README、平台/性能文档与 dirty-tile API 文档都按这一边界更新。
 23. `ISSUE-008` / `ISSUE-014` 继续把 perf 落到所有原生目标平台：`run_perf.sh` / `run_perf_compare.sh` 已支持复用已有 `vn_player`（`--runner-bin` + `--skip-build`），参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 现已可在 `linux-x64`、`linux-arm64`、`windows-x64`、`windows-arm64` 复用。
-24. 三套 native threshold profile 已按 GitHub runner 实测落地：`linux-arm64-scalar-neon-smoke` 与 `windows-arm64-scalar-neon-smoke` 采用正收益 gate，`windows-x64-scalar-avx2-smoke` 则采用 regression-envelope gate，因为最新成功 run `22793662179` 中 `windows-x64` 的 `scalar -> avx2` 仍为 `S1 -5.66%` / `S3 -0.33%`，当前只能先防止继续明显恶化；与之相对，`linux-arm64` 的 `scalar -> neon` 为 `+13.09% / +13.36%`，`windows-arm64` 的 `scalar -> neon` 为 `+10.85% / +4.45%`，已经具备挂正收益 gate 的条件。
-25. `ISSUE-007` / `ISSUE-008` 已新增 `docs/perf-windows-x64-2026-03-07.md`，专门记录 GitHub `windows-x64` runner 上 `avx2 < scalar` 的证据、根因与当前两轮修正：`avx2_backend` 现已补 `uniform alpha/fade` AVX2 row kernel，并把 `fill_u32` 改为“对齐前缀 + aligned store”，随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU；本地 `S1,S3` smoke 与 golden/consistency 测试均已维持正向结果，下一步等待 GitHub Windows runner 复核。
+24. 三套 native threshold profile 已按 GitHub runner 实测落地：`linux-arm64-scalar-neon-smoke` 与 `windows-arm64-scalar-neon-smoke` 采用正收益 gate，`windows-x64-scalar-avx2-smoke` 当前仍暂保留 regression-envelope gate；不过最新成功 run `22795078202`（head `d6081b4`，2026-03-07）里 `windows-x64` 的 `scalar -> avx2` 已转为 `S1 +83.65% / S3 +81.51%`，说明之前的负收益已经被修回，后续若连续数次 run 都维持正收益，再考虑把它升级成更严格的正收益 gate。与之相对，`linux-arm64` 的 `scalar -> neon` 为 `+13.09% / +13.36%`，`windows-arm64` 的 `scalar -> neon` 为 `+10.85% / +4.45%`，已经具备挂正收益 gate 的条件。
+25. `ISSUE-007` / `ISSUE-008` 已新增 `docs/perf-windows-x64-2026-03-07.md`，专门记录 GitHub `windows-x64` runner 上 `avx2 < scalar` 的历史证据、根因、修正动作以及后续恢复情况：在多轮修正之后，最新 GitHub run `22795078202`（head `d6081b4`）已经转为 `S1 +83.65% / S3 +81.51%`，而 `Compare D` 同时确认 `sprite_full_opaque` / `sprite_full_alpha180` 仍是最大的剩余绝对热点。
 26. `ISSUE-008` 已新增 backend kernel benchmark 工具：`tests/perf/backend_kernel_bench.c` + `tests/perf/run_kernel_bench.sh`，用于把 `clear/fade/textured` 热点拆成独立 kernel。当前本地 `x64` 样本显示：`clear_full 2.072ms -> 0.662ms`、`fade_full_alpha160 5.215ms -> 3.791ms`、`sprite_full_opaque 25.306ms -> 19.173ms`、`sprite_full_alpha180 30.249ms -> 25.215ms`，说明 `clear/fade` 已明显转正，剩余主热点继续集中在 textured full-span 路径。
 27. `ISSUE-008` 已把 `tests/perf/run_kernel_compare.sh` 与 `scripts/ci/run_perf_smoke_suite.sh` 接通，native perf workflow 现在会固定产出 `Compare D = kernel scalar -> simd` artifact；同时 `backend_kernel_bench` 已补齐 `neon` / `rvv` backend 选择，避免 arm64 / riscv64 路径在复用同一套 compare API 时再额外分叉。
+28. `ISSUE-007` 本轮继续压 AVX2 textured full-span 热点：`src/backend/avx2/avx2_backend.c` 现已在 `vis_w > 256` 时改为 row palette 路径，并对连续重复的 `v8` 行直接复用 256 项 texel palette，避免 full-span sprite/text 再重复计算同一批 `sample/hash/combine`。当前本地 `kernel_compare` 样本中 `sprite_full_opaque` 已从 `19.173ms` 进一步降到 `4.728ms`，`sprite_full_alpha180` 也从 `25.215ms` 降到 `9.093ms`；对应本地 `S1,S3` smoke 为 `8.837ms -> 6.541ms`（`+25.98%`）与 `9.098ms -> 5.333ms`（`+41.38%`），等待新的 GitHub artifact 复核。
 
 ### 平台目标（新增约束）
 
@@ -505,6 +506,7 @@ cmake --build build -j
 - [x] amd64 自动优先选择 `avx2`
 - [x] `tex/combine` 真采样路径（共享 `pixel_pipeline`，`scalar/avx2` 同语义）
 - [x] 纹理坐标热路径优化：UV LUT（减少逐像素除法）
+- [x] textured full-span 热路径优化：row palette + repeated-`v8` reuse（避免重复 `sample/hash/combine`）
 - [x] 与 scalar 一致性对照测试（`test_backend_consistency` CRC 对照）
 - [x] 运行时 golden CRC + 像素级基线（`test_runtime_golden`: `S0-S3 @ 600x800`，`scalar` CRC 严格固定；支持后端与其做图差对照）
 - [x] golden 图差异测试（误差阈值：`mismatch_percent < 1%` 且 `max_channel_diff <= 8`；差异/CRC 异常时导出 PPM + `summary.txt`）

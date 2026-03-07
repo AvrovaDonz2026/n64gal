@@ -543,6 +543,173 @@ static vn_u32 vn_avx2_sample_combine_texel(vn_u32 u8, const VN_AVX2TexturedRowPa
     return (vn_u32)(0xFF000000u | ((vn_u32)r << 16) | ((vn_u32)g << 8) | (vn_u32)b);
 }
 
+static void vn_avx2_build_textured_row_palette(vn_u32* palette,
+                                               const VN_AVX2TexturedRowParams* params) {
+    vn_u32 i;
+
+    if (palette == (vn_u32*)0 || params == (const VN_AVX2TexturedRowParams*)0) {
+        return;
+    }
+
+    for (i = 0u; i < 256u; ++i) {
+        palette[i] = vn_avx2_sample_combine_texel(i, params);
+    }
+}
+
+#if VN_AVX2_IMPL_AVAILABLE
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_gather_palette8(const vn_u8* u_lut, const vn_u32* palette) {
+    __m128i idx8;
+    __m256i idx32;
+
+    idx8 = _mm_loadl_epi64((const __m128i*)(const void*)u_lut);
+    idx32 = _mm256_cvtepu8_epi32(idx8);
+    return _mm256_i32gather_epi32((const int*)(const void*)palette, idx32, 4);
+}
+
+VN_AVX2_TARGET_ATTR
+static void vn_avx2_sample_texels_palette_row(vn_u32* dst,
+                                              const vn_u8* u_lut,
+                                              vn_u32 count,
+                                              const vn_u32* palette) {
+    vn_u32 i;
+
+    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+        return;
+    }
+
+    i = 0u;
+    while ((i + 8u) <= count) {
+        __m256i src_vec;
+
+        src_vec = vn_avx2_gather_palette8(u_lut + i, palette);
+        _mm256_storeu_si256((__m256i*)(void*)(dst + i), src_vec);
+        i += 8u;
+    }
+    while (i < count) {
+        dst[i] = palette[(vn_u32)u_lut[i]];
+        i += 1u;
+    }
+}
+
+VN_AVX2_TARGET_ATTR
+static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
+                                                    const vn_u8* u_lut,
+                                                    vn_u32 count,
+                                                    const vn_u32* palette,
+                                                    vn_u8 alpha) {
+    __m256i mask_rb;
+    __m256i mask_g;
+    __m256i bias_rb;
+    __m256i bias_g;
+    __m256i one_rb;
+    __m256i one_g;
+    __m256i alpha_vec;
+    __m256i inv_vec;
+    __m256i alpha_mask;
+    vn_u32 i;
+
+    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
+        return;
+    }
+    if (alpha >= 255u) {
+        vn_avx2_sample_texels_palette_row(dst, u_lut, count, palette);
+        return;
+    }
+
+    mask_rb = _mm256_set1_epi32((int)0x00FF00FFu);
+    mask_g = _mm256_set1_epi32((int)0x0000FF00u);
+    bias_rb = _mm256_set1_epi32((int)0x007F007Fu);
+    bias_g = _mm256_set1_epi32((int)0x00007F00u);
+    one_rb = _mm256_set1_epi32((int)0x00010001u);
+    one_g = _mm256_set1_epi32((int)0x00000100u);
+    alpha_vec = _mm256_set1_epi32((int)(vn_u32)alpha);
+    inv_vec = _mm256_set1_epi32((int)(255u - (vn_u32)alpha));
+    alpha_mask = _mm256_set1_epi32((int)0xFF000000u);
+
+    i = 0u;
+    while ((i + 8u) <= count) {
+        __m256i src_vec;
+        __m256i dst_vec;
+        __m256i src_rb;
+        __m256i src_g;
+        __m256i dst_rb;
+        __m256i dst_g;
+        __m256i rb;
+        __m256i g;
+        __m256i out_vec;
+
+        src_vec = vn_avx2_gather_palette8(u_lut + i, palette);
+        dst_vec = _mm256_loadu_si256((const __m256i*)(const void*)(dst + i));
+        src_rb = _mm256_and_si256(src_vec, mask_rb);
+        src_g = _mm256_and_si256(src_vec, mask_g);
+        dst_rb = _mm256_and_si256(dst_vec, mask_rb);
+        dst_g = _mm256_and_si256(dst_vec, mask_g);
+
+        rb = _mm256_add_epi32(_mm256_mullo_epi32(src_rb, alpha_vec),
+                              _mm256_mullo_epi32(dst_rb, inv_vec));
+        rb = _mm256_add_epi32(rb, bias_rb);
+        rb = _mm256_add_epi32(rb,
+                              _mm256_add_epi32(one_rb,
+                                               _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb)));
+        rb = _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb);
+
+        g = _mm256_add_epi32(_mm256_mullo_epi32(src_g, alpha_vec),
+                             _mm256_mullo_epi32(dst_g, inv_vec));
+        g = _mm256_add_epi32(g, bias_g);
+        g = _mm256_add_epi32(g,
+                             _mm256_add_epi32(one_g,
+                                              _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g)));
+        g = _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g);
+
+        out_vec = _mm256_or_si256(_mm256_or_si256(rb, g), alpha_mask);
+        _mm256_storeu_si256((__m256i*)(void*)(dst + i), out_vec);
+        i += 8u;
+    }
+    while (i < count) {
+        vn_u32 src;
+
+        src = palette[(vn_u32)u_lut[i]];
+        dst[i] = vn_avx2_blend_rgb_local(dst[i], src, alpha);
+        i += 1u;
+    }
+}
+#else
+static void vn_avx2_sample_texels_palette_row(vn_u32* dst,
+                                              const vn_u8* u_lut,
+                                              vn_u32 count,
+                                              const vn_u32* palette) {
+    vn_u32 i;
+
+    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+        return;
+    }
+
+    for (i = 0u; i < count; ++i) {
+        dst[i] = palette[(vn_u32)u_lut[i]];
+    }
+}
+
+static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
+                                                    const vn_u8* u_lut,
+                                                    vn_u32 count,
+                                                    const vn_u32* palette,
+                                                    vn_u8 alpha) {
+    vn_u32 i;
+
+    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+        return;
+    }
+
+    for (i = 0u; i < count; ++i) {
+        vn_u32 src;
+
+        src = palette[(vn_u32)u_lut[i]];
+        dst[i] = vn_avx2_blend_rgb_local(dst[i], src, alpha);
+    }
+}
+#endif
+
 static void vn_avx2_sample_texels_row(vn_u32* dst,
                                       const vn_u8* u_lut,
                                       vn_u32 count,
@@ -591,6 +758,11 @@ static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
     vn_u32 local_x_start;
     vn_u32 local_y_start;
     vn_u32 row_rel;
+    int use_row_palette;
+    int have_row_palette;
+    vn_u32 cached_v8;
+    vn_u32 row_palette[256];
+    VN_AVX2TexturedRowParams params;
 
     if (op == (const VNRenderOp*)0 || g_avx2_framebuffer == (vn_u32*)0) {
         return;
@@ -625,17 +797,49 @@ static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
     vn_avx2_build_coord_lut(g_avx2_u_lut, vis_w, local_x_start, op->w);
     vn_avx2_build_coord_lut(g_avx2_v_lut, vis_h, local_y_start, op->h);
 
+    use_row_palette = (vis_w > 256u ? VN_TRUE : VN_FALSE);
+    have_row_palette = VN_FALSE;
+    cached_v8 = 0u;
+
     for (row_rel = 0u; row_rel < vis_h; ++row_rel) {
         vn_u32 yy;
         vn_u32 row_off;
         vn_u32 v8;
         vn_u32* row_ptr;
-        VN_AVX2TexturedRowParams params;
 
         yy = y0 + row_rel;
         row_off = yy * g_avx2_stride;
         v8 = (vn_u32)g_avx2_v_lut[row_rel];
         row_ptr = g_avx2_framebuffer + row_off + x0;
+
+        if (use_row_palette != VN_FALSE) {
+            if (have_row_palette == VN_FALSE || v8 != cached_v8) {
+                vn_avx2_init_textured_row_params(&params,
+                                                 v8,
+                                                 op->tex_id,
+                                                 op->layer,
+                                                 op->flags,
+                                                 op->op);
+                vn_avx2_build_textured_row_palette(row_palette, &params);
+                cached_v8 = v8;
+                have_row_palette = VN_TRUE;
+            }
+
+            if (op->alpha >= 255u) {
+                vn_avx2_sample_texels_palette_row(row_ptr,
+                                                  g_avx2_u_lut,
+                                                  vis_w,
+                                                  row_palette);
+            } else {
+                vn_avx2_sample_blend_texels_palette_row(row_ptr,
+                                                        g_avx2_u_lut,
+                                                        vis_w,
+                                                        row_palette,
+                                                        op->alpha);
+            }
+            continue;
+        }
+
         vn_avx2_init_textured_row_params(&params,
                                          v8,
                                          op->tex_id,
@@ -657,6 +861,8 @@ static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
         }
     }
 }
+
+
 
 
 static void vn_avx2_draw_textured_rect(const VNRenderOp* op) {
