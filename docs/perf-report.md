@@ -227,7 +227,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 当前原生目标平台都通过参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 生成 perf artifact：
 
 1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。
-2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
+2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。该 job 现已和 `linux-x64` 一样使用独立的 `-O2 -DNDEBUG` perf auto-build runner，不再复用 `run_cc_suite.sh` 产出的未优化测试二进制，否则会把 build-path mismatch 误报成 NEON regression。
 3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，并已升级为正收益 gate。
 4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 

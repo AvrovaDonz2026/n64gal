@@ -50,8 +50,10 @@
 29. `ISSUE-007` 本轮继续压 AVX2 textured full-span 热点：`src/backend/avx2/avx2_backend.c` 已在 `vis_w > 256` 时走 row palette，并对连续重复的 `v8` 行复用 256 项 texel palette；随后 `19788ce` 又把 row-palette apply 改成 AVX2 gather/store 与 gather/blend chunk。对应 GitHub `windows-x64` run `22795471059` 的 `Compare D` 已把 `sprite_full_opaque` 压到 `5.104921ms -> 0.620379ms`（`+87.85%`），`sprite_full_alpha180` 压到 `7.490000ms -> 0.763946ms`（`+89.80%`）；整机 smoke 也达到 `S1 3.324ms -> 0.397ms`（`+88.06%`）与 `S3 3.011ms -> 0.588ms`（`+80.47%`）。这一轮已经不再是“等待 artifact 复核”，而是 GitHub 原生 runner 证据已经到位。
 30. `ISSUE-008` 已继续补全 repeat compare 诊断：`tests/perf/run_perf_compare.sh --repeat N` 现在除中位数聚合外，还会导出 baseline/candidate `perf_summary_repeats.csv`、`compare/perf_repeat_variability.csv`、`compare/perf_repeat_variability.md`，并把 `Repeat Variability` 章节并入 `compare/perf_compare.md`；这条线直接服务于下一轮 `windows-x64` dirty `S3` 抖动排查，避免把短窗口噪声误判成真实 regression。
 31. `ISSUE-008` / `ISSUE-014` 已把 dirty repeat variability 再往 workflow summary 抬一层：`scripts/ci/run_perf_smoke_suite.sh` 现在会在 `perf_workflow_summary.md` 里额外生成 `Dirty-Tile Repeat Variability Digest`，直接汇总 `perf_repeat_variability.csv/.md` 的 scene 级 range；这会同时落到 `linux-x64/avx2`、`linux-arm64/neon`、`windows-arm64/neon` 三条原生 perf 线，便于并行判断 dirty on/off 是真实回退还是 short-window jitter。
-32. `ISSUE-014` 已按最快口径对齐路径先修 `linux-x64` perf：`.github/workflows/ci-matrix.yml` 的 Linux perf step 现在显式注入 `VN_PERF_CFLAGS=-O2 -DNDEBUG`，让 `run_perf.sh` / `run_kernel_bench.sh` 的 auto-build runner 不再落在无优化构建；同时 `scripts/ci/run_perf_smoke_suite.sh` 会把 `Perf CFLAGS` / `Perf LDFLAGS` 直接写进 `perf_workflow_summary.md`，避免后续再把 build-path mismatch 误判成 Linux runner 本身慢。
+32. `ISSUE-014` 已按最快口径对齐 Linux perf build path：`.github/workflows/ci-matrix.yml` 的 `linux-x64` perf step 先前已显式注入 `VN_PERF_CFLAGS=-O2 -DNDEBUG`，而本轮 `linux-arm64` 也同步改成同样的独立优化 perf 构建，不再复用 `run_cc_suite.sh` 产出的未优化 `build_ci_cc/vn_player`。这样 `run_perf.sh` / `run_kernel_bench.sh` 的 auto-build runner 在两条 Linux 原生 perf 线上都不会落在无优化构建；同时 `scripts/ci/run_perf_smoke_suite.sh` 会把 `Perf CFLAGS` / `Perf LDFLAGS` 直接写进 `perf_workflow_summary.md`，避免后续再把 build-path mismatch 误判成 Linux runner 本身慢。
 33. `ISSUE-009` 本轮继续推进 `neon`：`src/backend/neon/neon_backend.c` 已补 uniform alpha/fade row kernel，并在 `vis_w > 256` 时接入宽行 `SPRITE/TEXT` row-palette 复用与 palette-row apply；本地 `aarch64-linux-gnu-gcc + qemu-aarch64` 已复核 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_runtime_golden` 全部通过。qemu kernel bench 仅作方向性留痕：`sprite_full_opaque` 约 `269.19ms -> 38.64ms`、`sprite_full_alpha180` 约 `328.57ms -> 144.20ms`，而 `fade` 在 qemu 下的 NEON 指令模拟仍明显偏慢，因此发布级 perf 仍以 GitHub 原生 arm64 runner artifact 为准。
+34. `ISSUE-014` 本轮额外记录一次原生 CI 误报：GitHub run `22798543234`（2026-03-07）里的 `linux-arm64` 失败并非功能回归，`unit/runtime/golden/dirty-submit` 全部通过，真正失败点是 `scalar -> neon` smoke gate 误用了未优化测试构建，导致日志里出现 `S1 6.258ms -> 16.457ms`、`S3 6.456ms -> 16.814ms`、`S10 20.166ms -> 30.327ms` 的假性负收益。后续凡是 native perf gate，都必须明确区分“C89 correctness build”与“optimized perf build”两条构建口径。
+35. `ISSUE-009` 本轮先落一版低风险 NEON 热路径清理：`vn_neon_blend_u32_uniform()` / `vn_neon_sample_blend_texels_palette_row()` 已把 `div255` bias/one、`inv_u32` 与常量向量外提；palette-row apply 也已从 `src_values[4] + vld1q_u32()` 改成直接 lane 组向量，避免 4 像素块额外栈中转；同时 `use_row_palette` 已收紧到 `vis_w >= 384 && vis_h >= 64`，避免中等宽度文本过早进入 palette 路径。当前本地已再次通过 `check_c89`、host `test_renderer_fallback`、以及 `aarch64-linux-gnu-gcc + qemu-aarch64` 下的 `test_renderer_dirty_submit` / `test_runtime_golden`。
 
 ### 平台目标（新增约束）
 
@@ -663,7 +665,10 @@ PERF_THRESHOLD_MODE=soft PERF_THRESHOLD_PROFILE=linux-riscv64-qemu-rvv-rev-smoke
 - [x] `neon` 后端最小可运行路径与注册链
 - [x] 自动选择链支持 `avx2 -> neon -> rvv -> scalar`
 - [x] NEON `fill` 核心算子（向量填充）
-- [ ] NEON `blend/tex/combine` 核心算子（uniform blend + wide row-palette 已落地，`sample/combine` 深化向量化待续）
+- [x] NEON 低风险热路径清理（blend/palette 常量外提、palette-row 去栈中转、row-palette heuristic 收紧）
+- [ ] NEON packed-channel `uniform blend/fade` row kernel（当前 4px/iter 实现已可用，但 native arm64 仍需继续压低全屏 `FADE` 成本）
+- [ ] NEON textured row 本地热路径（对齐 AVX2 的 row params + local `sample/combine`，把热点从公共 pixel-pipeline helper 收回 TU 内）
+- [ ] NEON row-palette apply 从 lane-assemble 继续推进到更低开销方案，并按 native arm64 artifact 继续复核 heuristic
 - [x] aarch64 交叉编译通过
 - [x] arm64 Linux 原生构建与跑测（GitHub Actions `linux-arm64` 通过）
 - [x] arm64 Windows 原生构建验证（GitHub Actions `windows-arm64` 通过）

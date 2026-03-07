@@ -108,12 +108,9 @@ static int vn_neon_clip_rect_region(vn_i16 x,
 }
 
 #if VN_NEON_IMPL_AVAILABLE
-static uint32x4_t vn_neon_div255_round_u32(uint32x4_t value) {
-    uint32x4_t bias;
-    uint32x4_t one;
-
-    bias = vdupq_n_u32((uint32_t)127u);
-    one = vdupq_n_u32((uint32_t)1u);
+static uint32x4_t vn_neon_div255_round_u32_preloaded(uint32x4_t value,
+                                                     uint32x4_t bias,
+                                                     uint32x4_t one) {
     value = vaddq_u32(value, bias);
     value = vaddq_u32(value, one);
     value = vaddq_u32(value, vshrq_n_u32(value, 8));
@@ -139,10 +136,16 @@ static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
 static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
     uint32x4_t mask;
     uint32x4_t alpha_mask;
+    uint32x4_t bias_vec;
+    uint32x4_t one_vec;
+    uint32x4_t src_r_vec;
+    uint32x4_t src_g_vec;
+    uint32x4_t src_b_vec;
     vn_u32 src_r_prod;
     vn_u32 src_g_prod;
     vn_u32 src_b_prod;
     vn_u32 inv;
+    uint32_t inv_u32;
     vn_u32 i;
 
     if (dst == (vn_u32*)0 || count == 0u || alpha == 0u) {
@@ -155,10 +158,16 @@ static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, v
 
     mask = vdupq_n_u32((uint32_t)0xFFu);
     alpha_mask = vdupq_n_u32((uint32_t)0xFF000000u);
+    bias_vec = vdupq_n_u32((uint32_t)127u);
+    one_vec = vdupq_n_u32((uint32_t)1u);
     inv = (vn_u32)(255u - (vn_u32)alpha);
+    inv_u32 = (uint32_t)inv;
     src_r_prod = ((color >> 16) & 0xFFu) * (vn_u32)alpha;
     src_g_prod = ((color >> 8) & 0xFFu) * (vn_u32)alpha;
     src_b_prod = (color & 0xFFu) * (vn_u32)alpha;
+    src_r_vec = vdupq_n_u32((uint32_t)src_r_prod);
+    src_g_vec = vdupq_n_u32((uint32_t)src_g_prod);
+    src_b_vec = vdupq_n_u32((uint32_t)src_b_prod);
 
     i = 0u;
     while ((i + 4u) <= count) {
@@ -176,17 +185,17 @@ static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, v
         dg = vandq_u32(vshrq_n_u32(dst_px, 8), mask);
         db = vandq_u32(dst_px, mask);
 
-        rr = vmulq_n_u32(dr, (uint32_t)inv);
-        rr = vaddq_u32(rr, vdupq_n_u32((uint32_t)src_r_prod));
-        rr = vn_neon_div255_round_u32(rr);
+        rr = vmulq_n_u32(dr, inv_u32);
+        rr = vaddq_u32(rr, src_r_vec);
+        rr = vn_neon_div255_round_u32_preloaded(rr, bias_vec, one_vec);
 
-        rg = vmulq_n_u32(dg, (uint32_t)inv);
-        rg = vaddq_u32(rg, vdupq_n_u32((uint32_t)src_g_prod));
-        rg = vn_neon_div255_round_u32(rg);
+        rg = vmulq_n_u32(dg, inv_u32);
+        rg = vaddq_u32(rg, src_g_vec);
+        rg = vn_neon_div255_round_u32_preloaded(rg, bias_vec, one_vec);
 
-        rb = vmulq_n_u32(db, (uint32_t)inv);
-        rb = vaddq_u32(rb, vdupq_n_u32((uint32_t)src_b_prod));
-        rb = vn_neon_div255_round_u32(rb);
+        rb = vmulq_n_u32(db, inv_u32);
+        rb = vaddq_u32(rb, src_b_vec);
+        rb = vn_neon_div255_round_u32_preloaded(rb, bias_vec, one_vec);
 
         rr = vshlq_n_u32(rr, 16);
         rg = vshlq_n_u32(rg, 8);
@@ -384,6 +393,19 @@ static void vn_neon_sample_blend_texels_row(vn_u32* dst,
 }
 
 #if VN_NEON_IMPL_AVAILABLE
+static uint32x4_t vn_neon_palette_chunk_u32x4(const vn_u8* u_lut,
+                                              const vn_u32* palette,
+                                              vn_u32 base_idx) {
+    uint32x4_t vec;
+
+    vec = vdupq_n_u32((uint32_t)0u);
+    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
+    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
+    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
+    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
+    return vec;
+}
+
 static void vn_neon_sample_texels_palette_row(vn_u32* dst,
                                               const vn_u8* u_lut,
                                               vn_u32 count,
@@ -396,14 +418,9 @@ static void vn_neon_sample_texels_palette_row(vn_u32* dst,
 
     i = 0u;
     while ((i + 4u) <= count) {
-        uint32_t src_values[4];
         uint32x4_t src_vec;
 
-        src_values[0] = (uint32_t)palette[(vn_u32)u_lut[i + 0u]];
-        src_values[1] = (uint32_t)palette[(vn_u32)u_lut[i + 1u]];
-        src_values[2] = (uint32_t)palette[(vn_u32)u_lut[i + 2u]];
-        src_values[3] = (uint32_t)palette[(vn_u32)u_lut[i + 3u]];
-        src_vec = vld1q_u32(src_values);
+        src_vec = vn_neon_palette_chunk_u32x4(u_lut, palette, i);
         vst1q_u32((uint32_t*)(void*)(dst + i), src_vec);
         i += 4u;
     }
@@ -420,7 +437,11 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
                                                     vn_u8 alpha) {
     uint32x4_t mask;
     uint32x4_t alpha_mask;
+    uint32x4_t bias_vec;
+    uint32x4_t one_vec;
     vn_u32 inv;
+    uint32_t inv_u32;
+    uint32_t alpha_u32;
     vn_u32 i;
 
     if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
@@ -433,10 +454,13 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
 
     mask = vdupq_n_u32((uint32_t)0xFFu);
     alpha_mask = vdupq_n_u32((uint32_t)0xFF000000u);
+    bias_vec = vdupq_n_u32((uint32_t)127u);
+    one_vec = vdupq_n_u32((uint32_t)1u);
     inv = (vn_u32)(255u - (vn_u32)alpha);
+    inv_u32 = (uint32_t)inv;
+    alpha_u32 = (uint32_t)alpha;
     i = 0u;
     while ((i + 4u) <= count) {
-        uint32_t src_values[4];
         uint32x4_t dst_px;
         uint32x4_t src_px;
         uint32x4_t dr;
@@ -450,13 +474,8 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
         uint32x4_t rb;
         uint32x4_t out;
 
-        src_values[0] = (uint32_t)palette[(vn_u32)u_lut[i + 0u]];
-        src_values[1] = (uint32_t)palette[(vn_u32)u_lut[i + 1u]];
-        src_values[2] = (uint32_t)palette[(vn_u32)u_lut[i + 2u]];
-        src_values[3] = (uint32_t)palette[(vn_u32)u_lut[i + 3u]];
-
         dst_px = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        src_px = vld1q_u32(src_values);
+        src_px = vn_neon_palette_chunk_u32x4(u_lut, palette, i);
 
         dr = vandq_u32(vshrq_n_u32(dst_px, 16), mask);
         dg = vandq_u32(vshrq_n_u32(dst_px, 8), mask);
@@ -465,17 +484,17 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
         sg = vandq_u32(vshrq_n_u32(src_px, 8), mask);
         sb = vandq_u32(src_px, mask);
 
-        rr = vmulq_n_u32(dr, (uint32_t)inv);
-        rr = vaddq_u32(rr, vmulq_n_u32(sr, (uint32_t)alpha));
-        rr = vn_neon_div255_round_u32(rr);
+        rr = vmulq_n_u32(dr, inv_u32);
+        rr = vaddq_u32(rr, vmulq_n_u32(sr, alpha_u32));
+        rr = vn_neon_div255_round_u32_preloaded(rr, bias_vec, one_vec);
 
-        rg = vmulq_n_u32(dg, (uint32_t)inv);
-        rg = vaddq_u32(rg, vmulq_n_u32(sg, (uint32_t)alpha));
-        rg = vn_neon_div255_round_u32(rg);
+        rg = vmulq_n_u32(dg, inv_u32);
+        rg = vaddq_u32(rg, vmulq_n_u32(sg, alpha_u32));
+        rg = vn_neon_div255_round_u32_preloaded(rg, bias_vec, one_vec);
 
-        rb = vmulq_n_u32(db, (uint32_t)inv);
-        rb = vaddq_u32(rb, vmulq_n_u32(sb, (uint32_t)alpha));
-        rb = vn_neon_div255_round_u32(rb);
+        rb = vmulq_n_u32(db, inv_u32);
+        rb = vaddq_u32(rb, vmulq_n_u32(sb, alpha_u32));
+        rb = vn_neon_div255_round_u32_preloaded(rb, bias_vec, one_vec);
 
         rr = vshlq_n_u32(rr, 16);
         rg = vshlq_n_u32(rg, 8);
@@ -583,7 +602,7 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     vn_neon_build_coord_lut(g_neon_u_lut, vis_w, local_x_start, op->w);
     vn_neon_build_coord_lut(g_neon_v_lut, vis_h, local_y_start, op->h);
 
-    use_row_palette = (vis_w > 256u ? VN_TRUE : VN_FALSE);
+    use_row_palette = ((vis_w >= 384u && vis_h >= 64u) ? VN_TRUE : VN_FALSE);
     have_row_palette = VN_FALSE;
     cached_v8 = 0u;
 
