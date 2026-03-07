@@ -181,11 +181,15 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## Checked-In Evidence
 
-当前仓库已经固化一份 RVV qemu smoke 报告：
+当前仓库已经固化两份 perf 证据：
 
 1. [`docs/perf-rvv-2026-03-06.md`](./perf-rvv-2026-03-06.md)
+2. [`docs/perf-dynres-2026-03-07.md`](./perf-dynres-2026-03-07.md)
 
-这份报告对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
+其中：
+
+1. `perf-rvv-2026-03-06.md` 对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
+2. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 
 另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；当前默认还会接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold mode，并把 `perf_threshold_report.md` 一并追加到 step summary / artifact。首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
 

@@ -37,6 +37,7 @@
 16. `ISSUE-008` 第二段代码已接上：`vn_backend.h` / `vn_renderer.h` 新增统一 dirty submit 契约，Runtime 已在 planner 后优先尝试 `renderer_submit_dirty(...)`；`scalar` 后端已实现 clip submit 基线，随后 `avx2`、`neon`、`rvv` 也已补齐 dirty submit；其中 `rvv` 额外补了一条 `qemu-rvv` 下的 `test_renderer_dirty_submit_rvv` smoke 验证，并与现有 `test_backend_consistency_rvv` 一起收口。
 17. Perf 脚本已补运行时开关入口：`tests/perf/run_perf.sh` / `run_perf_compare.sh` 现在可直接传 `--perf-frame-reuse` / `--perf-op-cache` / `--perf-dirty-tile`，并支持同一 backend 的 label 化 on/off compare。
 18. `ISSUE-008` / `ISSUE-014` 本轮继续补齐 CI 固化：`scripts/ci/run_perf_smoke_suite.sh` 现已把 `linux-x64` 的 `scalar -> avx2`、`avx2 dirty off -> on`、以及 `scalar dynres off -> on` 三组 smoke compare 收口到同一 `perf-linux-x64` artifact；同时 `linux-arm64` / `windows-arm64` 已显式校验 `test_renderer_dirty_submit` 中的 `matched backend=neon`，确保 GitHub runner 上实际覆盖 `neon` dirty submit。
+19. `ISSUE-008` 已追加一份入库 perf 证据：`docs/perf-dynres-2026-03-07.md`，记录 `97cc92a` 上 `scalar + S3 + 1200x1600` 的 `dynamic-resolution off -> on` smoke 结果，当前本地样本显示 `p95` 下降约 `9.99%`，用于证明 dynres runtime slice 已在真实 runtime 路径上生效。
 
 ### 平台目标（新增约束）
 
@@ -56,7 +57,7 @@
 6. `ISSUE-007`（进行中）：`avx2` 后端已从桩实现升级为可运行路径（`CLEAR/SPRITE/TEXT/FADE`），`test_runtime_golden` 已固化 `S0-S3 @ 600x800` 标量 golden CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM + `summary.txt`
 7. 文档化：`docs/api/README.md`、`docs/api/runtime.md`、`docs/api/backend.md`、`docs/api/pack.md`、`docs/platform-matrix.md` 已建立，后续随 API 变更持续维护
 8. CI/perf 追踪：`riscv-perf-report` 的 `workflow_dispatch` 首次 GitHub 端冒烟（run `22766736383`）已完成，artifact 与 step summary 已验证可用；当前 workflow 已默认接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold report
-9. `ISSUE-008`（进行中）：性能门限文件、门限校验脚本、`linux-x64` compare gate、`qemu-rvv` revision compare soft gate，以及 Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存已落地；剩余 P0 本体为 dirty-tile / dynamic resolution
+9. `ISSUE-008`（进行中）：性能门限文件、门限校验脚本、`linux-x64` compare gate、`qemu-rvv` revision compare soft gate，以及 Runtime `VN_RUNTIME_PERF_FRAME_REUSE`、`VNRenderOp[]` LRU 命令缓存、`Dirty-Tile` 与动态分辨率 runtime slice 均已落地；当前剩余 P0 焦点转为 dirty regression 分析、dynres 默认值/阈值校准，以及更多热点收益固化。
 10. `ISSUE-014`（进行中）：Linux x64 / Linux arm64 / Linux riscv64 qemu suite 日志与 golden artifact 归档链已落地；Windows x64 / Windows arm64 的 suite artifact 已统一收口到 `scripts/ci/run_windows_suite.ps1`，且已在 GitHub Actions push run `22772138491` 上完成实跑复核
 
 ### 下一步（短周期）
@@ -64,7 +65,7 @@
 1. `ISSUE-014` 跟进：补齐 merge gate/branch protection 说明，并把 Windows suite 实跑 run `22772138491` 的 artifact 约定固化到文档。
 2. `ISSUE-010` 前置准备：后端一致性基线数据沉淀（scalar 对照）与 golden/perf 证据对齐。
 3. `ISSUE-011` 细化：把 `riscv64` 验证链拆成 `cross-build -> qemu-scalar -> qemu-rvv -> native`，其中 `native` 因设备缺失暂列 blocked。
-4. `ISSUE-008` 第二阶段：在已有 perf threshold gate、state-hash 与 op cache 之上继续做 dirty-tile / dynamic resolution 本体优化。
+4. `ISSUE-008` 第三阶段：在已有 perf threshold gate、state-hash、op cache、Dirty-Tile 与 dynres runtime slice 之上，继续做 dirty regression 分析、dynres 默认值/阈值校准，以及热点收益固化。
 5. `ISSUE-008` 跟进：观察 `linux-riscv64-qemu-rvv-rev-smoke` 在 GitHub runner 上的波动，再决定是否从 `soft` 升级到 `hard`。
 6. `M4-engine-ecosystem` 预研：先冻结模板/CLI/宿主 SDK/预览协议边界，避免工具链各自长歪。
 
@@ -178,7 +179,7 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 1. `ISSUE-014`：补齐 fallback 验证日志、merge gate 说明与平台矩阵结果归档，减少“CI 绿但证据链不完整”的灰区。
 2. `ISSUE-010`：把 golden 容差、差异摘要和后端一致性基线继续固化成长期门禁。
 3. `ISSUE-011`：继续收口 RVV 的 qemu 侧一致性、perf 证据和可回退路径，不把 native 设备缺口混进日常开发阻塞。
-4. `ISSUE-008`：在已落地 perf threshold gate、state-hash / frame reuse 与 op cache 的基础上，继续推进 dirty-tile / dynamic resolution。
+4. `ISSUE-008`：在已落地 perf threshold gate、state-hash / frame reuse、op cache、Dirty-Tile 与 dynres runtime slice 的基础上，继续推进 regression 分析、默认值策略与热点收益固化。
 5. `ISSUE-020`：保留为外部前置项；等有 `native-riscv64/RVV` 设备或 runner 资源后再恢复到主线最高优先级。
 
 ### 5.2 当前并行分配（建议）
@@ -195,7 +196,7 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 1. `PR-M3-003`：fallback 验证日志/平台矩阵归档补齐（`ISSUE-014`）
 2. `PR-M3-004`：golden 容差摘要与后端一致性门禁继续收口（`ISSUE-010`）
 3. `PR-M3-005`：RVV qemu 侧一致性与 perf 证据继续收口（`ISSUE-011`）
-4. `PR-M3-006`：P0 四件套首个量化优化已落地（state-hash / frame reuse + op cache）；下一步转向 dirty-tile / dynamic resolution（`ISSUE-008`）
+4. `PR-M3-006`：P0 四件套主路径已落地（state-hash / frame reuse + op cache + Dirty-Tile + dynres runtime slice）；下一步转向收益固化、回归分析与默认值策略（`ISSUE-008`）
 5. `PR-M4-001`：Creator Toolchain stage-1（先聚合 `probe/perf`，再接 `migrate`）（`ISSUE-022`）
 6. `PR-M3-X`：待 `native-riscv64/RVV` 设备到位后，再恢复 `ISSUE-020` 的 runner/nightly 计划
 

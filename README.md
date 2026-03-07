@@ -25,7 +25,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md) 与 [docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)。
 
 ## 目标平台矩阵
 
@@ -314,7 +314,7 @@ baseline/candidate 对照：
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 6. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 与 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION` 都可通过 `--perf-dirty-tile=<on|off>` / `--perf-dynamic-resolution=<on|off>` 显式开关，其中二者当前默认都保持 `off`。`dirty tile` 开启后会实际驱动 partial submit，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持该路径；`dynamic resolution` 开启后则允许 runtime 在一次 run 内切换 `R0/R1/R2`，实际渲染尺寸与切档次数可直接从 `vn_player --trace` 或 preview `final_state` 里的 `render_width/render_height/dynamic_resolution_*` 读取。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`、`--perf-dynamic-resolution=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off 或 dynres on/off compare。GitHub Actions 的 `linux-x64` job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 固化 `scalar -> avx2`、`avx2 dirty off -> on`、以及 `scalar dynres off -> on` 三组 smoke 报告，并把汇总 markdown 一起收进 `perf-linux-x64` artifact。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 与 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION` 都可通过 `--perf-dirty-tile=<on|off>` / `--perf-dynamic-resolution=<on|off>` 显式开关，其中二者当前默认都保持 `off`。`dirty tile` 开启后会实际驱动 partial submit，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持该路径；`dynamic resolution` 开启后则允许 runtime 在一次 run 内切换 `R0/R1/R2`，实际渲染尺寸与切档次数可直接从 `vn_player --trace` 或 preview `final_state` 里的 `render_width/render_height/dynamic_resolution_*` 读取。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`、`--perf-dynamic-resolution=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off 或 dynres on/off compare。GitHub Actions 的 `linux-x64` job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 固化 `scalar -> avx2`、`avx2 dirty off -> on`、以及 `scalar dynres off -> on` 三组 smoke 报告，并把汇总 markdown 一起收进 `perf-linux-x64` artifact。当前已固化两份 perf 证据：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)（RVV qemu smoke）与 [`docs/perf-dynres-2026-03-07.md`](./docs/perf-dynres-2026-03-07.md)（dynamic-resolution 本地 smoke）。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 
