@@ -44,7 +44,8 @@ static const GoldenScene k_golden_scenes[] = {
     { "S0", 0x58C8928Bu },
     { "S1", 0x80D7F175u },
     { "S2", 0x587BC5A4u },
-    { "S3", 0x0BC0160Fu }
+    { "S3", 0x0BC0160Fu },
+    { "S10", 0xC9A161B9u }
 };
 
 static const GoldenTolerancePolicy k_optional_backend_policy = {

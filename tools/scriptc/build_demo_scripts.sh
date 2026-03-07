@@ -9,5 +9,6 @@ python3 "$COMPILER" "$SCRIPT_DIR/S0.vns.txt" "$SCRIPT_DIR/S0.vns.bin"
 python3 "$COMPILER" "$SCRIPT_DIR/S1.vns.txt" "$SCRIPT_DIR/S1.vns.bin"
 python3 "$COMPILER" "$SCRIPT_DIR/S2.vns.txt" "$SCRIPT_DIR/S2.vns.bin"
 python3 "$COMPILER" "$SCRIPT_DIR/S3.vns.txt" "$SCRIPT_DIR/S3.vns.bin"
+python3 "$COMPILER" "$SCRIPT_DIR/S10.vns.txt" "$SCRIPT_DIR/S10.vns.bin"
 
 echo "[scriptc] demo scripts ready"

@@ -1,6 +1,6 @@
 # Dirty-Tile 增量渲染设计与 API 现状
 
-- 状态：`draft + slice-5 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；runtime 对 `FADE` / op 结构变化 / clear 变化等“已知必整帧”场景已同时补 planner short-circuit 与 full-redraw shallow commit，planner 会在重新回到可增量帧时惰性重建 `prev_bounds`，dirty tile 计数也已改成增量维护；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，且主线 smoke / dirty compare 现已统一切到 `S1,S3`，因为 `S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`；dirty compare 现已按 `repeat=3` 中位数聚合，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
+- 状态：`draft + slice-5 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；runtime 对 `FADE` / op 结构变化 / clear 变化等“已知必整帧”场景已同时补 planner short-circuit 与 full-redraw shallow commit，planner 会在重新回到可增量帧时惰性重建 `prev_bounds`，dirty tile 计数也已改成增量维护；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，且主线 smoke / dirty compare 现已统一切到 `S1,S3,S10`，其中 `S10` 作为更重的 perf sample 用于补足压力覆盖；`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`；dirty compare 现已按 `repeat=3` 中位数聚合，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
 - 目标：把白皮书里的 `Dirty-Tile` 目标，落成可直接拆 PR 的运行时 / 前端 / 后端接口方案
 - 约束：保持 `C89`；继续坚持“前后端一份 API，跨架构只重写后端”
 

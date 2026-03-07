@@ -485,6 +485,7 @@ def main():
         args.scripts_dir / "S1.vns.bin",
         args.scripts_dir / "S2.vns.bin",
         args.scripts_dir / "S3.vns.bin",
+        args.scripts_dir / "S10.vns.bin",
     ]
     image_jobs = load_image_jobs(args.images_manifest)
 

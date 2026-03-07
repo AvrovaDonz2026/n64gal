@@ -608,7 +608,9 @@ static void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeSt
         text_flags |= 8u;
     }
 
-    if (state->vm_fade_active != 0u || state->vm_waiting != 0u || scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
+    if (scene_id == VN_SCENE_S10) {
+        out_key->op_count = 6u;
+    } else if (state->vm_fade_active != 0u || state->vm_waiting != 0u || scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
         out_key->op_count = 4u;
     } else {
         out_key->op_count = 3u;
@@ -1265,6 +1267,10 @@ static int parse_scene_id(const char* value, vn_u32* out_scene_id) {
         *out_scene_id = VN_SCENE_S3;
         return VN_OK;
     }
+    if (strcmp(value, "S10") == 0) {
+        *out_scene_id = VN_SCENE_S10;
+        return VN_OK;
+    }
     return VN_E_FORMAT;
 }
 
@@ -1292,6 +1298,9 @@ static vn_u32 scene_script_res_id(vn_u32 scene_id) {
     }
     if (scene_id == VN_SCENE_S3) {
         return 3u;
+    }
+    if (scene_id == VN_SCENE_S10) {
+        return 4u;
     }
     return 0u;
 }
@@ -1459,6 +1468,9 @@ static const char* scene_name_from_id(vn_u32 scene_id) {
     }
     if (scene_id == VN_SCENE_S3) {
         return "S3";
+    }
+    if (scene_id == VN_SCENE_S10) {
+        return "S10";
     }
     return "S0";
 }

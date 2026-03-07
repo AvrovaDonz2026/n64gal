@@ -91,7 +91,7 @@ int main(void) {
     }
 
     argv_cli[0] = (char*)"vn_previewd";
-    argv_cli[1] = (char*)"--scene=S1";
+    argv_cli[1] = (char*)"--scene=S10";
     argv_cli[2] = (char*)"--frames=2";
     argv_cli[3] = (char*)"--trace";
     argv_cli[4] = (char*)"--command=step_frame:2";
@@ -108,8 +108,20 @@ int main(void) {
         (void)remove(response_path);
         return 1;
     }
-    if (!file_contains(response_path, "\"scene_name\":\"S1\"")) {
+    if (!file_contains(response_path, "\"scene_name\":\"S10\"")) {
         (void)fprintf(stderr, "missing scene name\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"op_count\":6")) {
+        (void)fprintf(stderr, "missing S10 op count\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"bgm_id\":260")) {
+        (void)fprintf(stderr, "missing S10 bgm state\n");
         (void)remove(request_path);
         (void)remove(response_path);
         return 1;

@@ -71,6 +71,9 @@ int main(void) {
     if (expect_scene(VN_SCENE_S3, 4u, VN_OP_FADE) != 0) {
         return 1;
     }
+    if (expect_scene(VN_SCENE_S10, 6u, VN_OP_FADE) != 0) {
+        return 1;
+    }
 
     state.frame_index = 9u;
     state.clear_color = 0u;
@@ -155,6 +158,40 @@ int main(void) {
     }
     if (count != 4u) {
         (void)fprintf(stderr, "expected required count=4 got=%u\n", (unsigned int)count);
+        return 1;
+    }
+
+    state.frame_index = 11u;
+    state.clear_color = 0u;
+    state.scene_id = VN_SCENE_S10;
+    state.resource_count = 1u;
+    state.text_id = 0u;
+    state.text_speed_ms = 12u;
+    state.vm_waiting = 0u;
+    state.vm_ended = 0u;
+    state.vm_error = 0u;
+    state.vm_fade_active = 0u;
+    state.fade_layer_mask = 0u;
+    state.fade_alpha = 0u;
+    state.fade_duration_ms = 0u;
+    state.bgm_id = 0u;
+    state.bgm_loop = 0u;
+    state.se_id = 1u;
+    state.choice_count = 0u;
+    state.choice_text_id = 0u;
+    state.choice_selected_index = 0u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || count != 6u) {
+        (void)fprintf(stderr, "scene S10 should produce 6 ops rc=%d count=%u\n", rc, (unsigned int)count);
+        return 1;
+    }
+    if (ops[3].op != VN_OP_SPRITE || ops[4].op != VN_OP_SPRITE || ops[5].op != VN_OP_FADE) {
+        (void)fprintf(stderr, "scene S10 overlay op sequence mismatch\n");
+        return 1;
+    }
+    if (ops[3].w < 500u || ops[4].alpha != 176u || ops[2].w != 448u) {
+        (void)fprintf(stderr, "scene S10 layout mismatch\n");
         return 1;
     }
 

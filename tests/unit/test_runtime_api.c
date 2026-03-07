@@ -42,6 +42,7 @@ int main(void) {
     VNRunResult reuse_res;
     VNRunResult cache_res;
     VNRunResult dirty_res;
+    VNRunResult s10_res;
     int rc;
 
     vn_run_config_init(&cfg);
@@ -94,6 +95,50 @@ int main(void) {
                       (unsigned int)res.render_height,
                       (unsigned int)cfg.width,
                       (unsigned int)cfg.height);
+        return 1;
+    }
+
+    cfg.scene_name = "S10";
+    cfg.frames = 2u;
+    cfg.choice_index = 0u;
+    rc = vn_runtime_run(&cfg, &res);
+    if (rc != 0) {
+        (void)fprintf(stderr, "vn_runtime_run S10 failed rc=%d\n", rc);
+        return 1;
+    }
+    if (res.op_count != 6u || res.text_id != 180u || res.bgm_id != 260u || res.vm_waiting == 0u || res.fade_alpha == 0u) {
+        (void)fprintf(stderr,
+                      "unexpected S10 result text=%u bgm=%u wait=%u fade=%u ops=%u\n",
+                      (unsigned int)res.text_id,
+                      (unsigned int)res.bgm_id,
+                      (unsigned int)res.vm_waiting,
+                      (unsigned int)res.fade_alpha,
+                      (unsigned int)res.op_count);
+        return 1;
+    }
+
+    if (run_perf_scene("S10", 6u, 0u, VN_RUNTIME_PERF_DEFAULT_FLAGS, &s10_res) != 0) {
+        return 1;
+    }
+    if (s10_res.op_count != 6u || s10_res.bgm_id != 260u || s10_res.text_id != 181u ||
+        s10_res.se_id != 420u || s10_res.vm_waiting == 0u) {
+        (void)fprintf(stderr,
+                      "unexpected S10 runtime state ops=%u bgm=%u text=%u se=%u wait=%u\n",
+                      (unsigned int)s10_res.op_count,
+                      (unsigned int)s10_res.bgm_id,
+                      (unsigned int)s10_res.text_id,
+                      (unsigned int)s10_res.se_id,
+                      (unsigned int)s10_res.vm_waiting);
+        return 1;
+    }
+    if (s10_res.frame_reuse_hits != 0u || s10_res.frame_reuse_misses != 0u ||
+        s10_res.op_cache_hits == 0u || s10_res.op_cache_misses == 0u) {
+        (void)fprintf(stderr,
+                      "unexpected S10 perf state reuse=%u/%u cache=%u/%u\n",
+                      (unsigned int)s10_res.frame_reuse_hits,
+                      (unsigned int)s10_res.frame_reuse_misses,
+                      (unsigned int)s10_res.op_cache_hits,
+                      (unsigned int)s10_res.op_cache_misses);
         return 1;
     }
 

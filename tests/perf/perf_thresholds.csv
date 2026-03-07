@@ -1,6 +1,7 @@
 profile,scope,metric,op,value,description
 linux-x64-scalar-avx2-smoke,S1,candidate_p95_ms,<=,15.000,S1 smoke p95 must stay under the Linux x64 CI ceiling
 linux-x64-scalar-avx2-smoke,S3,candidate_p95_ms,<=,15.000,S3 smoke p95 must stay under the Linux x64 CI ceiling
+linux-x64-scalar-avx2-smoke,__all__,scene_count,==,3.000,linux x64 native smoke must keep S1/S3/S10 in coverage
 linux-x64-scalar-avx2-smoke,__all__,mean_p95_gain_pct,>=,0.000,mean p95 gain must stay non-negative versus scalar
 linux-x64-scalar-avx2-smoke,__all__,min_p95_gain_pct,>=,-10.000,no single smoke scene may regress by more than 10 percent p95
 linux-x64-scalar-avx2-smoke,__all__,max_rss_delta_mb,<=,0.250,smoke RSS delta must stay within 0.25 MB
@@ -9,16 +10,19 @@ linux-riscv64-qemu-rvv-rev-smoke,__all__,min_p95_gain_pct,>=,-25.000,no single q
 linux-riscv64-qemu-rvv-rev-smoke,__all__,max_rss_delta_mb,<=,1.000,qemu RVV revision compare must keep RSS growth within 1 MB
 linux-arm64-scalar-neon-smoke,S1,candidate_p95_ms,<=,7.000,S1 smoke p95 must stay under the Linux arm64 CI ceiling
 linux-arm64-scalar-neon-smoke,S3,candidate_p95_ms,<=,7.000,S3 smoke p95 must stay under the Linux arm64 CI ceiling
+linux-arm64-scalar-neon-smoke,__all__,scene_count,==,3.000,linux arm64 native smoke must keep S1/S3/S10 in coverage
 linux-arm64-scalar-neon-smoke,__all__,mean_p95_gain_pct,>=,0.000,mean p95 gain must stay non-negative versus scalar on Linux arm64
 linux-arm64-scalar-neon-smoke,__all__,min_p95_gain_pct,>=,-5.000,no single Linux arm64 smoke scene may regress by more than 5 percent p95
 linux-arm64-scalar-neon-smoke,__all__,max_rss_delta_mb,<=,0.250,Linux arm64 smoke RSS delta must stay within 0.25 MB
 windows-x64-scalar-avx2-smoke,S1,candidate_p95_ms,<=,4.000,S1 smoke p95 must stay under the Windows x64 CI ceiling
 windows-x64-scalar-avx2-smoke,S3,candidate_p95_ms,<=,4.000,S3 smoke p95 must stay under the Windows x64 CI ceiling
+windows-x64-scalar-avx2-smoke,__all__,scene_count,==,3.000,windows x64 native smoke must keep S1/S3/S10 in coverage
 windows-x64-scalar-avx2-smoke,__all__,mean_p95_gain_pct,>=,0.000,mean p95 gain must stay non-negative versus scalar on Windows x64
 windows-x64-scalar-avx2-smoke,__all__,min_p95_gain_pct,>=,0.000,no single Windows x64 smoke scene may regress below scalar p95
 windows-x64-scalar-avx2-smoke,__all__,max_rss_delta_mb,<=,0.250,Windows x64 smoke RSS delta must stay within 0.25 MB
 windows-arm64-scalar-neon-smoke,S1,candidate_p95_ms,<=,3.000,S1 smoke p95 must stay under the Windows arm64 CI ceiling
 windows-arm64-scalar-neon-smoke,S3,candidate_p95_ms,<=,3.000,S3 smoke p95 must stay under the Windows arm64 CI ceiling
+windows-arm64-scalar-neon-smoke,__all__,scene_count,==,3.000,windows arm64 native smoke must keep S1/S3/S10 in coverage
 windows-arm64-scalar-neon-smoke,__all__,mean_p95_gain_pct,>=,0.000,mean p95 gain must stay non-negative versus scalar on Windows arm64
 windows-arm64-scalar-neon-smoke,__all__,min_p95_gain_pct,>=,-5.000,no single Windows arm64 smoke scene may regress by more than 5 percent p95
 windows-arm64-scalar-neon-smoke,__all__,max_rss_delta_mb,<=,0.250,Windows arm64 smoke RSS delta must stay within 0.25 MB

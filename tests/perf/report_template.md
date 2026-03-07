@@ -22,13 +22,13 @@
 Single backend:
 
 ```bash
-./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
+./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3,S10 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
 ```
 
 Baseline vs candidate:
 
 ```bash
-./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3,S10 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
 ```
 
 ## 4. Summary

@@ -30,6 +30,7 @@ typedef struct {
 #define VN_SCENE_S1 1u
 #define VN_SCENE_S2 2u
 #define VN_SCENE_S3 3u
+#define VN_SCENE_S10 10u
 
 int build_render_ops(const VNRuntimeState* state, VNRenderOp* out_ops, vn_u32* io_count);
 

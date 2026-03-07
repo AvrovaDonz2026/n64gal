@@ -25,7 +25,7 @@
 ```bash
 ./tests/perf/run_perf.sh \
   --backend scalar \
-  --scenes S0,S1,S2,S3 \
+  --scenes S0,S1,S2,S3,S10 \
   --duration-sec 120 \
   --warmup-sec 20 \
   --dt-ms 16 \
@@ -68,7 +68,7 @@
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
 ./build_ci_cc/vn_player --backend scalar --scene S3 --resolution 1200x1600 --frames 128 --dt-ms 16 --hold-end --trace --perf-dynamic-resolution=on
-./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S1,S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --repeat 3 --out-dir /tmp/n64gal_perf_dirty_compare
+./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S1,S3,S10 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --repeat 3 --out-dir /tmp/n64gal_perf_dirty_compare
 ./tests/perf/run_perf_compare.sh --baseline scalar --baseline-label scalar_dynres_off --baseline-perf-dynamic-resolution off --candidate scalar --candidate-label scalar_dynres_on --candidate-perf-dynamic-resolution on --scenes S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 1200x1600 --out-dir /tmp/n64gal_perf_dynres_compare
 ./scripts/ci/run_perf_smoke_suite.sh --out-dir /tmp/n64gal_perf_ci
 ```
@@ -89,7 +89,7 @@
 ./tests/perf/run_perf_compare.sh \
   --baseline scalar \
   --candidate avx2 \
-  --scenes S0,S1,S2,S3 \
+  --scenes S0,S1,S2,S3,S10 \
   --duration-sec 120 \
   --warmup-sec 20 \
   --dt-ms 16 \
@@ -103,7 +103,7 @@
 ./tests/perf/run_perf_compare.sh \
   --baseline scalar \
   --candidate avx2 \
-  --scenes S1,S3 \
+  --scenes S1,S3,S10 \
   --duration-sec 2 \
   --warmup-sec 1 \
   --dt-ms 16 \
@@ -125,6 +125,7 @@
 
 `perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比；若 `--repeat > 1`，还会在同一文件尾部追加 `Repeat Aggregation` 与 `Repeat Variability` 两节。
 `perf_threshold_report.md` 会把 profile 中的每条门限检查展开成表格，适合直接进 CI artifact 或 issue 证据链。
+当前 native smoke profile 里，`S10` 已通过 `scene_count == 3` 与 aggregate gain 被纳入 gate，但暂未为所有平台补独立的 per-scene `candidate_p95_ms` ceiling；在缺少更稳定原生样本前，先把它视为 coverage + aggregate smoke scene，而不是已完全收紧的第三条绝对时延门限。
 
 ## Perf Threshold Gate
 
@@ -200,7 +201,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 其中 `perf_compare_revs.md` 会额外记录 host、compiler、runner prefix 与 revision 元数据，适合直接入库作为 issue 证据链。
 
-当前 `linux-x64` 主线 smoke 已切到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。但 `qemu-rvv` revision compare 仍暂时保留 `S0,S3` 作为 bring-up smoke：它主要服务于跨 revision 趋势留痕与 RVV 路径冒烟，和 native x64 主线 gate 的噪声结构并不相同；待 native RVV 设备到位后，再统一评估是否也切到更重场景。
+当前 `linux-x64` 主线 smoke 已切到 `S1,S3,S10`：`S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`，而 `S10` 作为更重的 perf sample 用于补足主线路径压力。但 `qemu-rvv` revision compare 仍暂时保留 `S0,S3` 作为 bring-up smoke：它主要服务于跨 revision 趋势留痕与 RVV 路径冒烟，和 native x64 主线 gate 的噪声结构并不相同；待 native RVV 设备到位后，再统一评估是否也切到更重场景。
 
 ## Checked-In Evidence
 
@@ -214,7 +215,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 其中：
 
 1. `perf-rvv-2026-03-06.md` 对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
-2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare；当前 compare 已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。它用于保留一个中等复杂度样本加一个更重样本的趋势证据，同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
+2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare；该报告对应的 compare 当时已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。它用于保留一个中等复杂度样本加一个更重样本的趋势证据，同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 3. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 4. `perf-windows-x64-2026-03-07.md` 专门记录 GitHub `windows-x64` runner 上 `scalar -> avx2` 仍为负收益时的调查结果：问题集中在 `raster_ms`，主要根因是 AVX2 覆盖面仍过窄，特别是整屏 `FADE` 在修正前仍走公共标量 `blend_rgb()`。该文档同时记录了当前已入树的第一轮修正（`uniform alpha/fade` AVX2 row kernel + 对齐后的 `fill_u32`），用于后续和 GitHub Windows runner 的复测结果对照。
 
@@ -252,7 +253,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 这组数据说明当前 AVX2 的 `clear/fade` 已明显转正；如果 `windows-x64` runner 后续仍不转正，下一阶段主热点应继续集中排查 textured full-span 路径，而不是再次回头优化 clear/fade。
 
-其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
+其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3,S10 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S10` 作为更重的 perf sample，用于补足 smoke coverage 的压力场景；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
 artifact 顶层会额外生成 `perf_workflow_summary.md`，把四组 compare report 收口成一份 step summary 友好的 markdown；当前它还会把 dirty compare 的 `perf_repeat_variability.csv/.md` 提炼成单独的 `Dirty-Tile Repeat Variability Digest`，用于在 `linux-x64/avx2`、`linux-arm64/neon`、`windows-arm64/neon` 的 CI summary 中快速判断 jitter。目录结构按 candidate backend 动态命名，常见形式包括：
 

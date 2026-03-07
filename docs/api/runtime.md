@@ -13,6 +13,7 @@
 3. 提供“一次性运行 + 会话化运行”两套库 API。
 4. CLI 仅作为包装层，核心行为由运行时会话层统一承载。
 5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
+6. 当前 `test_runtime_api` 与 `test_preview_protocol` 已显式覆盖更重的 `S10` 场景，保证 `scene_name -> pack script -> runtime/preview result` 这条链路有回归保护。
 
 
 ## 2.1 当前性能扩展状态
@@ -33,7 +34,7 @@
 1. `pack_path`
    - 资源包路径（默认 `assets/demo/demo.vnpak`）
 2. `scene_name`
-   - 场景名：`S0` / `S1` / `S2` / `S3`
+   - 场景名：`S0` / `S1` / `S2` / `S3` / `S10`
 3. `backend_name`
    - `"auto"` / `"scalar"` / `"avx2"` / `"neon"` / `"rvv"`
 4. `width`, `height`

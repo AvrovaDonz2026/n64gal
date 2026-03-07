@@ -6,13 +6,13 @@
 
 | Arch | OS | Backend Priority | Current Status | Validation Route | Evidence |
 |---|---|---|---|---|---|
-| `amd64` | Linux | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux x64 | `suite-linux-x64`, `perf-linux-x64`（当前 smoke scenes 为 `S1,S3`） |
+| `amd64` | Linux | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux x64 | `suite-linux-x64`, `perf-linux-x64`（当前 smoke scenes 为 `S1,S3,S10`） |
 | `amd64` | Windows | `avx2 -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-x64 -CMakePlatform x64` + GitHub Actions Windows x64 | `suite-windows-x64`, `perf-windows-x64` |
 | `arm64` | Linux | `neon -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_cc_suite.sh` + GitHub Actions Linux arm64 | `suite-linux-arm64`, `perf-linux-arm64` |
 | `arm64` | Windows | `neon -> scalar` | 已接入并在 CI 验证 | `scripts/ci/run_windows_suite.ps1 -PlatformLabel windows-arm64 -CMakePlatform ARM64` + GitHub Actions Windows arm64 | `suite-windows-arm64`, `perf-windows-arm64` |
 | `riscv64` | Linux | `rvv -> scalar` | 交叉构建与 QEMU 已接入，原生验证进行中 | `scripts/ci/build_riscv64_cross.sh` + `scripts/ci/run_riscv64_qemu_suite.sh` | `suite-linux-riscv64-qemu-scalar`, `suite-linux-riscv64-qemu-rvv`, `perf-riscv64-qemu-rvv` |
 
-注：native 平台的 `perf-*` artifact 当前都固定 smoke scenes 为 `S1,S3`；`linux-x64`、`linux-arm64`、`windows-arm64` 已分别挂 `linux-x64-scalar-avx2-smoke`、`linux-arm64-scalar-neon-smoke`、`windows-arm64-scalar-neon-smoke` 正收益 gate，`windows-x64` 则挂 `windows-x64-scalar-avx2-smoke` regression-envelope gate。`S0` 仅保留在全量 sweep 与 `qemu-rvv` bring-up smoke。
+注：native 平台的 `perf-*` artifact 当前都固定 smoke scenes 为 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足 smoke coverage 的压力场景。`linux-x64`、`linux-arm64`、`windows-arm64` 已分别挂 `linux-x64-scalar-avx2-smoke`、`linux-arm64-scalar-neon-smoke`、`windows-arm64-scalar-neon-smoke` 正收益 gate，`windows-x64` 则挂 `windows-x64-scalar-avx2-smoke` 正收益 gate。`S0` 仅保留在全量 sweep 与 `qemu-rvv` bring-up smoke。
 
 ## 平台层原则
 
