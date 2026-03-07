@@ -179,6 +179,11 @@ SCALAR_SIMD_DIR="$OUT_DIR/scalar_vs_${SIMD_BACKEND}"
 DIRTY_TILE_DIR="$OUT_DIR/${SIMD_BACKEND}_dirty_tile"
 DYNRES_DIR="$OUT_DIR/scalar_dynamic_resolution"
 KERNEL_COMPARE_DIR="$OUT_DIR/kernel_scalar_vs_${SIMD_BACKEND}"
+DIRTY_VARIABILITY_CSV="$DIRTY_TILE_DIR/compare/perf_repeat_variability.csv"
+DIRTY_VARIABILITY_MD="$DIRTY_TILE_DIR/compare/perf_repeat_variability.md"
+DIRTY_REPEATS_DIR="$DIRTY_TILE_DIR/repeats"
+DIRTY_BASELINE_REPEATS_CSV="$DIRTY_TILE_DIR/${SIMD_BACKEND}_dirty_off/perf_summary_repeats.csv"
+DIRTY_CANDIDATE_REPEATS_CSV="$DIRTY_TILE_DIR/${SIMD_BACKEND}_dirty_on/perf_summary_repeats.csv"
 SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
 mkdir -p "$OUT_DIR"
 
@@ -196,6 +201,51 @@ append_report() {
       cat "$path"
     else
       echo "_missing: \`$path\`_"
+    fi
+    echo
+  } >> "$SUMMARY_MD"
+}
+
+append_dirty_variability_digest() {
+  local title
+  local csv_path
+  local md_path
+  local baseline_label
+  local candidate_label
+  local mean_base_p95_range
+  local mean_cand_p95_range
+
+  title="$1"
+  csv_path="$2"
+  md_path="$3"
+  baseline_label="$4"
+  candidate_label="$5"
+
+  {
+    echo "## $title"
+    echo
+    if [[ -f "$csv_path" ]]; then
+      mean_base_p95_range="$(awk -F, 'NR > 1 { sum += $9; n += 1 } END { if (n == 0) printf "%.2f", 0.0; else printf "%.2f", sum / n }' "$csv_path")"
+      mean_cand_p95_range="$(awk -F, 'NR > 1 { sum += $13; n += 1 } END { if (n == 0) printf "%.2f", 0.0; else printf "%.2f", sum / n }' "$csv_path")"
+      echo "- Variability report: \`$md_path\`"
+      echo "- Variability CSV: \`$csv_path\`"
+      echo "- Mean ${baseline_label} p95 range: ${mean_base_p95_range}%"
+      echo "- Mean ${candidate_label} p95 range: ${mean_cand_p95_range}%"
+      echo
+      echo "Use this digest before treating a short-window dirty on/off delta as a real regression."
+      echo
+      echo "| scene | ${baseline_label} p95 range | ${candidate_label} p95 range | ${baseline_label} avg range | ${candidate_label} avg range |"
+      echo "|---|---:|---:|---:|---:|"
+      awk -F, 'NR > 1 {
+        printf "| %s | %.2f%% | %.2f%% | %.2f%% | %.2f%% |\n",
+               $1,
+               $9 + 0.0,
+               $13 + 0.0,
+               $17 + 0.0,
+               $21 + 0.0;
+      }' "$csv_path"
+    else
+      echo "_missing: \`$csv_path\`_"
     fi
     echo
   } >> "$SUMMARY_MD"
@@ -316,6 +366,11 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Compare D: \`kernel scalar -> $SIMD_BACKEND\`
 - Artifact A dir: \`$SCALAR_SIMD_DIR\`
 - Artifact B dir: \`$DIRTY_TILE_DIR\`
+- Artifact B repeats dir: \`$DIRTY_REPEATS_DIR\`
+- Artifact B baseline repeats CSV: \`$DIRTY_BASELINE_REPEATS_CSV\`
+- Artifact B candidate repeats CSV: \`$DIRTY_CANDIDATE_REPEATS_CSV\`
+- Artifact B variability report: \`$DIRTY_VARIABILITY_MD\`
+- Artifact B variability CSV: \`$DIRTY_VARIABILITY_CSV\`
 - Artifact C dir: \`$DYNRES_DIR\`
 - Artifact D dir: \`$KERNEL_COMPARE_DIR\`
 
@@ -333,6 +388,7 @@ else
   } >> "$SUMMARY_MD"
 fi
 append_report "${SIMD_BACKEND} Dirty-Tile Off vs On Compare" "$DIRTY_TILE_DIR/compare/perf_compare.md"
+append_dirty_variability_digest "${SIMD_BACKEND} Dirty-Tile Repeat Variability Digest" "$DIRTY_VARIABILITY_CSV" "$DIRTY_VARIABILITY_MD" "${SIMD_BACKEND}_dirty_off" "${SIMD_BACKEND}_dirty_on"
 append_report "Scalar Dynamic-Resolution Off vs On Compare" "$DYNRES_DIR/compare/perf_compare.md"
 append_report "Kernel Scalar vs ${SIMD_BACKEND} Compare" "$KERNEL_COMPARE_DIR/compare/kernel_compare.md"
 

@@ -254,14 +254,15 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
-artifact 顶层会额外生成 `perf_workflow_summary.md`，把四组 compare report 收口成一份 step summary 友好的 markdown。目录结构按 candidate backend 动态命名，常见形式包括：
+artifact 顶层会额外生成 `perf_workflow_summary.md`，把四组 compare report 收口成一份 step summary 友好的 markdown；当前它还会把 dirty compare 的 `perf_repeat_variability.csv/.md` 提炼成单独的 `Dirty-Tile Repeat Variability Digest`，用于在 `linux-x64/avx2`、`linux-arm64/neon`、`windows-arm64/neon` 的 CI summary 中快速判断 jitter。目录结构按 candidate backend 动态命名，常见形式包括：
 
 1. `scalar_vs_avx2/compare/perf_compare.md` 或 `scalar_vs_neon/compare/perf_compare.md`
 2. `scalar_vs_avx2/compare/perf_threshold_report.md`（仅在启用 threshold profile 时存在）
 3. `avx2_dirty_tile/compare/perf_compare.md` 或 `neon_dirty_tile/compare/perf_compare.md`
-4. `scalar_dynamic_resolution/compare/perf_compare.md`
-5. `kernel_scalar_vs_avx2/compare/kernel_compare.md` 或 `kernel_scalar_vs_neon/compare/kernel_compare.md`
-6. `perf_workflow_summary.md`
+4. `avx2_dirty_tile/compare/perf_repeat_variability.md` 或 `neon_dirty_tile/compare/perf_repeat_variability.md`
+5. `scalar_dynamic_resolution/compare/perf_compare.md`
+6. `kernel_scalar_vs_avx2/compare/kernel_compare.md` 或 `kernel_scalar_vs_neon/compare/kernel_compare.md`
+7. `perf_workflow_summary.md`
 
 当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `x64/arm64 native artifact + cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
 
