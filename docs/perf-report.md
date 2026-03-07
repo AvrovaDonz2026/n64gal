@@ -132,7 +132,7 @@
 
 1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke hard gate。
 2. `linux-arm64-scalar-neon-smoke`：GitHub `ubuntu-24.04-arm` 上的 `scalar -> neon` smoke hard gate。
-3. `windows-x64-scalar-avx2-smoke`：GitHub `windows-latest` 上的 `scalar -> avx2` regression-envelope gate；当前用于防止 AVX2 在 Windows x64 runner 上继续明显恶化。
+3. `windows-x64-scalar-avx2-smoke`：GitHub `windows-latest` 上的 `scalar -> avx2` 正收益 gate；在连续两次 Windows x64 原生成功 run 都转正后，门限已收紧为 non-negative gain。
 4. `windows-arm64-scalar-neon-smoke`：GitHub `windows-11-arm` 上的 `scalar -> neon` smoke hard gate。
 5. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，现已接到 `.github/workflows/riscv-perf-report.yml`，默认以 `soft` 模式产出报告但不直接打红 workflow。
 
@@ -224,10 +224,10 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。
 2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
-3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，但它是 regression-envelope gate，而不是“必须正收益” gate。
+3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，并已升级为正收益 gate。
 4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 
-`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU，并继续补了一轮 textured row palette + repeated-`v8` reuse，避免 full-span 路径重复计算同一批 texel。GitHub `windows-x64` 最新成功 run `22795078202`（head `d6081b4`，2026-03-07）已经显示 `scalar -> avx2` 为 `S1 +83.65% / S3 +81.51%`；不过在连续多次实跑都稳定之前，`windows-x64` 仍暂时保留 regression-envelope gate。
+`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU，并继续补了一轮 textured row palette + repeated-`v8` reuse，避免 full-span 路径重复计算同一批 texel。GitHub `windows-x64` 连续两次成功 run `22795078202`（head `d6081b4`）与 `22795471059`（head `19788ce`，均为 2026-03-07）都已经显示 `scalar -> avx2` 的强正收益；因此 `windows-x64-scalar-avx2-smoke` 现已从 regression-envelope gate 升级为正收益 gate。
 
 ## Kernel Bench
 

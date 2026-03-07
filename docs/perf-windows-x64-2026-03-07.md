@@ -52,7 +52,7 @@
 这意味着：
 
 1. `windows-x64` 已经不再处于“AVX2 轻微回退”的旧状态。
-2. 现有 `windows-x64-scalar-avx2-smoke` profile 之所以仍暂时保留 regression-envelope gate，只是因为我们还没有累积到足够多的连续正样本，不是因为当前 run 仍为负收益。
+2. 现有 `windows-x64-scalar-avx2-smoke` profile 已根据连续两次 GitHub 原生正样本升级成正收益 gate；它不再只是“防止继续恶化”的包络线。
 
 同一个 run 的 `Compare D = kernel scalar -> avx2` 也给出了新的热点排序：
 
@@ -114,6 +114,6 @@
 
 ## Next Experiments
 
-1. 评估是否把 `windows-x64-scalar-avx2-smoke` 从 regression-envelope gate 升级成更严格的正收益 gate。
+1. 继续观察升级后的 `windows-x64-scalar-avx2-smoke` 正收益 gate，确认它在后续 run 上保持稳定。
 2. 如果后续还要继续压 AVX2，优先看 translucent textured row 的进一步批量 blend/pack，而不是回头重写 sample/hash。
 3. dirty-tile on/off 在 `windows-x64` 当前仍有 `S3` 短窗口噪声，后续应优先区分“真实回退”与“亚毫秒量级计时抖动”。
