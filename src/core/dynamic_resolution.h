@@ -37,5 +37,10 @@ int vn_dynres_should_switch(VNDynResState* state,
                             vn_u32* out_next_tier,
                             double* out_window_p95_ms);
 int vn_dynres_apply_tier(VNDynResState* state, vn_u32 next_tier);
+void vn_dynres_set_test_overrides(vn_u32 down_window,
+                                  vn_u32 up_window,
+                                  double down_p95_ms,
+                                  double up_p95_ms);
+void vn_dynres_reset_test_overrides(void);
 
 #endif

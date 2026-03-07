@@ -2,6 +2,11 @@
 
 #include "dynamic_resolution.h"
 
+static vn_u32 g_dynres_down_window = VN_DYNRES_DOWN_WINDOW;
+static vn_u32 g_dynres_up_window = VN_DYNRES_UP_WINDOW;
+static double g_dynres_down_p95_ms = VN_DYNRES_DOWN_P95_MS;
+static double g_dynres_up_p95_ms = VN_DYNRES_UP_P95_MS;
+
 static vn_u16 dynres_scale_dim(vn_u16 base, vn_u32 numer, vn_u32 denom) {
     vn_u32 scaled;
 
@@ -183,12 +188,12 @@ int vn_dynres_should_switch(VNDynResState* state,
     dynres_push_history(state, frame_ms);
 
     if ((state->current_tier + 1u) < state->tier_count &&
-        state->history_count >= VN_DYNRES_DOWN_WINDOW) {
-        p95_ms = dynres_window_p95(state, VN_DYNRES_DOWN_WINDOW);
+        state->history_count >= g_dynres_down_window) {
+        p95_ms = dynres_window_p95(state, g_dynres_down_window);
         if (out_window_p95_ms != (double*)0) {
             *out_window_p95_ms = p95_ms;
         }
-        if (p95_ms > VN_DYNRES_DOWN_P95_MS) {
+        if (p95_ms > g_dynres_down_p95_ms) {
             if (out_next_tier != (vn_u32*)0) {
                 *out_next_tier = state->current_tier + 1u;
             }
@@ -196,12 +201,12 @@ int vn_dynres_should_switch(VNDynResState* state,
         }
     }
 
-    if (state->current_tier > 0u && state->history_count >= VN_DYNRES_UP_WINDOW) {
-        p95_ms = dynres_window_p95(state, VN_DYNRES_UP_WINDOW);
+    if (state->current_tier > 0u && state->history_count >= g_dynres_up_window) {
+        p95_ms = dynres_window_p95(state, g_dynres_up_window);
         if (out_window_p95_ms != (double*)0) {
             *out_window_p95_ms = p95_ms;
         }
-        if (p95_ms < VN_DYNRES_UP_P95_MS) {
+        if (p95_ms < g_dynres_up_p95_ms) {
             if (out_next_tier != (vn_u32*)0) {
                 *out_next_tier = state->current_tier - 1u;
             }
@@ -223,4 +228,27 @@ int vn_dynres_apply_tier(VNDynResState* state, vn_u32 next_tier) {
     state->switch_count += 1u;
     vn_dynres_reset_history(state);
     return 1;
+}
+
+void vn_dynres_set_test_overrides(vn_u32 down_window,
+                                  vn_u32 up_window,
+                                  double down_p95_ms,
+                                  double up_p95_ms) {
+    if (down_window == 0u || down_window > VN_DYNRES_UP_WINDOW) {
+        down_window = VN_DYNRES_DOWN_WINDOW;
+    }
+    if (up_window == 0u || up_window > VN_DYNRES_UP_WINDOW) {
+        up_window = VN_DYNRES_UP_WINDOW;
+    }
+    g_dynres_down_window = down_window;
+    g_dynres_up_window = up_window;
+    g_dynres_down_p95_ms = down_p95_ms;
+    g_dynres_up_p95_ms = up_p95_ms;
+}
+
+void vn_dynres_reset_test_overrides(void) {
+    g_dynres_down_window = VN_DYNRES_DOWN_WINDOW;
+    g_dynres_up_window = VN_DYNRES_UP_WINDOW;
+    g_dynres_down_p95_ms = VN_DYNRES_DOWN_P95_MS;
+    g_dynres_up_p95_ms = VN_DYNRES_UP_P95_MS;
 }

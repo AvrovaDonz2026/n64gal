@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../src/core/dynamic_resolution.h"
 #include "vn_runtime.h"
 
 int main(void) {
@@ -19,7 +20,9 @@ int main(void) {
     cfg.hold_on_end = 1u;
     cfg.perf_flags = VN_RUNTIME_PERF_DYNAMIC_RESOLUTION;
 
+    vn_dynres_set_test_overrides(8u, VN_DYNRES_UP_WINDOW, 0.01, 0.0);
     rc = vn_runtime_run(&cfg, &res);
+    vn_dynres_reset_test_overrides();
     if (rc != 0) {
         (void)fprintf(stderr, "vn_runtime_run failed rc=%d\n", rc);
         return 1;
