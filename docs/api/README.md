@@ -18,8 +18,8 @@
    - `vnpak` v1/v2 格式与兼容策略
    - CRC32 与一致性校验行为
 4. `dirty-tile-draft.md`
-   - `ISSUE-008` Dirty-Tile 增量渲染设计稿
-   - 最小 API 变更草案（runtime / renderer / backend）
+   - `ISSUE-008` Dirty-Tile 增量渲染现状与设计稿
+   - 已落地 API / 仍待冻结项（runtime / renderer / backend）
    - 实施顺序、回退条件与验证要求
 5. `../preview-protocol.md`
    - 预览协议 `v1`

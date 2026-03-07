@@ -25,7 +25,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 草案与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md) 与 [docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md) 与 [docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3`；`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。
 
 ## 目标平台矩阵
 
@@ -293,16 +293,22 @@ ctest --test-dir build --output-on-failure
 
 ### Perf 脚本
 
-单 backend 采样：
+单 backend 全量采样示例（非 CI smoke gate）：
 
 ```bash
 ./tests/perf/run_perf.sh --backend scalar --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800
 ```
 
-baseline/candidate 对照：
+baseline/candidate 全量 sweep 示例（非 CI smoke gate）：
 
 ```bash
-./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir /tmp/n64gal_perf_compare
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_compare
+```
+
+当前 GitHub Actions 的 `linux-x64` smoke gate 默认使用 `S1,S3`，而不是上面的 `S0-S3` 全量 sweep；原因是 `S0` 在 shipped 主路径上会被 `frame reuse` 压到约 `0.001ms`，已经失去有效测量价值。若要复现当前 CI gate，请改用：
+
+```bash
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S1,S3 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir /tmp/n64gal_perf_smoke
 ```
 
 输出包括：
@@ -314,7 +320,7 @@ baseline/candidate 对照：
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 6. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 与 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION` 都可通过 `--perf-dirty-tile=<on|off>` / `--perf-dynamic-resolution=<on|off>` 显式开关，其中二者当前默认都保持 `off`。`dirty tile` 开启后会实际驱动 partial submit，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持该路径；当前 runtime 对“已知必整帧”场景还会跳过 planner build 与 full-redraw commit bounds，planner 也已把 dirty tile 计数改成标记时增量维护，避免 partial 路径再做一次 bitset 全表 recount。`dynamic resolution` 开启后则允许 runtime 在一次 run 内切换 `R0/R1/R2`，实际渲染尺寸与切档次数可直接从 `vn_player --trace` 或 preview `final_state` 里的 `render_width/render_height/dynamic_resolution_*` 读取。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`、`--perf-dynamic-resolution=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off 或 dynres on/off compare。GitHub Actions 的 `linux-x64` job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 固化 `scalar -> avx2`、`avx2 dirty off -> on`、以及 `scalar dynres off -> on` 三组 smoke 报告，并把汇总 markdown 一起收进 `perf-linux-x64` artifact；其中 `scalar -> avx2` 与 dirty compare 已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在主线路径上会被 frame reuse 压到 `0.001ms`，不再具备有效测量价值。dirty compare 现已固定为 `6s/1s + repeat=3`，结果按中位数汇总后再写 compare artifact，当前仍应按趋势证据解读而不是发布级结论。当前已固化三份 perf 证据：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)（RVV qemu smoke）、[`docs/perf-dirty-2026-03-07.md`](./docs/perf-dirty-2026-03-07.md)（dirty-tile 本地 repeat-median compare）与 [`docs/perf-dynres-2026-03-07.md`](./docs/perf-dynres-2026-03-07.md)（dynamic-resolution 本地 smoke）。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 与 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION` 都可通过 `--perf-dirty-tile=<on|off>` / `--perf-dynamic-resolution=<on|off>` 显式开关，其中二者当前默认都保持 `off`。`dirty tile` 开启后会实际驱动 partial submit，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持该路径；当前 runtime 对“已知必整帧”场景还会跳过 planner build 与 full-redraw commit bounds，planner 也已把 dirty tile 计数改成标记时增量维护，避免 partial 路径再做一次 bitset 全表 recount。`dynamic resolution` 开启后则允许 runtime 在一次 run 内切换 `R0/R1/R2`，实际渲染尺寸与切档次数可直接从 `vn_player --trace` 或 preview `final_state` 里的 `render_width/render_height/dynamic_resolution_*` 读取。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`、`--perf-dynamic-resolution=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off 或 dynres on/off compare。GitHub Actions 现在已把同一套 `scripts/ci/run_perf_smoke_suite.sh` 落到全部原生目标平台：`linux-x64` 使用 `scalar -> avx2` / `avx2 dirty off -> on` / `scalar dynres off -> on`，`linux-arm64` 与 `windows-arm64` 使用对应的 `neon` compare，`windows-x64` 使用 `avx2` compare；四个平台都会产出 `perf_workflow_summary.md` 和 compare artifact，其中只有 `linux-x64` 当前挂 `linux-x64-scalar-avx2-smoke` hard gate，其他平台先以 artifact 留痕为主，待阈值校准后再考虑升级。`linux-x64` 的 `scalar -> avx2` 与 dirty compare 已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在主线路径上会被 frame reuse 压到 `0.001ms`，不再具备有效测量价值。dirty compare 现已固定为 `6s/1s + repeat=3`，结果按中位数汇总后再写 compare artifact，当前仍应按趋势证据解读而不是发布级结论。当前已固化三份 perf 证据：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)（RVV qemu smoke）、[`docs/perf-dirty-2026-03-07.md`](./docs/perf-dirty-2026-03-07.md)（dirty-tile 本地 repeat-median compare）与 [`docs/perf-dynres-2026-03-07.md`](./docs/perf-dynres-2026-03-07.md)（dynamic-resolution 本地 smoke）。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 
@@ -340,10 +346,12 @@ baseline/candidate 对照：
 9. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
 10. `linux-x64` 与 `linux-arm64` 会产出 `suite-linux-x64` / `suite-linux-arm64` artifact，内容包括 `ci_logs/`、`ci_suite_summary.md` 与 `golden_artifacts/`；其中 `ci_suite_summary.md` 会回显 `test_renderer_dirty_submit` 的 matched backend 列表，`linux-arm64` 还会在 workflow 内显式校验 `matched backend=neon`
 11. `windows-x64` 与 `windows-arm64` 统一通过 `scripts/ci/run_windows_suite.ps1` 产出 `suite-windows-x64` / `suite-windows-arm64` artifact，收纳 `configure/build/ctest` 日志以及 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_runtime_api`、`test_runtime_golden` 复跑证据；脚本会在失败场景下尽量保留 summary 与已生成日志，且该链路已在 GitHub Actions push run `22772138491`（`2026-03-07 00:26 HKT`）完成实跑验证。`windows-arm64` 现也会在 workflow 内显式校验 `matched backend=neon`
-12. `linux-x64` 还会产出 `perf-linux-x64` artifact（`scalar vs avx2` 门限报告 + `avx2 dirty off/on` compare + `scalar dynres off/on` compare + `perf_workflow_summary.md`）
-13. `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 会产出对应 suite artifact，收纳 qemu smoke logs、fallback 证据与 golden artifact 目录
-14. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown + 可选 threshold report）；当前默认接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` gate，首次 dispatch run `22766736383` 已验证成功
-15. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
+12. `linux-x64` 还会产出 `perf-linux-x64` artifact（当前 smoke scenes 为 `S1,S3`；内容包括 `scalar vs avx2` 门限报告 + `avx2 dirty off/on` compare + `scalar dynres off/on` compare + `perf_workflow_summary.md`）
+13. `linux-arm64` 现也会产出 `perf-linux-arm64` artifact（`scalar vs neon` compare + `neon dirty off/on` compare + `scalar dynres off/on` compare + `perf_workflow_summary.md`；当前先以 artifact 留痕为主，不挂 hard gate）
+14. `windows-x64` 与 `windows-arm64` 现会分别产出 `perf-windows-x64` / `perf-windows-arm64` artifact；前者跑 `avx2` compare，后者跑 `neon` compare，二者当前都先以 artifact 留痕为主，不挂 hard gate
+15. `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 会产出对应 suite artifact，收纳 qemu smoke logs、fallback 证据与 golden artifact 目录
+16. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown + 可选 threshold report）；当前默认接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` gate，首次 dispatch run `22766736383` 已验证成功
+17. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
 16. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
 17. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
 
@@ -355,7 +363,7 @@ baseline/candidate 对照：
 4. Backend 契约：[`docs/api/backend.md`](./docs/api/backend.md)
 5. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
 6. API 索引：[`docs/api/README.md`](./docs/api/README.md)
-7. Dirty-Tile 设计/API 草案（draft）：[`docs/api/dirty-tile-draft.md`](./docs/api/dirty-tile-draft.md)
+7. Dirty-Tile 设计/API 现状（draft + landed slices）：[`docs/api/dirty-tile-draft.md`](./docs/api/dirty-tile-draft.md)
 
 ## 开发约束
 

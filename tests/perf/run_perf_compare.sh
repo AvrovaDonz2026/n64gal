@@ -27,6 +27,8 @@ KEEP_RAW=0
 THRESHOLD_FILE=""
 THRESHOLD_PROFILE=""
 REPEAT_COUNT=1
+RUNNER_BIN=""
+SKIP_BUILD=0
 
 sorted_median() {
   local values_file="$1"
@@ -263,6 +265,14 @@ while [[ $# -gt 0 ]]; do
       REPEAT_COUNT="$2"
       shift 2
       ;;
+    --runner-bin)
+      RUNNER_BIN="$2"
+      shift 2
+      ;;
+    --skip-build)
+      SKIP_BUILD=1
+      shift 1
+      ;;
     *)
       echo "unknown arg: $1" >&2
       exit 2
@@ -292,6 +302,13 @@ COMMON_ARGS=(
   --dt-ms "$DT_MS"
   --resolution "$RESOLUTION"
 )
+
+if [[ -n "$RUNNER_BIN" ]]; then
+  COMMON_ARGS+=(--runner-bin "$RUNNER_BIN")
+fi
+if [[ "$SKIP_BUILD" -eq 1 ]]; then
+  COMMON_ARGS+=(--skip-build)
+fi
 
 if [[ -n "$FRAMES_OVERRIDE" ]]; then
   COMMON_ARGS+=(--frames "$FRAMES_OVERRIDE")

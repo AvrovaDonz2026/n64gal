@@ -83,6 +83,8 @@
 
 ## Baseline vs Candidate Backend
 
+完整 sweep 示例：
+
 ```bash
 ./tests/perf/run_perf_compare.sh \
   --baseline scalar \
@@ -92,9 +94,23 @@
   --warmup-sec 20 \
   --dt-ms 16 \
   --resolution 600x800 \
+  --out-dir /tmp/n64gal_perf/compare_scalar_avx2
+```
+
+当前 `linux-x64` CI smoke gate 示例：
+
+```bash
+./tests/perf/run_perf_compare.sh \
+  --baseline scalar \
+  --candidate avx2 \
+  --scenes S1,S3 \
+  --duration-sec 2 \
+  --warmup-sec 1 \
+  --dt-ms 16 \
+  --resolution 600x800 \
   --threshold-file tests/perf/perf_thresholds.csv \
   --threshold-profile linux-x64-scalar-avx2-smoke \
-  --out-dir /tmp/n64gal_perf/compare_scalar_avx2
+  --out-dir /tmp/n64gal_perf/compare_scalar_avx2_smoke
 ```
 
 输出目录结构：
@@ -199,21 +215,24 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## CI Artifact
 
-`linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化三组 smoke 对照：
+当前原生目标平台都通过参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 生成 perf artifact：
 
-1. `scalar -> avx2`（附 `linux-x64-scalar-avx2-smoke` threshold report）
-2. `avx2 dirty off -> avx2 dirty on`（`S1,S3 @ 600x800, 6s/1s, repeat=3`，结果按中位数聚合，用于降低 dirty smoke 噪声；其中 `S1` 负责承载中等复杂度测量，当前仍作为趋势 artifact，而非阻塞 gate）
-3. `scalar dynamic-resolution off -> on`（`S3 @ 1200x1600, 6s/1s`，用于验证 dynres 最小 runtime slice 的整机收益）
+1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；其中 `scalar -> avx2` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，是唯一已转 hard gate 的 native perf smoke。
+2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
+3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
+4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；当前先做 artifact 留痕，不挂 hard gate。
 
-artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：
+其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
-1. `scalar_vs_avx2/compare/perf_compare.md`
-2. `scalar_vs_avx2/compare/perf_threshold_report.md`
-3. `avx2_dirty_tile/compare/perf_compare.md`
+artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown。目录结构按 candidate backend 动态命名，常见形式包括：
+
+1. `scalar_vs_avx2/compare/perf_compare.md` 或 `scalar_vs_neon/compare/perf_compare.md`
+2. `scalar_vs_avx2/compare/perf_threshold_report.md`（仅在启用 threshold profile 时存在）
+3. `avx2_dirty_tile/compare/perf_compare.md` 或 `neon_dirty_tile/compare/perf_compare.md`
 4. `scalar_dynamic_resolution/compare/perf_compare.md`
 5. `perf_workflow_summary.md`
 
-当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
+当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `x64/arm64 native artifact + cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
 
 ## Reading Rules
 

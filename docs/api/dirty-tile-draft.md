@@ -1,6 +1,6 @@
-# Dirty-Tile 增量渲染设计与 API 草案
+# Dirty-Tile 增量渲染设计与 API 现状
 
-- 状态：`draft + slice-5 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；runtime 对 `FADE` / op 结构变化 / clear 变化等“已知必整帧”场景已同时补 planner short-circuit 与 full-redraw shallow commit，planner 会在重新回到可增量帧时惰性重建 `prev_bounds`，dirty tile 计数也已改成增量维护；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，且 dirty compare 现已按 `repeat=3` 中位数聚合，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
+- 状态：`draft + slice-5 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；runtime 对 `FADE` / op 结构变化 / clear 变化等“已知必整帧”场景已同时补 planner short-circuit 与 full-redraw shallow commit，planner 会在重新回到可增量帧时惰性重建 `prev_bounds`，dirty tile 计数也已改成增量维护；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，且主线 smoke / dirty compare 现已统一切到 `S1,S3`，因为 `S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`；dirty compare 现已按 `repeat=3` 中位数聚合，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
 - 目标：把白皮书里的 `Dirty-Tile` 目标，落成可直接拆 PR 的运行时 / 前端 / 后端接口方案
 - 约束：保持 `C89`；继续坚持“前后端一份 API，跨架构只重写后端”
 
@@ -12,19 +12,20 @@
    - `runtime_prepare_frame_reuse()` 先做整帧复用判断
    - 未命中时进入 `runtime_build_render_ops_cached()`
    - 命令列表命中后仍会通过 `runtime_render_patch_cached_ops()` 回写当前帧的动态字段
-   - 最后统一走 `renderer_submit()`
+   - 最后统一按 dirty plan 分流到 `renderer_submit()` / `renderer_submit_dirty()`
 2. `src/frontend/render_ops.c`
    - 当前 Frontend 只生成 `CLEAR / SPRITE / TEXT / FADE` 四类 `VNRenderOp`
 3. `src/core/renderer.c`
-   - 当前 Renderer 只暴露“整帧提交”接口，没有脏区/裁剪提交能力
+   - 当前 Renderer 已同时暴露整帧提交与 dirty submit 两条路径；未实现 dirty callback 的后端自动回退整帧提交
 
-也就是说，`Dirty-Tile` 的正确挂点不是 `frame reuse` 之前，也不是 `op cache key` 这一层，而是：
+当前实现已经把 `Dirty-Tile` 挂在：
 
 1. `frame reuse miss` 之后
 2. `op cache hit/miss` 之后
 3. `runtime_render_patch_cached_ops()` 已经把 `SPRITE.x` / `FADE.alpha` 这类动态字段补齐之后
+4. `renderer_submit()` / `renderer_submit_dirty()` 分流之前
 
-否则脏区分析会拿到“并非最终显示结果”的中间态，造成误判。
+这样脏区分析拿到的是“当前帧最终显示结果”，不会对中间态做误判。
 
 ## 2. 设计目标
 
@@ -42,16 +43,16 @@
 3. 单个后端是否支持脏区提交，必须可独立探测和回退
 4. 在任意可疑条件下优先回退整帧路径，不冒险输出错误图像
 
-## 3. 当前代码下的最佳接入点
+## 3. 当前代码下的接入点
 
 ### 3.1 Runtime 层
 
-最佳入口位于 `src/core/runtime_cli.c` 的 `vn_runtime_session_step()`：
+当前入口位于 `src/core/runtime_cli.c` 的 `vn_runtime_session_step()`：
 
 1. `runtime_prepare_frame_reuse()` 命中：直接复用 framebuffer，跳过 `Dirty-Tile`
 2. `runtime_build_render_ops_cached()` 返回后：此时已经拿到当前帧 `VNRenderOp[]`
 3. `runtime_render_patch_cached_ops()` 已完成：此时 `session->ops` 才是可用于脏区分析的最终 IR
-4. 在调用 `renderer_submit()` 之前插入 `runtime_prepare_dirty_plan()`
+4. 在 `renderer_submit()` / `renderer_submit_dirty()` 分流之前执行 `runtime_prepare_dirty_plan()`
 5. 根据计划结果分流到：
    - `renderer_submit()`（整帧路径）
    - `renderer_submit_dirty()`（脏区路径）
@@ -60,7 +61,7 @@
 
 脏区分析本质上属于“前端生成出的 Render IR 之间的差分”，不应下沉到 ISA 后端。
 
-建议新增：
+当前已新增：
 
 1. `src/frontend/dirty_tiles.c`
 2. `src/frontend/dirty_tiles.h`
@@ -76,14 +77,14 @@
 
 ### 3.3 Renderer / Backend 层
 
-当前 `renderer_submit()` 和 `VNRenderBackend.submit_ops` 只有“整帧提交”能力，不足以支撑脏区路径。
+当前 `renderer_submit()` / `renderer_submit_dirty()` 与 `VNRenderBackend.submit_ops` / `submit_ops_dirty` 已同时存在，脏区路径的最小公共契约已经落地。
 
-第一版建议：
+当前实现遵循：
 
-1. 保留现有 `renderer_submit()` 作为整帧快路径
-2. 新增并行接口 `renderer_submit_dirty()`
-3. 在 `VNRenderBackend` 上新增可选的 `submit_ops_dirty` 回调
-4. 若当前后端未实现 `submit_ops_dirty`，Runtime 必须自动退回整帧提交
+1. `renderer_submit()` 保留为整帧快路径
+2. `renderer_submit_dirty()` 作为并行入口承载脏区路径
+3. `VNRenderBackend` 通过可选 `submit_ops_dirty` 回调暴露后端能力
+4. 若当前后端未实现 `submit_ops_dirty`，Runtime 自动退回整帧提交
 
 这条边界满足“前后端只有一份 API”：
 
@@ -119,7 +120,7 @@ vm_step
 
 ## 5. 第一版数据模型
 
-## 5.1 内部结构（建议）
+## 5.1 内部结构（当前）
 
 这些结构第一版建议只放内部头文件，不进公开 API：
 
@@ -170,17 +171,17 @@ typedef struct {
 4. 当前分辨率是 `600x800` 时，tile 总数为 `75 x 100 = 7500`，bitset 约 `940B`，成本可接受
 5. 当本帧已确定必须整帧提交时，可以只 shallow-commit `prev_ops`；`prev_bounds` 允许延迟到下一次重新进入可增量比较的帧再惰性重建
 
-## 5.2 公开 API 草案
+## 5.2 公开 API 现状
 
 ### `include/vn_runtime.h`
 
-建议新增：
+当前已新增：
 
 ```c
 #define VN_RUNTIME_PERF_DIRTY_TILE (1u << 2)
 ```
 
-当实现落地后，建议补充到 `VNRunResult`：
+当前已补充到 `VNRunResult`：
 
 ```c
 vn_u32 dirty_tile_frames;
@@ -190,7 +191,7 @@ vn_u32 dirty_full_redraws;
 vn_u32 dirty_backend_fallbacks;
 ```
 
-建议新增 CLI 开关：
+当前已支持 CLI 开关：
 
 ```text
 --perf-dirty-tile=<on|off>
@@ -203,7 +204,7 @@ vn_u32 dirty_backend_fallbacks;
 
 ### `include/vn_backend.h`
 
-建议扩展后端能力位：
+当前已扩展后端能力位：
 
 ```c
 typedef struct {
@@ -214,7 +215,7 @@ typedef struct {
 } VNBackendCaps;
 ```
 
-建议新增共享提交描述：
+当前已新增共享提交描述：
 
 ```c
 typedef struct {
@@ -224,7 +225,7 @@ typedef struct {
 } VNRenderDirtySubmit;
 ```
 
-建议在 `VNRenderBackend` 上新增可选回调：
+当前在 `VNRenderBackend` 上新增了可选回调：
 
 ```c
 int (*submit_ops_dirty)(const VNRenderOp* ops,
@@ -240,7 +241,7 @@ int (*submit_ops_dirty)(const VNRenderOp* ops,
 
 ### `include/vn_renderer.h`
 
-建议新增并行入口：
+当前已新增并行入口：
 
 ```c
 int renderer_submit_dirty(const VNRenderOp* ops,
@@ -248,7 +249,7 @@ int renderer_submit_dirty(const VNRenderOp* ops,
                           const VNRenderDirtySubmit* dirty_submit);
 ```
 
-这里不建议直接改 `renderer_submit()` 的现有签名，避免把“已可用整帧路径”的接口也变成一轮大范围重构。
+实现保留了 `renderer_submit()` 的现有签名，把 dirty submit 作为并行入口补上，避免把已经稳定的整帧路径也卷入一轮大范围重构。
 
 ## 6. 脏区判定规则
 

@@ -74,6 +74,24 @@ jobs:
             build_ci_windows_x64/ci_logs
             build_ci_windows_x64/ci_suite_summary.md
             build_ci_windows_x64/golden_artifacts
+      - name: Perf smoke suite
+        shell: bash
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-x64 --simd-backend avx2 --skip-build --runner-bin build/Release/vn_player.exe --no-threshold --out-dir build_ci_perf_windows_x64
+      - name: Publish perf summary
+        if: always()
+        shell: pwsh
+        run: |
+          $SummaryPath = Join-Path 'build_ci_perf_windows_x64' 'perf_workflow_summary.md'
+          if (Test-Path $SummaryPath) {
+            Get-Content $SummaryPath | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload perf artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-windows-x64
+          if-no-files-found: warn
+          path: build_ci_perf_windows_x64
 
   linux-arm64:
     runs-on: ubuntu-24.04-arm
@@ -112,6 +130,21 @@ jobs:
             build_ci_cc/ci_logs
             build_ci_cc/ci_suite_summary.md
             build_ci_cc/golden_artifacts
+      - name: Perf smoke suite
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-arm64 --simd-backend neon --skip-build --runner-bin build_ci_cc/vn_player --no-threshold --out-dir build_ci_perf_linux_arm64
+      - name: Publish perf summary
+        if: always()
+        run: |
+          if [ -f build_ci_perf_linux_arm64/perf_workflow_summary.md ]; then
+            cat build_ci_perf_linux_arm64/perf_workflow_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload perf artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-linux-arm64
+          if-no-files-found: warn
+          path: build_ci_perf_linux_arm64
 
   windows-arm64:
     runs-on: windows-11-arm
@@ -152,6 +185,24 @@ jobs:
             build_ci_windows_arm64/ci_logs
             build_ci_windows_arm64/ci_suite_summary.md
             build_ci_windows_arm64/golden_artifacts
+      - name: Perf smoke suite
+        shell: bash
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-arm64 --simd-backend neon --skip-build --runner-bin build/Release/vn_player.exe --no-threshold --out-dir build_ci_perf_windows_arm64
+      - name: Publish perf summary
+        if: always()
+        shell: pwsh
+        run: |
+          $SummaryPath = Join-Path 'build_ci_perf_windows_arm64' 'perf_workflow_summary.md'
+          if (Test-Path $SummaryPath) {
+            Get-Content $SummaryPath | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload perf artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-windows-arm64
+          if-no-files-found: warn
+          path: build_ci_perf_windows_arm64
 
   linux-riscv64-cross:
     runs-on: ubuntu-latest

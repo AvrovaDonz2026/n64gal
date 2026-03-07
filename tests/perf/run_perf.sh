@@ -16,6 +16,7 @@ KEEP_RAW=0
 MAX_PASSES=2048
 PERF_CC="${CC:-cc}"
 PERF_RUNNER_BIN="${VN_PERF_RUNNER_BIN:-/tmp/n64gal_perf_runner}"
+SKIP_BUILD="${VN_PERF_SKIP_BUILD:-0}"
 PERF_RUNNER_PREFIX="${VN_PERF_RUNNER_PREFIX:-}"
 PERF_CFLAGS="${VN_PERF_CFLAGS:-}"
 PERF_LDFLAGS="${VN_PERF_LDFLAGS:-}"
@@ -33,6 +34,14 @@ while [[ $# -gt 0 ]]; do
     --source-root)
       SOURCE_ROOT="$2"
       shift 2
+      ;;
+    --runner-bin)
+      PERF_RUNNER_BIN="$2"
+      shift 2
+      ;;
+    --skip-build)
+      SKIP_BUILD=1
+      shift 1
       ;;
     --scenes)
       SCENES="$2"
@@ -113,6 +122,11 @@ if [[ "$WARMUP_SEC" -ge "$DURATION_SEC" ]]; then
   exit 2
 fi
 
+if ! [[ "$SKIP_BUILD" =~ ^[01]$ ]]; then
+  echo "skip-build must be 0 or 1" >&2
+  exit 2
+fi
+
 if [[ -n "$FRAMES_OVERRIDE" ]]; then
   FRAMES="$FRAMES_OVERRIDE"
 else
@@ -130,46 +144,55 @@ mkdir -p "$OUT_DIR"
 
 "$SOURCE_ROOT/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
 
-COMPILE_CMD=(
-  "$PERF_CC"
-  -std=c89
-  -pedantic-errors
-  -Wall
-  -Wextra
-  -Werror
-)
-if [[ -n "$PERF_CFLAGS" ]]; then
-  # shellcheck disable=SC2206
-  EXTRA_CFLAGS=( $PERF_CFLAGS )
-  COMPILE_CMD+=("${EXTRA_CFLAGS[@]}")
-fi
-COMPILE_CMD+=(
-  -Iinclude
-  src/main.c
-  src/core/backend_registry.c
-  src/core/renderer.c
-  src/core/vm.c
-  src/core/pack.c
-  src/core/platform.c
-  src/core/runtime_cli.c
-  src/core/dynamic_resolution.c
-  src/frontend/render_ops.c
-  src/frontend/dirty_tiles.c
-  src/backend/common/pixel_pipeline.c
-  src/backend/avx2/avx2_backend.c
-  src/backend/neon/neon_backend.c
-  src/backend/rvv/rvv_backend.c
-  src/backend/scalar/scalar_backend.c
-  -o
-  "$PERF_RUNNER_BIN"
-)
-if [[ -n "$PERF_LDFLAGS" ]]; then
-  # shellcheck disable=SC2206
-  EXTRA_LDFLAGS=( $PERF_LDFLAGS )
-  COMPILE_CMD+=("${EXTRA_LDFLAGS[@]}")
-fi
+if [[ "$SKIP_BUILD" -eq 0 ]]; then
+  mkdir -p "$(dirname "$PERF_RUNNER_BIN")"
 
-"${COMPILE_CMD[@]}"
+  COMPILE_CMD=(
+    "$PERF_CC"
+    -std=c89
+    -pedantic-errors
+    -Wall
+    -Wextra
+    -Werror
+  )
+  if [[ -n "$PERF_CFLAGS" ]]; then
+    # shellcheck disable=SC2206
+    EXTRA_CFLAGS=( $PERF_CFLAGS )
+    COMPILE_CMD+=("${EXTRA_CFLAGS[@]}")
+  fi
+  COMPILE_CMD+=(
+    -Iinclude
+    src/main.c
+    src/core/backend_registry.c
+    src/core/renderer.c
+    src/core/vm.c
+    src/core/pack.c
+    src/core/platform.c
+    src/core/runtime_cli.c
+    src/core/dynamic_resolution.c
+    src/frontend/render_ops.c
+    src/frontend/dirty_tiles.c
+    src/backend/common/pixel_pipeline.c
+    src/backend/avx2/avx2_backend.c
+    src/backend/neon/neon_backend.c
+    src/backend/rvv/rvv_backend.c
+    src/backend/scalar/scalar_backend.c
+    -o
+    "$PERF_RUNNER_BIN"
+  )
+  if [[ -n "$PERF_LDFLAGS" ]]; then
+    # shellcheck disable=SC2206
+    EXTRA_LDFLAGS=( $PERF_LDFLAGS )
+    COMPILE_CMD+=("${EXTRA_LDFLAGS[@]}")
+  fi
+
+  "${COMPILE_CMD[@]}"
+else
+  if [[ ! -f "$PERF_RUNNER_BIN" ]]; then
+    echo "runner-bin not found: $PERF_RUNNER_BIN" >&2
+    exit 2
+  fi
+fi
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {
@@ -352,7 +375,9 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
 done
 
 cp "$SCRIPT_ROOT/tests/perf/report_template.md" "$OUT_DIR/perf_report_template.md"
-rm -f "$PERF_RUNNER_BIN"
+if [[ "$SKIP_BUILD" -eq 0 ]]; then
+  rm -f "$PERF_RUNNER_BIN"
+fi
 
 echo "[perf] wrote $OUT_DIR/perf_report_template.md"
 echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default}"
