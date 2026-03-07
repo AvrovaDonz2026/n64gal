@@ -85,17 +85,35 @@
 
 这些本地数据只能说明方向正确，不能替代 GitHub `windows-x64` runner；但它们已经足够支持当前判断：重复 texel 生成确实是 full-span textured 的主要浪费面。
 
+## GitHub Recheck After Palette Apply Vectorization
+
+当前这轮 AVX2 palette-apply 向量化已经由最新 GitHub `windows-x64` run `22795471059`（head `19788ce`，2026-03-07）复核通过。新的 `perf-windows-x64` artifact 里：
+
+| scene | scalar p95 ms | avx2 p95 ms | p95 gain |
+|---|---:|---:|---:|
+| S1 | 3.324 | 0.397 | +88.06% |
+| S3 | 3.011 | 0.588 | +80.47% |
+
+同一个 artifact 的 `Compare D` 也已经把 full-span textured 继续压下去：
+
+| kernel | scalar avg ms | avx2 avg ms | avg gain |
+|---|---:|---:|---:|
+| `sprite_full_opaque` | 5.104921 | 0.620379 | +87.85% |
+| `sprite_full_alpha180` | 7.490000 | 0.763946 | +89.80% |
+
+这说明 palette-apply 这一层的 AVX2 chunk 化不只是本地方向正确，而是已经在 GitHub Windows x64 原生 runner 上产生了可重复的整机收益与 kernel 收益。
+
 ## Current Reading
 
 截至 `2026-03-07`，`windows-x64` 应这样解读：
 
-1. 历史上的“AVX2 未转正”问题已经被修回，最新 GitHub run `22795078202` 明确是正收益。
-2. 当前最大的剩余绝对热点已经收敛到 `sprite_full_opaque` / `sprite_full_alpha180`，也就是 textured full-span 路径。
+1. 历史上的“AVX2 未转正”问题已经被修回，而且 `22795078202` 与 `22795471059` 两次连续 GitHub run 都已经明确是强正收益。
+2. `sprite_full_*` 仍然是 textured 类里最重的 kernel，但在当前 GitHub artifact 上已经被压到亚毫秒量级，不再是会拖垮 `windows-x64` CI 的 blocker。
 3. `clear/fade` 不再值得作为下一轮主要目标。
-4. row palette + repeated-`v8` reuse 是一条高收益、低语义风险的继续压缩路径，并且已经在本地样本中证明有效。
+4. row palette + repeated-`v8` reuse + palette-apply 向量化是一条高收益、低语义风险的压缩路径，并且已经同时在本地与 GitHub runner 上得到验证。
 
 ## Next Experiments
 
-1. 等待当前这轮 row-palette 改动对应的 GitHub `perf-windows-x64` artifact，确认 `Compare D` 上 `sprite_full_*` 是否继续明显下降。
-2. 如果新的 artifact 里 `sprite_full_alpha180` 仍明显高于 `sprite_full_opaque`，下一刀优先放在 translucent textured row 上的批量 blend，而不是再次重写 sample/hash。
-3. 如果 opaque 路径仍然是最大的绝对热点，再评估是否把当前 palette apply 继续推进到 AVX2 chunk 化的 lookup/store，或直接移植一版接近 RVV `sample_combine_chunk` 的 AVX2 向量版。
+1. 评估是否把 `windows-x64-scalar-avx2-smoke` 从 regression-envelope gate 升级成更严格的正收益 gate。
+2. 如果后续还要继续压 AVX2，优先看 translucent textured row 的进一步批量 blend/pack，而不是回头重写 sample/hash。
+3. dirty-tile on/off 在 `windows-x64` 当前仍有 `S3` 短窗口噪声，后续应优先区分“真实回退”与“亚毫秒量级计时抖动”。
