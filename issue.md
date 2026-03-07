@@ -42,7 +42,8 @@
 21. `ISSUE-008` 的 `qemu-rvv` revision compare 目前仍保留 `S0,S3` 作为 bring-up smoke，用于跨 revision 趋势留痕与 RVV 路径冒烟；它不再作为 x64 主线 gate 的代表样本，待 native RVV 设备到位后再统一评估是否也切到更重场景。
 22. `bfe95d2`：继续同步 perf 文档与跟踪项，明确 `linux-x64` 的 smoke / dirty compare 基线现在统一为 `S1,S3`，而 `qemu-rvv` revision compare 仍暂保留 `S0,S3`；同时 README、平台/性能文档与 dirty-tile API 文档都按这一边界更新。
 23. `ISSUE-008` / `ISSUE-014` 继续把 perf 落到所有原生目标平台：`run_perf.sh` / `run_perf_compare.sh` 已支持复用已有 `vn_player`（`--runner-bin` + `--skip-build`），参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 现已可在 `linux-x64`、`linux-arm64`、`windows-x64`、`windows-arm64` 复用。
-24. 三套 native threshold profile 已按 GitHub runner 实测落地：`linux-arm64-scalar-neon-smoke` 与 `windows-arm64-scalar-neon-smoke` 采用正收益 gate，`windows-x64-scalar-avx2-smoke` 则采用 regression-envelope gate，因为最新成功 run `22793322427` 中 `windows-x64` 的 `scalar -> avx2` 仍为 `S1 -8.07%` / `S3 -2.91%`，当前只能先防止继续明显恶化；与之相对，`linux-arm64` 的 `scalar -> neon` 为 `+13.09% / +13.36%`，`windows-arm64` 的 `scalar -> neon` 为 `+10.85% / +4.45%`，已经具备挂正收益 gate 的条件。
+24. 三套 native threshold profile 已按 GitHub runner 实测落地：`linux-arm64-scalar-neon-smoke` 与 `windows-arm64-scalar-neon-smoke` 采用正收益 gate，`windows-x64-scalar-avx2-smoke` 则采用 regression-envelope gate，因为最新成功 run `22793662179` 中 `windows-x64` 的 `scalar -> avx2` 仍为 `S1 -5.66%` / `S3 -0.33%`，当前只能先防止继续明显恶化；与之相对，`linux-arm64` 的 `scalar -> neon` 为 `+13.09% / +13.36%`，`windows-arm64` 的 `scalar -> neon` 为 `+10.85% / +4.45%`，已经具备挂正收益 gate 的条件。
+25. `ISSUE-007` / `ISSUE-008` 已新增 `docs/perf-windows-x64-2026-03-07.md`，专门记录 GitHub `windows-x64` runner 上 `avx2 < scalar` 的证据、根因与当前两轮修正：`avx2_backend` 现已补 `uniform alpha/fade` AVX2 row kernel，并把 `fill_u32` 改为“对齐前缀 + aligned store”，随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU；本地 `S1,S3` smoke 与 golden/consistency 测试均已维持正向结果，下一步等待 GitHub Windows runner 复核。
 
 ### 平台目标（新增约束）
 
@@ -494,7 +495,9 @@ cmake --build build -j
 
 ### 任务清单
 
-- [x] `fill` 核心算子（AVX2 向量写入）与 `blend` 标量回退路径
+- [x] `fill` 核心算子（AVX2 向量写入，对齐前缀 + aligned store）
+- [x] `uniform alpha/fade` 核心算子（AVX2 row kernel，避免整屏 `FADE` 逐像素走公共 `blend_rgb`）
+- [x] `SPRITE/TEXT` 热路径去跨 TU 调用（backend-local `hash/sample/combine/blend` row loop）
 - [x] 覆盖 `VN_OP_CLEAR/VN_OP_SPRITE/VN_OP_TEXT/VN_OP_FADE` 执行链路
 - [x] `--backend=avx2` 强制切换（CPU 支持时使用 avx2，不支持时回退 scalar）
 - [x] amd64 自动优先选择 `avx2`

@@ -202,17 +202,19 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## Checked-In Evidence
 
-当前仓库已经固化三份 perf 证据：
+当前仓库已经固化四份 perf 证据：
 
 1. [`docs/perf-rvv-2026-03-06.md`](./perf-rvv-2026-03-06.md)
 2. [`docs/perf-dirty-2026-03-07.md`](./perf-dirty-2026-03-07.md)
 3. [`docs/perf-dynres-2026-03-07.md`](./perf-dynres-2026-03-07.md)
+4. [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)
 
 其中：
 
 1. `perf-rvv-2026-03-06.md` 对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
 2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare；当前 compare 已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。它用于保留一个中等复杂度样本加一个更重样本的趋势证据，同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 3. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
+4. `perf-windows-x64-2026-03-07.md` 专门记录 GitHub `windows-x64` runner 上 `scalar -> avx2` 仍为负收益时的调查结果：问题集中在 `raster_ms`，主要根因是 AVX2 覆盖面仍过窄，特别是整屏 `FADE` 在修正前仍走公共标量 `blend_rgb()`。该文档同时记录了当前已入树的第一轮修正（`uniform alpha/fade` AVX2 row kernel + 对齐后的 `fill_u32`），用于后续和 GitHub Windows runner 的复测结果对照。
 
 另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；当前默认还会接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold mode，并把 `perf_threshold_report.md` 一并追加到 step summary / artifact。首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
 
@@ -224,6 +226,8 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，但它是 regression-envelope gate，而不是“必须正收益” gate。
 4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
+
+`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；在新的 GitHub Windows runner artifact 出来之前，`windows-x64` 仍继续保留 regression-envelope gate，不提前假设它已经稳定转正。
 
 其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
