@@ -15,11 +15,12 @@
 5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
 
 
-## 2.1 规划中的性能扩展
+## 2.1 当前性能扩展状态
 
-1. 当前 runtime 已公开 `frame reuse + op cache` 两条 perf 开关。
-2. `Dirty-Tile` 增量渲染的运行时/API 草案已单独整理到 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
-3. 在草案真正落地前，本文档仍只描述当前已实现的 `vn_runtime.h` 语义，不把未实现字段写成既成事实。
+1. 当前 runtime 已公开 `frame reuse + op cache + dirty tile + dynamic resolution` 四条 perf 开关。
+2. `Dirty-Tile` 的设计背景、阶段拆分与实现约束仍单独整理在 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
+3. 动态分辨率当前已落地 runtime 最小 slice：`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`、`--perf-dynamic-resolution=<on|off>`、以及 `VNRunResult.render_width/render_height/dynamic_resolution_*` 已可直接使用。
+4. `dirty tile` 与 `dynamic resolution` 当前都默认 `off`；先以可观测、可回退、可做 perf compare 为第一目标，再决定是否提升为默认路径。
 
 ## 3. 结构体
 
@@ -44,7 +45,7 @@
 7. `choice_seq[]`, `choice_seq_count`
    - 分支选择序列，按 `CHOICE` 发生顺序消费
 8. `trace`
-   - 非 0 打印逐帧状态与性能采样（`frame_ms/vm_ms/build_ms/raster_ms/audio_ms/rss_mb`）
+   - 非 0 打印逐帧状态与性能采样（`frame_ms/vm_ms/build_ms/raster_ms/audio_ms/rss_mb`），并在 perf 扩展开启时追加 `dirty_*` / `render_width` / `render_height` / `dynres_*` 字段
 9. `keyboard`
    - 非 0 启用键盘输入（Linux TTY / Windows console 调试模式）
 10. `emit_logs`
@@ -61,6 +62,8 @@
    - 命中时跳过命令构建，但仍会按当前帧回写 `SPRITE/FADE` 动态字段，避免命令缓存路径因占位动画长期 0 hit
    - 当前已公开：`VN_RUNTIME_PERF_DIRTY_TILE`（Dirty-Tile 规划/提交）
    - 当前会在 `frame reuse miss` 且拿到最终 `VNRenderOp[]` 后生成 dirty plan，回传 tile/rect/full-redraw 统计；当 plan 可局部提交时，Runtime 会优先走 `renderer_submit_dirty(...)`。当前 `scalar/avx2/neon/rvv` 已实现 dirty submit，默认 `off`。
+   - 当前已公开：`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`（动态分辨率自动升降档）
+   - 当前按 `R0/R1/R2 = 100%/75%/50%` 三档工作；当最近 120 帧 p95 超过 `16.67ms` 时尝试降档，当最近 300 帧 p95 低于 `13.0ms` 时尝试升档。切档时 runtime 会重配 renderer 尺寸、失效 frame reuse/op cache/dirty planner 相关缓存，并通过 `VNRunResult` 回传实际渲染尺寸与切档统计；默认 `off`。
 
 ### `VNInputEvent`
 
@@ -103,6 +106,8 @@
 11. `op_cache_hits`, `op_cache_misses`
 12. `dirty_tile_count`, `dirty_rect_count`, `dirty_full_redraw`
 13. `dirty_tile_frames`, `dirty_tile_total`, `dirty_rect_total`, `dirty_full_redraws`
+14. `render_width`, `render_height`
+15. `dynamic_resolution_tier`, `dynamic_resolution_switches`
 
 ## 4. API 函数
 
@@ -140,7 +145,8 @@
 4. 当运行结束且 `vm_error != 0` 时返回非 0。
 5. 若启用 `VN_RUNTIME_PERF_FRAME_REUSE`，则会在状态签名稳定时直接复用上一帧 framebuffer，并在 `VNRunResult` 中回传 `frame_reuse_hits/misses`。
 6. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
-7. 若启用 `VN_RUNTIME_PERF_DIRTY_TILE`，则会在当前帧最终 `VNRenderOp[]` 与上一帧已提交 op 之间构建 dirty plan，并在 `VNRunResult` 中回传当前帧与累计统计；当前阶段该路径只做规划/观测，不改变 `renderer_submit` 的整帧提交行为。
+7. 若启用 `VN_RUNTIME_PERF_DIRTY_TILE`，则会在当前帧最终 `VNRenderOp[]` 与上一帧已提交 op 之间构建 dirty plan，并在 `VNRunResult` 中回传当前帧与累计统计；当后端支持时，runtime 会优先走 `renderer_submit_dirty(...)`，否则自动回退整帧提交。
+8. 若启用 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，则会按滑动窗口 p95 自动在 `R0/R1/R2` 之间升降档；切档后会失效依赖旧尺寸的缓存，并在 `VNRunResult` 中回传 `render_width/render_height/dynamic_resolution_tier/dynamic_resolution_switches`。
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 
@@ -192,7 +198,10 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
    - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
 4. `--perf-dirty-tile=<on|off>`
    - 切换 `VN_RUNTIME_PERF_DIRTY_TILE`
-   - 默认 `off`（开启后会尝试 dirty submit；当前 `scalar` 原生支持，其他后端先自动回退整帧提交）
+   - 默认 `off`（开启后会尝试 dirty submit；当前 `scalar` / `avx2` / `neon` / `rvv` 都已实现 partial submit）
+5. `--perf-dynamic-resolution=<on|off>`
+   - 切换 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`
+   - 默认 `off`（开启后允许 runtime 在 `R0/R1/R2` 之间自动升降档；建议配合 `--hold-end` 做长窗口 perf 采样）
 
 ## 5. 最小示例（推荐集成方式）
 

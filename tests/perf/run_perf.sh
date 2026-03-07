@@ -22,6 +22,7 @@ PERF_LDFLAGS="${VN_PERF_LDFLAGS:-}"
 PERF_FRAME_REUSE=""
 PERF_OP_CACHE=""
 PERF_DIRTY_TILE=""
+PERF_DYNAMIC_RESOLUTION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +76,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --perf-dirty-tile)
       PERF_DIRTY_TILE="$2"
+      shift 2
+      ;;
+    --perf-dynamic-resolution)
+      PERF_DYNAMIC_RESOLUTION="$2"
       shift 2
       ;;
     *)
@@ -147,6 +152,7 @@ COMPILE_CMD+=(
   src/core/pack.c
   src/core/platform.c
   src/core/runtime_cli.c
+  src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
   src/backend/common/pixel_pipeline.c
@@ -167,7 +173,7 @@ fi
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {
-  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile"
+  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution"
 } > "$SUMMARY_CSV"
 
 IFS=',' read -r -a SCENE_ARRAY <<< "$SCENES"
@@ -210,6 +216,9 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
     fi
     if [[ -n "$PERF_DIRTY_TILE" ]]; then
       RUNNER_CMD+=("--perf-dirty-tile=$PERF_DIRTY_TILE")
+    fi
+    if [[ -n "$PERF_DYNAMIC_RESOLUTION" ]]; then
+      RUNNER_CMD+=("--perf-dynamic-resolution=$PERF_DYNAMIC_RESOLUTION")
     fi
     if [[ -n "$PERF_RUNNER_PREFIX" ]]; then
       # shellcheck disable=SC2206
@@ -336,7 +345,7 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   MAX_RSS_MB="$(awk -F, 'NR>1 { if ($8 + 0 > max) max = $8 + 0 } END { printf "%.3f", max + 0.0 }' "$OUT_CSV")"
 
   {
-    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default}"
+    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default},${PERF_DYNAMIC_RESOLUTION:-default}"
   } >> "$SUMMARY_CSV"
 
   echo "[perf] wrote $OUT_CSV samples=$SAMPLE_COUNT p95=${P95_FRAME_MS}ms passes=$PASS"
@@ -345,6 +354,5 @@ done
 cp "$SCRIPT_ROOT/tests/perf/report_template.md" "$OUT_DIR/perf_report_template.md"
 rm -f "$PERF_RUNNER_BIN"
 
-echo "[perf] wrote $SUMMARY_CSV"
 echo "[perf] wrote $OUT_DIR/perf_report_template.md"
-echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default}"
+echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default}"

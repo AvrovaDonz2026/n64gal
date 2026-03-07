@@ -14,6 +14,7 @@ COMMON_SRC=(
   src/core/pack.c
   src/core/platform.c
   src/core/runtime_cli.c
+  src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
   src/backend/common/pixel_pipeline.c
@@ -38,12 +39,14 @@ TESTS=(
   test_backend_registry
   test_render_ops
   test_dirty_tiles
+  test_dynamic_resolution
   test_vnpak
   test_renderer_fallback
   test_renderer_dirty_submit
   test_backend_consistency
   test_vm
   test_runtime_api
+  test_runtime_dynamic_resolution
   test_runtime_session
   test_runtime_golden
 )

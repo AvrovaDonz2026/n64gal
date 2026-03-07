@@ -10,6 +10,10 @@ DURATION_SEC=2
 WARMUP_SEC=1
 DT_MS=16
 RESOLUTION="600x800"
+DYNRES_SCENES="S3"
+DYNRES_DURATION_SEC=6
+DYNRES_WARMUP_SEC=1
+DYNRES_RESOLUTION="1200x1600"
 THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
 
 while [[ $# -gt 0 ]]; do
@@ -38,6 +42,22 @@ while [[ $# -gt 0 ]]; do
       RESOLUTION="$2"
       shift 2
       ;;
+    --dynres-scenes)
+      DYNRES_SCENES="$2"
+      shift 2
+      ;;
+    --dynres-duration-sec)
+      DYNRES_DURATION_SEC="$2"
+      shift 2
+      ;;
+    --dynres-warmup-sec)
+      DYNRES_WARMUP_SEC="$2"
+      shift 2
+      ;;
+    --dynres-resolution)
+      DYNRES_RESOLUTION="$2"
+      shift 2
+      ;;
     --threshold-file)
       THRESHOLD_FILE="$2"
       shift 2
@@ -51,6 +71,7 @@ done
 
 SCALAR_AVX2_DIR="$OUT_DIR/scalar_vs_avx2"
 DIRTY_TILE_DIR="$OUT_DIR/avx2_dirty_tile"
+DYNRES_DIR="$OUT_DIR/scalar_dynamic_resolution"
 SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
 mkdir -p "$OUT_DIR"
 
@@ -99,23 +120,43 @@ append_report() {
   --resolution "$RESOLUTION" \
   --out-dir "$DIRTY_TILE_DIR"
 
+./tests/perf/run_perf_compare.sh \
+  --baseline scalar \
+  --baseline-label scalar_dynres_off \
+  --baseline-perf-dynamic-resolution off \
+  --candidate scalar \
+  --candidate-label scalar_dynres_on \
+  --candidate-perf-dynamic-resolution on \
+  --scenes "$DYNRES_SCENES" \
+  --duration-sec "$DYNRES_DURATION_SEC" \
+  --warmup-sec "$DYNRES_WARMUP_SEC" \
+  --dt-ms "$DT_MS" \
+  --resolution "$DYNRES_RESOLUTION" \
+  --out-dir "$DYNRES_DIR"
+
 cat > "$SUMMARY_MD" <<EOF_SUMMARY
 # Perf Workflow Summary
 
 - Output dir: \`$OUT_DIR\`
-- Scenes: \`$SCENES\`
-- Duration / warmup: \`${DURATION_SEC}s / ${WARMUP_SEC}s\`
+- Smoke scenes: \`$SCENES\`
+- Smoke duration / warmup: \`${DURATION_SEC}s / ${WARMUP_SEC}s\`
 - dt_ms: \`$DT_MS\`
-- Resolution: \`$RESOLUTION\`
+- Smoke resolution: \`$RESOLUTION\`
+- Dynres scenes: \`$DYNRES_SCENES\`
+- Dynres duration / warmup: \`${DYNRES_DURATION_SEC}s / ${DYNRES_WARMUP_SEC}s\`
+- Dynres resolution: \`$DYNRES_RESOLUTION\`
 - Compare A: \`scalar -> avx2\` with threshold profile \`linux-x64-scalar-avx2-smoke\`
 - Compare B: \`avx2 dirty-tile off -> on\`
+- Compare C: \`scalar dynamic-resolution off -> on\`
 - Artifact A dir: \`$SCALAR_AVX2_DIR\`
 - Artifact B dir: \`$DIRTY_TILE_DIR\`
+- Artifact C dir: \`$DYNRES_DIR\`
 
 EOF_SUMMARY
 
 append_report "Scalar vs AVX2 Compare" "$SCALAR_AVX2_DIR/compare/perf_compare.md"
 append_report "Scalar vs AVX2 Threshold" "$SCALAR_AVX2_DIR/compare/perf_threshold_report.md"
 append_report "AVX2 Dirty-Tile Off vs On Compare" "$DIRTY_TILE_DIR/compare/perf_compare.md"
+append_report "Scalar Dynamic-Resolution Off vs On Compare" "$DYNRES_DIR/compare/perf_compare.md"
 
 echo "[ci-perf] done out=$OUT_DIR"

@@ -256,7 +256,11 @@ response=tests/integration/preview_protocol_response.tmp.json
 23. `dirty_tile_total`
 24. `dirty_rect_total`
 25. `dirty_full_redraws`
-26. `backend_name`
+26. `render_width`
+27. `render_height`
+28. `dynamic_resolution_tier`
+29. `dynamic_resolution_switches`
+30. `backend_name`
 
 ### `events`
 

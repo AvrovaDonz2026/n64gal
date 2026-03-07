@@ -14,6 +14,8 @@ BASELINE_PERF_OP_CACHE=""
 CANDIDATE_PERF_OP_CACHE=""
 BASELINE_PERF_DIRTY_TILE=""
 CANDIDATE_PERF_DIRTY_TILE=""
+BASELINE_PERF_DYNAMIC_RESOLUTION=""
+CANDIDATE_PERF_DYNAMIC_RESOLUTION=""
 SCENES="S0,S1,S2,S3"
 OUT_DIR="tests/perf/compare_run"
 DURATION_SEC=120
@@ -65,6 +67,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --candidate-perf-dirty-tile)
       CANDIDATE_PERF_DIRTY_TILE="$2"
+      shift 2
+      ;;
+    --baseline-perf-dynamic-resolution)
+      BASELINE_PERF_DYNAMIC_RESOLUTION="$2"
+      shift 2
+      ;;
+    --candidate-perf-dynamic-resolution)
+      CANDIDATE_PERF_DYNAMIC_RESOLUTION="$2"
       shift 2
       ;;
     --scenes)
@@ -160,6 +170,12 @@ if [[ -n "$BASELINE_PERF_DIRTY_TILE" ]]; then
 fi
 if [[ -n "$CANDIDATE_PERF_DIRTY_TILE" ]]; then
   CANDIDATE_ARGS+=(--perf-dirty-tile "$CANDIDATE_PERF_DIRTY_TILE")
+fi
+if [[ -n "$BASELINE_PERF_DYNAMIC_RESOLUTION" ]]; then
+  BASELINE_ARGS+=(--perf-dynamic-resolution "$BASELINE_PERF_DYNAMIC_RESOLUTION")
+fi
+if [[ -n "$CANDIDATE_PERF_DYNAMIC_RESOLUTION" ]]; then
+  CANDIDATE_ARGS+=(--perf-dynamic-resolution "$CANDIDATE_PERF_DYNAMIC_RESOLUTION")
 fi
 
 echo "[perf-compare] baseline label=$BASELINE_LABEL backend=$BASELINE_BACKEND out=$BASELINE_DIR"

@@ -1362,6 +1362,10 @@ static void preview_json_write_result(FILE* fp, const VNRunResult* result) {
     (void)fprintf(fp, "\"dirty_tile_total\":%u,", (unsigned int)result->dirty_tile_total);
     (void)fprintf(fp, "\"dirty_rect_total\":%u,", (unsigned int)result->dirty_rect_total);
     (void)fprintf(fp, "\"dirty_full_redraws\":%u,", (unsigned int)result->dirty_full_redraws);
+    (void)fprintf(fp, "\"render_width\":%u,", (unsigned int)result->render_width);
+    (void)fprintf(fp, "\"render_height\":%u,", (unsigned int)result->render_height);
+    (void)fprintf(fp, "\"dynamic_resolution_tier\":%u,", (unsigned int)result->dynamic_resolution_tier);
+    (void)fprintf(fp, "\"dynamic_resolution_switches\":%u,", (unsigned int)result->dynamic_resolution_switches);
     (void)fprintf(fp, "\"backend_name\":");
     preview_json_write_string(fp, result->backend_name);
     (void)fprintf(fp, "}");

@@ -84,6 +84,18 @@ int main(void) {
         (void)fprintf(stderr, "dirty tile perf flag should be off by default\n");
         return 1;
     }
+    if ((res.perf_flags_effective & VN_RUNTIME_PERF_DYNAMIC_RESOLUTION) != 0u) {
+        (void)fprintf(stderr, "dynamic resolution perf flag should be off by default\n");
+        return 1;
+    }
+    if (res.render_width != cfg.width || res.render_height != cfg.height) {
+        (void)fprintf(stderr, "unexpected render size default got=%ux%u expected=%ux%u\n",
+                      (unsigned int)res.render_width,
+                      (unsigned int)res.render_height,
+                      (unsigned int)cfg.width,
+                      (unsigned int)cfg.height);
+        return 1;
+    }
 
     if (run_perf_scene("S0", 64u, 1u, VN_RUNTIME_PERF_FRAME_REUSE, &reuse_res) != 0) {
         return 1;
@@ -97,7 +109,8 @@ int main(void) {
         return 1;
     }
     if (reuse_res.op_cache_hits != 0u || reuse_res.op_cache_misses != 0u ||
-        reuse_res.dirty_tile_frames != 0u || reuse_res.dirty_tile_total != 0u) {
+        reuse_res.dirty_tile_frames != 0u || reuse_res.dirty_tile_total != 0u ||
+        reuse_res.dynamic_resolution_switches != 0u) {
         (void)fprintf(stderr,
                       "expected isolated frame reuse stats cache=%u/%u dirty=%u/%u\n",
                       (unsigned int)reuse_res.op_cache_hits,
@@ -119,7 +132,8 @@ int main(void) {
         return 1;
     }
     if (cache_res.frame_reuse_hits != 0u || cache_res.frame_reuse_misses != 0u ||
-        cache_res.dirty_tile_frames != 0u || cache_res.dirty_tile_total != 0u) {
+        cache_res.dirty_tile_frames != 0u || cache_res.dirty_tile_total != 0u ||
+        cache_res.dynamic_resolution_switches != 0u) {
         (void)fprintf(stderr,
                       "expected isolated op cache stats reuse=%u/%u dirty=%u/%u\n",
                       (unsigned int)cache_res.frame_reuse_hits,
@@ -152,7 +166,8 @@ int main(void) {
         return 1;
     }
     if (dirty_res.frame_reuse_hits != 0u || dirty_res.frame_reuse_misses != 0u ||
-        dirty_res.op_cache_hits != 0u || dirty_res.op_cache_misses != 0u) {
+        dirty_res.op_cache_hits != 0u || dirty_res.op_cache_misses != 0u ||
+        dirty_res.dynamic_resolution_switches != 0u) {
         (void)fprintf(stderr,
                       "expected isolated dirty tile stats reuse=%u/%u cache=%u/%u\n",
                       (unsigned int)dirty_res.frame_reuse_hits,
@@ -174,7 +189,8 @@ int main(void) {
     if (res.frame_reuse_hits != 0u || res.frame_reuse_misses != 0u ||
         res.op_cache_hits != 0u || res.op_cache_misses != 0u ||
         res.dirty_tile_frames != 0u || res.dirty_tile_total != 0u ||
-        res.dirty_rect_total != 0u || res.dirty_full_redraws != 0u) {
+        res.dirty_rect_total != 0u || res.dirty_full_redraws != 0u ||
+        res.dynamic_resolution_switches != 0u) {
         (void)fprintf(stderr,
                       "expected zero perf stats when disabled reuse=%u/%u cache=%u/%u dirty=%u/%u/%u/%u\n",
                       (unsigned int)res.frame_reuse_hits,

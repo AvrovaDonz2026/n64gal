@@ -25,6 +25,7 @@ add_library(vn_core
     src/core/pack.c
     src/core/platform.c
     src/core/runtime_cli.c
+    src/core/dynamic_resolution.c
     src/frontend/render_ops.c
     src/frontend/dirty_tiles.c
     src/backend/common/pixel_pipeline.c
@@ -71,6 +72,10 @@ add_executable(test_dirty_tiles tests/unit/test_dirty_tiles.c)
 target_link_libraries(test_dirty_tiles PRIVATE vn_core)
 add_test(NAME unit_dirty_tiles COMMAND test_dirty_tiles)
 
+add_executable(test_dynamic_resolution tests/unit/test_dynamic_resolution.c)
+target_link_libraries(test_dynamic_resolution PRIVATE vn_core)
+add_test(NAME unit_dynamic_resolution COMMAND test_dynamic_resolution)
+
 add_executable(test_vnpak tests/unit/test_vnpak.c)
 target_link_libraries(test_vnpak PRIVATE vn_core)
 add_test(NAME unit_vnpak COMMAND test_vnpak)
@@ -94,6 +99,10 @@ add_test(NAME unit_vm COMMAND test_vm)
 add_executable(test_runtime_api tests/unit/test_runtime_api.c)
 target_link_libraries(test_runtime_api PRIVATE vn_core)
 add_test(NAME unit_runtime_api COMMAND test_runtime_api)
+
+add_executable(test_runtime_dynamic_resolution tests/unit/test_runtime_dynamic_resolution.c)
+target_link_libraries(test_runtime_dynamic_resolution PRIVATE vn_core)
+add_test(NAME unit_runtime_dynamic_resolution COMMAND test_runtime_dynamic_resolution)
 
 add_executable(test_runtime_session tests/unit/test_runtime_session.c)
 target_link_libraries(test_runtime_session PRIVATE vn_core)
@@ -128,12 +137,14 @@ set_tests_properties(
     unit_backend_registry
     unit_render_ops
     unit_dirty_tiles
+    unit_dynamic_resolution
     unit_vnpak
     unit_renderer_fallback
     unit_renderer_dirty_submit
     unit_backend_consistency
     unit_vm
     unit_runtime_api
+    unit_runtime_dynamic_resolution
     unit_runtime_session
     unit_runtime_input
     unit_runtime_golden

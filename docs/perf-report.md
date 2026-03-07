@@ -46,17 +46,19 @@
 1. `VN_RUNTIME_PERF_FRAME_REUSE`
 2. `VN_RUNTIME_PERF_OP_CACHE`
 
-当前还提供一个额外的观测开关：
+当前还提供两个额外的可观测开关：
 
 3. `VN_RUNTIME_PERF_DIRTY_TILE`（默认 `off`）
+4. `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`（默认 `off`）
 
 这意味着：
 
 1. `run_perf.sh` / `run_perf_compare.sh` / `run_perf_compare_revs.sh` 测到的是“当前 shipped 路径”的整机收益，而不是纯 backend 微基准。
 2. 在稳定等待帧里，`frame_reuse_hit=1` 时会直接复用上一帧 framebuffer，因此 `raster_ms` 可能接近 `0.000`。
 3. `op_cache_hit=1` 只代表跳过了 `VNRenderOp[]` 构建；该路径仍会执行 `renderer_submit` 与 raster。
-4. `VN_RUNTIME_PERF_DIRTY_TILE` 现已驱动实际 dirty submit；当前 `scalar` / `avx2` / `neon` / `rvv` 都实现了这条路径。
-5. `run_perf.sh` 与 `run_perf_compare.sh` 现在都支持 `--perf-frame-reuse` / `--perf-op-cache` / `--perf-dirty-tile`，可以直接做同一 backend 的开关对照。
+4. `VN_RUNTIME_PERF_DIRTY_TILE` 已驱动实际 dirty submit；当前 `scalar` / `avx2` / `neon` / `rvv` 都实现了这条路径。
+5. `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION` 开启后，runtime 可能在一次 run 内把实际渲染尺寸从请求尺寸切到 `R1(75%)` 或 `R2(50%)`；当前 `perf_summary.csv` 会记录 `perf_dynamic_resolution` 开关状态，但若要看实际切档层级与最终尺寸，仍建议配合 `vn_player --trace` 或 preview `final_state` 一起看。
+6. `run_perf.sh` 与 `run_perf_compare.sh` 现在都支持 `--perf-frame-reuse` / `--perf-op-cache` / `--perf-dirty-tile` / `--perf-dynamic-resolution`，可以直接做同一 backend 的开关对照。
 
 若需要拆开归因，既可以直接运行 `vn_player --trace`，也可以把 perf 开关直接传给 perf 脚本：
 
@@ -65,7 +67,9 @@
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
+./build_ci_cc/vn_player --backend scalar --scene S3 --resolution 1200x1600 --frames 128 --dt-ms 16 --hold-end --trace --perf-dynamic-resolution=on
 ./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_dirty_compare
+./tests/perf/run_perf_compare.sh --baseline scalar --baseline-label scalar_dynres_off --baseline-perf-dynamic-resolution off --candidate scalar --candidate-label scalar_dynres_on --candidate-perf-dynamic-resolution on --scenes S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 1200x1600 --out-dir /tmp/n64gal_perf_dynres_compare
 ./scripts/ci/run_perf_smoke_suite.sh --out-dir /tmp/n64gal_perf_ci
 ```
 
@@ -74,7 +78,8 @@
 1. 默认开启两层优化，先看整机 `p95_frame_ms` 是否下降。
 2. 关闭 `frame reuse` 后，再看 `raster_ms` 是否回升，用于估算静态帧短路的收益。
 3. 继续关闭 `op cache` 后，再看 `build_ms` 是否回升，用于估算命令缓存的收益。
-4. 单独开启 `dirty tile` 后，先看 `dirty_tiles/dirty_rects/dirty_full_redraw` 是否符合预期；在当前阶段，这些字段既代表 planner 质量，也开始反映 dirty submit 命中情况；目前 `scalar`、`avx2`、`neon`、`rvv` 都已实现 partial submit。
+4. 单独开启 `dirty tile` 后，先看 `dirty_tiles/dirty_rects/dirty_full_redraw` 是否符合预期；这些字段既代表 planner 质量，也开始反映 dirty submit 命中情况；目前 `scalar`、`avx2`、`neon`、`rvv` 都已实现 partial submit。
+5. 单独开启 `dynamic resolution` 后，优先看 `p95_frame_ms` 是否回落，再配合 trace 中的 `render_width/render_height/dynres_tier/dynres_switches` 判断是否真的切到了更低档位。
 
 ## Baseline vs Candidate Backend
 
@@ -186,17 +191,19 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## CI Artifact
 
-`linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化两组 smoke 对照：
+`linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化三组 smoke 对照：
 
 1. `scalar -> avx2`（附 `linux-x64-scalar-avx2-smoke` threshold report）
 2. `avx2 dirty off -> avx2 dirty on`（同一 backend 的 dirty-tile on/off compare）
+3. `scalar dynamic-resolution off -> on`（`S3 @ 1200x1600, 6s/1s`，用于验证 dynres 最小 runtime slice 的整机收益）
 
-artifact 顶层会额外生成 `perf_workflow_summary.md`，把两组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：
+artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：
 
 1. `scalar_vs_avx2/compare/perf_compare.md`
 2. `scalar_vs_avx2/compare/perf_threshold_report.md`
 3. `avx2_dirty_tile/compare/perf_compare.md`
-4. `perf_workflow_summary.md`
+4. `scalar_dynamic_resolution/compare/perf_compare.md`
+5. `perf_workflow_summary.md`
 
 当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
 

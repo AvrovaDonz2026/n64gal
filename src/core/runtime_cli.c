@@ -18,6 +18,7 @@
 #include "vn_runtime.h"
 #include "vn_error.h"
 #include "platform.h"
+#include "dynamic_resolution.h"
 
 #define VN_MAX_CHOICE_SEQ 64u
 #define VN_OP_CACHE_CAP 320u
@@ -106,6 +107,7 @@ struct VNRuntimeSession {
     vn_u32 dirty_tile_total;
     vn_u32 dirty_rect_total;
     vn_u32 dirty_full_redraws;
+    VNDynResState dynamic_resolution;
     vn_u32 frames_executed;
     vn_u32 last_op_count;
     vn_u32 last_choice_serial;
@@ -202,6 +204,10 @@ static void runtime_result_reset(void) {
     g_last_run_result.dirty_tile_total = 0u;
     g_last_run_result.dirty_rect_total = 0u;
     g_last_run_result.dirty_full_redraws = 0u;
+    g_last_run_result.render_width = 0u;
+    g_last_run_result.render_height = 0u;
+    g_last_run_result.dynamic_resolution_tier = 0u;
+    g_last_run_result.dynamic_resolution_switches = 0u;
 }
 
 static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
@@ -209,7 +215,7 @@ static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
 }
 
 static vn_u32 runtime_supported_perf_flags(void) {
-    return VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE | VN_RUNTIME_PERF_DIRTY_TILE;
+    return VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE | VN_RUNTIME_PERF_DIRTY_TILE | VN_RUNTIME_PERF_DYNAMIC_RESOLUTION;
 }
 
 static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) {
@@ -221,6 +227,159 @@ static void runtime_perf_flag_set(vn_u32* perf_flags, vn_u32 flag, int enabled) 
     } else {
         *perf_flags &= ~flag;
     }
+}
+
+static void runtime_dirty_stats_reset(VNRuntimeSession* session);
+
+static void runtime_render_cache_invalidate(VNRuntimeSession* session) {
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+    session->frame_reuse_valid = 0u;
+    session->op_cache_stamp = 0u;
+    (void)memset(session->op_cache, 0, sizeof(session->op_cache));
+}
+
+static void runtime_dirty_planner_reconfigure(VNRuntimeSession* session,
+                                              vn_u16 width,
+                                              vn_u16 height) {
+    vn_u32 dirty_word_count;
+
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+
+    if (session->dirty_bits != (vn_u32*)0) {
+        free(session->dirty_bits);
+        session->dirty_bits = (vn_u32*)0;
+    }
+
+    dirty_word_count = 0u;
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) != VN_FALSE) {
+        dirty_word_count = vn_dirty_word_count(width, height);
+        if (dirty_word_count != 0u) {
+            session->dirty_bits = (vn_u32*)malloc((size_t)dirty_word_count * sizeof(vn_u32));
+            if (session->dirty_bits == (vn_u32*)0) {
+                runtime_perf_flag_set(&session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, VN_FALSE);
+                dirty_word_count = 0u;
+                if (session->emit_logs != 0u) {
+                    (void)fprintf(stderr, "dirty tile planner disabled: scratch alloc failed\n");
+                }
+            }
+        }
+    }
+
+    vn_dirty_planner_init(&session->dirty_planner, width, height, session->dirty_bits, dirty_word_count);
+    runtime_dirty_stats_reset(session);
+}
+
+static int runtime_renderer_reconfigure(VNRuntimeSession* session,
+                                        vn_u16 width,
+                                        vn_u16 height) {
+    RendererConfig next_cfg;
+    vn_u16 old_width;
+    vn_u16 old_height;
+    int rc;
+
+    if (session == (VNRuntimeSession*)0 || width == 0u || height == 0u) {
+        return VN_E_INVALID_ARG;
+    }
+    if (session->renderer_cfg.width == width && session->renderer_cfg.height == height) {
+        return VN_OK;
+    }
+
+    old_width = session->renderer_cfg.width;
+    old_height = session->renderer_cfg.height;
+    next_cfg = session->renderer_cfg;
+    next_cfg.width = width;
+    next_cfg.height = height;
+
+    if (session->renderer_ready != VN_FALSE) {
+        renderer_shutdown();
+        session->renderer_ready = VN_FALSE;
+    }
+
+    rc = renderer_init(&next_cfg);
+    if (rc != VN_OK) {
+        session->renderer_cfg.width = old_width;
+        session->renderer_cfg.height = old_height;
+        rc = renderer_init(&session->renderer_cfg);
+        if (rc == VN_OK) {
+            session->renderer_ready = VN_TRUE;
+        }
+        return VN_E_RENDER_STATE;
+    }
+
+    session->renderer_cfg = next_cfg;
+    session->renderer_ready = VN_TRUE;
+    runtime_render_cache_invalidate(session);
+    runtime_dirty_planner_reconfigure(session, width, height);
+    return VN_OK;
+}
+
+static int runtime_dynamic_resolution_maybe_switch(VNRuntimeSession* session,
+                                                   double frame_ms) {
+    vn_u32 next_tier;
+    vn_u32 current_tier;
+    vn_u32 dirty_tile_count;
+    vn_u32 dirty_rect_count;
+    vn_u32 dirty_full_redraw;
+    double window_p95_ms;
+    const VNDynResTier* current_dims;
+    const VNDynResTier* next_dims;
+    int rc;
+
+    if (session == (VNRuntimeSession*)0) {
+        return VN_OK;
+    }
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION) == VN_FALSE) {
+        return VN_OK;
+    }
+
+    next_tier = 0u;
+    window_p95_ms = 0.0;
+    if (vn_dynres_should_switch(&session->dynamic_resolution, frame_ms, &next_tier, &window_p95_ms) == 0) {
+        return VN_OK;
+    }
+
+    current_tier = vn_dynres_get_current_tier(&session->dynamic_resolution);
+    current_dims = vn_dynres_get_current_dims(&session->dynamic_resolution);
+    next_dims = vn_dynres_get_tier(&session->dynamic_resolution, next_tier);
+    if (current_dims == (const VNDynResTier*)0 || next_dims == (const VNDynResTier*)0) {
+        vn_dynres_reset_history(&session->dynamic_resolution);
+        return VN_OK;
+    }
+
+    dirty_tile_count = session->dirty_tile_count;
+    dirty_rect_count = session->dirty_rect_count;
+    dirty_full_redraw = session->dirty_full_redraw;
+
+    rc = runtime_renderer_reconfigure(session, next_dims->width, next_dims->height);
+    if (rc != VN_OK) {
+        vn_dynres_reset_history(&session->dynamic_resolution);
+        if (session->emit_logs != 0u) {
+            (void)fprintf(stderr,
+                          "WARN perf resolution_switch_failed from=%s to=%s rc=%d\n",
+                          vn_dynres_tier_name(current_tier),
+                          vn_dynres_tier_name(next_tier),
+                          rc);
+        }
+        return rc;
+    }
+
+    session->dirty_tile_count = dirty_tile_count;
+    session->dirty_rect_count = dirty_rect_count;
+    session->dirty_full_redraw = dirty_full_redraw;
+    (void)vn_dynres_apply_tier(&session->dynamic_resolution, next_tier);
+    if (session->emit_logs != 0u) {
+        (void)printf("INFO perf resolution_switch from=%s to=%s resolution=%ux%u p95_ms=%.3f\n",
+                     vn_dynres_tier_name(current_tier),
+                     vn_dynres_tier_name(next_tier),
+                     (unsigned int)next_dims->width,
+                     (unsigned int)next_dims->height,
+                     window_p95_ms);
+    }
+    return VN_OK;
 }
 
 static void runtime_dirty_stats_reset(VNRuntimeSession* session) {
@@ -1233,6 +1392,10 @@ static void runtime_result_write(const VNRuntimeSession* session, VNRunResult* o
     out_result->dirty_tile_total = session->dirty_tile_total;
     out_result->dirty_rect_total = session->dirty_rect_total;
     out_result->dirty_full_redraws = session->dirty_full_redraws;
+    out_result->render_width = session->renderer_cfg.width;
+    out_result->render_height = session->renderer_cfg.height;
+    out_result->dynamic_resolution_tier = vn_dynres_get_current_tier(&session->dynamic_resolution);
+    out_result->dynamic_resolution_switches = vn_dynres_get_switch_count(&session->dynamic_resolution);
 }
 
 static void runtime_result_publish(const VNRuntimeSession* session) {
@@ -1340,33 +1503,13 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     session->emit_logs = active_cfg->emit_logs;
     session->hold_on_end = active_cfg->hold_on_end;
     session->perf_flags = active_cfg->perf_flags & runtime_supported_perf_flags();
+    vn_dynres_init(&session->dynamic_resolution, active_cfg->width, active_cfg->height);
     session->default_choice_index = active_cfg->choice_index;
     session->keyboard.enabled = (active_cfg->keyboard != 0u) ? VN_TRUE : VN_FALSE;
-    session->last_op_count = 0u;
     session->done = VN_FALSE;
     session->exit_code = 0;
     session->summary_emitted = VN_FALSE;
-    runtime_dirty_stats_reset(session);
-    {
-        vn_u32 dirty_word_count;
-
-        dirty_word_count = vn_dirty_word_count(active_cfg->width, active_cfg->height);
-        if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) != VN_FALSE &&
-            dirty_word_count != 0u) {
-            session->dirty_bits = (vn_u32*)malloc((size_t)dirty_word_count * sizeof(vn_u32));
-            if (session->dirty_bits == (vn_u32*)0) {
-                runtime_perf_flag_set(&session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, VN_FALSE);
-                if (session->emit_logs != 0u) {
-                    (void)fprintf(stderr, "dirty tile planner disabled: scratch alloc failed\n");
-                }
-            }
-        }
-        vn_dirty_planner_init(&session->dirty_planner,
-                              active_cfg->width,
-                              active_cfg->height,
-                              session->dirty_bits,
-                              dirty_word_count);
-    }
+    runtime_dirty_planner_reconfigure(session, session->renderer_cfg.width, session->renderer_cfg.height);
     for (i = 0u; i < active_cfg->choice_seq_count; ++i) {
         session->choice_feed.items[i] = active_cfg->choice_seq[i];
     }
@@ -1443,6 +1586,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
     int keyboard_toggle_trace;
     int keyboard_quit;
     int used_choice_seq;
+    int switch_rc;
     RenderOpCacheKey frame_reuse_key;
 
     if (session == (VNRuntimeSession*)0) {
@@ -1547,7 +1691,8 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 rss_mb = runtime_rss_mb();
 
                 if (session->trace != 0u && session->emit_logs != 0u) {
-                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ops=%u frame_reuse_hit=%u frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u\n",
+                    (void)printf("frame=%u frame_ms=%.3f vm_ms=%.3f build_ms=%.3f raster_ms=%.3f audio_ms=%.3f rss_mb=%.3f "
+                                 "text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice_count=%u choice_sel=%u choice_text=%u ",
                                  (unsigned int)session->state.frame_index,
                                  frame_ms,
                                  vm_ms,
@@ -1564,21 +1709,34 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)session->state.se_id,
                                  (unsigned int)session->state.choice_count,
                                  (unsigned int)session->state.choice_selected_index,
-                                 (unsigned int)session->state.choice_text_id,
+                                 (unsigned int)session->state.choice_text_id);
+                    (void)printf("ops=%u frame_reuse_hit=%u frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hit=%u op_cache_hits=%u op_cache_misses=%u ",
                                  (unsigned int)op_count,
                                  (unsigned int)(frame_reuse_hit != VN_FALSE),
                                  (unsigned int)session->frame_reuse_hits,
                                  (unsigned int)session->frame_reuse_misses,
                                  (unsigned int)(build_cache_hit != VN_FALSE),
                                  (unsigned int)session->op_cache_hits,
-                                 (unsigned int)session->op_cache_misses,
+                                 (unsigned int)session->op_cache_misses);
+                    (void)printf("dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u "
+                                 "render_width=%u render_height=%u dynres_tier=%s dynres_switches=%u\n",
                                  (unsigned int)session->dirty_tile_count,
                                  (unsigned int)session->dirty_rect_count,
                                  (unsigned int)session->dirty_full_redraw,
                                  (unsigned int)session->dirty_tile_frames,
                                  (unsigned int)session->dirty_tile_total,
                                  (unsigned int)session->dirty_rect_total,
-                                 (unsigned int)session->dirty_full_redraws);
+                                 (unsigned int)session->dirty_full_redraws,
+                                 (unsigned int)session->renderer_cfg.width,
+                                 (unsigned int)session->renderer_cfg.height,
+                                 vn_dynres_tier_name(vn_dynres_get_current_tier(&session->dynamic_resolution)),
+                                 (unsigned int)vn_dynres_get_switch_count(&session->dynamic_resolution));
+                }
+
+                switch_rc = runtime_dynamic_resolution_maybe_switch(session, frame_ms);
+                if (switch_rc != VN_OK) {
+                    session->exit_code = 1;
+                    session->done = VN_TRUE;
                 }
 
                 if (session->state.vm_error != 0u) {
@@ -1600,7 +1758,8 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         session->summary_emitted == VN_FALSE &&
         session->exit_code == 0 &&
         session->emit_logs != 0u) {
-        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hits=%u op_cache_misses=%u dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u\n",
+        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u "
+                     "fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X ",
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
                      (unsigned int)session->renderer_cfg.height,
@@ -1621,7 +1780,9 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      (unsigned int)session->state.vm_error,
                      (unsigned int)session->last_op_count,
                      (unsigned int)session->keyboard.active,
-                     (unsigned int)session->perf_flags,
+                     (unsigned int)session->perf_flags);
+        (void)printf("frame_reuse_hits=%u frame_reuse_misses=%u op_cache_hits=%u op_cache_misses=%u dirty_tiles=%u dirty_rects=%u dirty_full_redraw=%u "
+                     "dirty_tile_frames=%u dirty_tile_total=%u dirty_rect_total=%u dirty_full_redraws=%u ",
                      (unsigned int)session->frame_reuse_hits,
                      (unsigned int)session->frame_reuse_misses,
                      (unsigned int)session->op_cache_hits,
@@ -1633,6 +1794,9 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      (unsigned int)session->dirty_tile_total,
                      (unsigned int)session->dirty_rect_total,
                      (unsigned int)session->dirty_full_redraws);
+        (void)printf("dynres_tier=%s dynres_switches=%u\n",
+                     vn_dynres_tier_name(vn_dynres_get_current_tier(&session->dynamic_resolution)),
+                     (unsigned int)vn_dynres_get_switch_count(&session->dynamic_resolution));
         session->summary_emitted = VN_TRUE;
     }
 
@@ -1875,6 +2039,27 @@ int vn_runtime_run_cli(int argc, char** argv) {
                 return 2;
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
+        } else if (strcmp(arg, "--perf-dynamic-resolution") == 0) {
+            int enabled;
+            if ((i + 1) >= argc) {
+                (void)fprintf(stderr, "missing value for --perf-dynamic-resolution\n");
+                return 2;
+            }
+            i += 1;
+            rc = parse_toggle_value(argv[i], &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-dynamic-resolution: %s\n", argv[i]);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION, enabled);
+        } else if (strncmp(arg, "--perf-dynamic-resolution=", 26) == 0) {
+            int enabled;
+            rc = parse_toggle_value(arg + 26, &enabled);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr, "invalid --perf-dynamic-resolution: %s\n", arg + 26);
+                return 2;
+            }
+            runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION, enabled);
         } else if (strcmp(arg, "--perf-frame-reuse") == 0) {
             int enabled;
             if ((i + 1) >= argc) {
