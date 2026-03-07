@@ -20,6 +20,9 @@ struct RendererConfig {
 int renderer_init(const RendererConfig* cfg);
 void renderer_begin_frame(void);
 void renderer_submit(const VNRenderOp* ops, vn_u32 op_count);
+void renderer_submit_dirty(const VNRenderOp* ops,
+                           vn_u32 op_count,
+                           const VNRenderDirtySubmit* dirty_submit);
 void renderer_end_frame(void);
 void renderer_shutdown(void);
 const char* renderer_backend_name(void);

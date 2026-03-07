@@ -132,6 +132,9 @@ rvv_smoke() {
   run_capture "$LOG_DIR/test_backend_consistency_rvv.log" \
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_backend_consistency_rvv"
   assert_log_has "$LOG_DIR/test_backend_consistency_rvv.log" "test_backend_consistency ok"
+  run_capture "$LOG_DIR/test_renderer_dirty_submit_rvv.log" \
+    "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_renderer_dirty_submit_rvv"
+  assert_log_has "$LOG_DIR/test_renderer_dirty_submit_rvv.log" "matched backend=rvv"
 }
 
 if rvv_smoke; then

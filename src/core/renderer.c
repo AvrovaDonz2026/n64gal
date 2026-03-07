@@ -72,6 +72,16 @@ static vn_u32 vn_renderer_arch_mask_from_flags(vn_u32 flags) {
     return VN_ARCH_MASK_SCALAR;
 }
 
+static int renderer_backend_submit_full(const VNRenderBackend* be,
+                                        const VNRenderOp* ops,
+                                        vn_u32 op_count) {
+    if (be == (const VNRenderBackend*)0 ||
+        be->submit_ops == (int (*)(const VNRenderOp*, vn_u32))0) {
+        return VN_E_RENDER_STATE;
+    }
+    return be->submit_ops(ops, op_count);
+}
+
 int renderer_init(const RendererConfig* cfg) {
     vn_u32 arch_mask;
     int rc;
@@ -165,13 +175,51 @@ void renderer_submit(const VNRenderOp* ops, vn_u32 op_count) {
         return;
     }
     be = vn_backend_get_active();
-    if (be == (const VNRenderBackend*)0 || be->submit_ops == (int (*)(const VNRenderOp*, vn_u32))0) {
-        return;
-    }
-    rc = be->submit_ops(ops, op_count);
-    if (rc != VN_OK) {
+    rc = renderer_backend_submit_full(be, ops, op_count);
+    if (rc != VN_OK && be != (const VNRenderBackend*)0) {
         (void)fprintf(stderr, "renderer_submit failed rc=%d backend=%s\n", rc, be->name);
     }
+}
+
+void renderer_submit_dirty(const VNRenderOp* ops,
+                           vn_u32 op_count,
+                           const VNRenderDirtySubmit* dirty_submit) {
+    const VNRenderBackend* be;
+    int rc;
+
+    if (g_initialized == VN_FALSE) {
+        return;
+    }
+    be = vn_backend_get_active();
+    if (be == (const VNRenderBackend*)0) {
+        return;
+    }
+    if (dirty_submit == (const VNRenderDirtySubmit*)0) {
+        renderer_submit(ops, op_count);
+        return;
+    }
+    if (dirty_submit->full_redraw != 0u) {
+        renderer_submit(ops, op_count);
+        return;
+    }
+    if (dirty_submit->rect_count == 0u) {
+        return;
+    }
+    if (be->submit_ops_dirty == (int (*)(const VNRenderOp*, vn_u32, const VNRenderDirtySubmit*))0) {
+        renderer_submit(ops, op_count);
+        return;
+    }
+
+    rc = be->submit_ops_dirty(ops, op_count, dirty_submit);
+    if (rc == VN_OK) {
+        return;
+    }
+
+    (void)fprintf(stderr,
+                  "renderer_submit_dirty failed rc=%d backend=%s, falling back to full submit\n",
+                  rc,
+                  be->name);
+    renderer_submit(ops, op_count);
 }
 
 void renderer_end_frame(void) {

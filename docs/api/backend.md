@@ -93,14 +93,15 @@ Render IR 单条指令。
 ## 7. 一致性验证
 
 1. 新增 `test_backend_consistency`：同一组 `VNRenderOp` 在 `scalar` 与 `avx2` 下渲染后比较 framebuffer CRC32。
-2. 新增 `test_runtime_golden`：真实 `S0-S3` 场景在 `600x800` 下固定标量 golden CRC，当前基线为 `S0=0x58C8928B`、`S1=0x80D7F175`、`S2=0x587BC5A4`、`S3=0x0BC0160F`，并在支持的平台上对照 `avx2/neon/rvv`。
-3. `test_runtime_golden` 对 `scalar` 继续要求 CRC 严格命中；对支持的 SIMD 后端则按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `test_runtime_golden_<scene>_<backend>_summary.txt`，便于直接定位首个差异点与阈值命中情况。若设置 `VN_GOLDEN_ARTIFACT_DIR`，这些产物会统一写入该目录；CI suite 脚本已用这条约定收集 artifact。
-4. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
-5. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行，以及 `test_runtime_golden` 的 golden 容差对照 / `scalar vs rvv` CRC 一致性。
+2. 新增 `test_renderer_dirty_submit`：对同一组前后帧，校验 `scalar`、`avx2`、`neon`、`rvv` 的 dirty submit 都与整帧提交 CRC 一致；当前主机不支持的 ISA 自动跳过，`riscv64 qemu` smoke 还会额外执行 RVV 版二进制。
+3. 新增 `test_runtime_golden`：真实 `S0-S3` 场景在 `600x800` 下固定标量 golden CRC，当前基线为 `S0=0x58C8928B`、`S1=0x80D7F175`、`S2=0x587BC5A4`、`S3=0x0BC0160F`，并在支持的平台上对照 `avx2/neon/rvv`。
+4. `test_runtime_golden` 对 `scalar` 继续要求 CRC 严格命中；对支持的 SIMD 后端则按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `test_runtime_golden_<scene>_<backend>_summary.txt`，便于直接定位首个差异点与阈值命中情况。若设置 `VN_GOLDEN_ARTIFACT_DIR`，这些产物会统一写入该目录；CI suite 脚本已用这条约定收集 artifact。
+5. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
+6. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行，以及 `test_runtime_golden` 的 golden 容差对照 / `scalar vs rvv` CRC 一致性。
 
 
-## 8. 规划中的 Dirty-Tile 扩展
+## 8. Dirty-Tile 扩展现状
 
-1. `Dirty-Tile` 增量渲染的共享 backend 契约目前仍在草案阶段，详见 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
-2. 该草案的目标是新增统一的 `submit_ops_dirty` 路径，而不是为不同 ISA 写多套前端差分逻辑。
-3. 在草案真正落地前，当前已发布的 `vn_backend.h` 仍只要求整帧 `submit_ops` 语义。
+1. `vn_backend.h` 已新增统一的 `VNRenderRect` / `VNRenderDirtySubmit` 与可选 `submit_ops_dirty` 回调，前后端仍保持“一份 API，多后端实现”。
+2. 当前 `scalar`、`avx2`、`neon`、`rvv` 已实现 dirty submit，分别覆盖语义基线、x64 主力路径、arm64 主力路径与 `riscv64` 向量后端。
+3. 共享设计与后续分阶段推进仍见 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。

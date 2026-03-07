@@ -8,12 +8,7 @@
 #define VN_DIRTY_RECT_MAX 128u
 #define VN_DIRTY_OP_CAP 16u
 
-typedef struct {
-    vn_u16 x;
-    vn_u16 y;
-    vn_u16 w;
-    vn_u16 h;
-} VNDirtyRect;
+typedef VNRenderRect VNDirtyRect;
 
 typedef struct {
     vn_u32 valid;

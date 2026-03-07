@@ -97,6 +97,7 @@ struct VNRuntimeSession {
     vn_u32 op_cache_hits;
     vn_u32 op_cache_misses;
     VNDirtyPlannerState dirty_planner;
+    VNDirtyPlan dirty_plan;
     vn_u32* dirty_bits;
     vn_u32 dirty_tile_count;
     vn_u32 dirty_rect_count;
@@ -229,6 +230,7 @@ static void runtime_dirty_stats_reset(VNRuntimeSession* session) {
     session->dirty_tile_count = 0u;
     session->dirty_rect_count = 0u;
     session->dirty_full_redraw = 0u;
+    vn_dirty_plan_reset(&session->dirty_plan);
 }
 
 static void runtime_dirty_planner_invalidate(VNRuntimeSession* session) {
@@ -242,7 +244,6 @@ static void runtime_dirty_planner_invalidate(VNRuntimeSession* session) {
 static void runtime_prepare_dirty_plan(VNRuntimeSession* session,
                                        const VNRenderOp* ops,
                                        vn_u32 op_count) {
-    VNDirtyPlan plan;
     int rc;
 
     if (session == (VNRuntimeSession*)0) {
@@ -252,18 +253,18 @@ static void runtime_prepare_dirty_plan(VNRuntimeSession* session,
     if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) == VN_FALSE) {
         return;
     }
-    rc = vn_dirty_planner_build(&session->dirty_planner, ops, op_count, &plan);
+    rc = vn_dirty_planner_build(&session->dirty_planner, ops, op_count, &session->dirty_plan);
     if (rc != VN_OK) {
         runtime_dirty_planner_invalidate(session);
         return;
     }
-    session->dirty_tile_count = plan.dirty_tile_count;
-    session->dirty_rect_count = plan.dirty_rect_count;
-    session->dirty_full_redraw = plan.full_redraw;
+    session->dirty_tile_count = session->dirty_plan.dirty_tile_count;
+    session->dirty_rect_count = session->dirty_plan.dirty_rect_count;
+    session->dirty_full_redraw = session->dirty_plan.full_redraw;
     session->dirty_tile_frames += 1u;
-    session->dirty_tile_total += plan.dirty_tile_count;
-    session->dirty_rect_total += plan.dirty_rect_count;
-    if (plan.full_redraw != 0u) {
+    session->dirty_tile_total += session->dirty_plan.dirty_tile_count;
+    session->dirty_rect_total += session->dirty_plan.dirty_rect_count;
+    if (session->dirty_plan.full_redraw != 0u) {
         session->dirty_full_redraws += 1u;
     }
 }
@@ -279,6 +280,31 @@ static void runtime_commit_dirty_plan(VNRuntimeSession* session,
         return;
     }
     vn_dirty_planner_commit(&session->dirty_planner, ops, op_count);
+}
+
+static void runtime_submit_render_ops(VNRuntimeSession* session,
+                                      const VNRenderOp* ops,
+                                      vn_u32 op_count) {
+    VNRenderDirtySubmit dirty_submit;
+
+    if (session == (VNRuntimeSession*)0) {
+        return;
+    }
+
+    renderer_begin_frame();
+    if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) != VN_FALSE &&
+        session->dirty_plan.valid != 0u &&
+        session->dirty_plan.full_redraw == 0u) {
+        dirty_submit.width = session->dirty_plan.width;
+        dirty_submit.height = session->dirty_plan.height;
+        dirty_submit.rect_count = session->dirty_plan.dirty_rect_count;
+        dirty_submit.full_redraw = session->dirty_plan.full_redraw;
+        dirty_submit.rects = session->dirty_plan.rects;
+        renderer_submit_dirty(ops, op_count, &dirty_submit);
+    } else {
+        renderer_submit(ops, op_count);
+    }
+    renderer_end_frame();
 }
 
 static vn_u32 runtime_render_sprite_phase(const VNRuntimeState* state) {
@@ -1493,9 +1519,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                     session->done = VN_TRUE;
                 } else {
                     runtime_prepare_dirty_plan(session, session->ops, op_count);
-                    renderer_begin_frame();
-                    renderer_submit(session->ops, op_count);
-                    renderer_end_frame();
+                    runtime_submit_render_ops(session, session->ops, op_count);
                     t_after_raster = runtime_now_ms();
                     runtime_commit_dirty_plan(session, session->ops, op_count);
                     if (frame_reuse_active != VN_FALSE) {

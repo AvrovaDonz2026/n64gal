@@ -40,6 +40,7 @@ TESTS=(
   test_dirty_tiles
   test_vnpak
   test_renderer_fallback
+  test_renderer_dirty_submit
   test_backend_consistency
   test_vm
   test_runtime_api
@@ -52,6 +53,7 @@ riscv64-linux-gnu-gcc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DI
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player_rvv"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" -c src/backend/rvv/rvv_backend.c -o "$BUILD_DIR/rvv_backend.o"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_backend_consistency.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_backend_consistency_rvv"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_renderer_dirty_submit.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_renderer_dirty_submit_rvv"
 
 for test_name in "${TESTS[@]}"; do
   echo "[riscv64-cross] compiling $test_name"

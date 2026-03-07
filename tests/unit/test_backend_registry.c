@@ -39,7 +39,8 @@ static const VNRenderBackend g_dummy_scalar = {
     dummy_begin_frame,
     dummy_submit,
     dummy_end_frame,
-    dummy_caps
+    dummy_caps,
+    0
 };
 
 int main(void) {

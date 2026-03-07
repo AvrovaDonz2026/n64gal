@@ -55,15 +55,17 @@
 1. `run_perf.sh` / `run_perf_compare.sh` / `run_perf_compare_revs.sh` 测到的是“当前 shipped 路径”的整机收益，而不是纯 backend 微基准。
 2. 在稳定等待帧里，`frame_reuse_hit=1` 时会直接复用上一帧 framebuffer，因此 `raster_ms` 可能接近 `0.000`。
 3. `op_cache_hit=1` 只代表跳过了 `VNRenderOp[]` 构建；该路径仍会执行 `renderer_submit` 与 raster。
-4. `VN_RUNTIME_PERF_DIRTY_TILE` 当前只生成 dirty plan/统计，不改变实际提交路径；因此它更适合先用于验证 planner 行为，而不是直接当作已落地的 raster 优化。
+4. `VN_RUNTIME_PERF_DIRTY_TILE` 现已驱动实际 dirty submit；当前 `scalar` / `avx2` / `neon` / `rvv` 都实现了这条路径。
+5. `run_perf.sh` 与 `run_perf_compare.sh` 现在都支持 `--perf-frame-reuse` / `--perf-op-cache` / `--perf-dirty-tile`，可以直接做同一 backend 的开关对照。
 
-若需要拆开归因，当前建议直接运行 `vn_player --trace`，而不是修改 perf 脚本输入：
+若需要拆开归因，既可以直接运行 `vn_player --trace`，也可以把 perf 开关直接传给 perf 脚本：
 
 ```bash
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
+./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_dirty_compare
 ```
 
 推荐读法：
@@ -71,7 +73,7 @@
 1. 默认开启两层优化，先看整机 `p95_frame_ms` 是否下降。
 2. 关闭 `frame reuse` 后，再看 `raster_ms` 是否回升，用于估算静态帧短路的收益。
 3. 继续关闭 `op cache` 后，再看 `build_ms` 是否回升，用于估算命令缓存的收益。
-4. 单独开启 `dirty tile` 后，先看 `dirty_tiles/dirty_rects/dirty_full_redraw` 是否符合预期；在当前阶段，这些字段代表 planner 质量，而不是 partial submit 已生效。
+4. 单独开启 `dirty tile` 后，先看 `dirty_tiles/dirty_rects/dirty_full_redraw` 是否符合预期；在当前阶段，这些字段既代表 planner 质量，也开始反映 dirty submit 命中情况；目前 `scalar`、`avx2`、`neon`、`rvv` 都已实现 partial submit。
 
 ## Baseline vs Candidate Backend
 
@@ -199,5 +201,5 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 5. 若 trace 中 `op_cache_hit=1`，则该帧只跳过了命令构建；仍需结合 `raster_ms` 判断 backend 热点是否变化。
 6. 所有性能结论都必须附带：commit、设备、OS、toolchain、命令行参数。
 7. `qemu-user` perf 只用于回归趋势判断；发版门槛必须看目标架构原生机器结果。
-8. `dirty_full_redraw=1` 说明 planner 主动回退整帧路径；在 dirty submit 尚未接入前，这属于预期观测结果。
+8. `dirty_full_redraw=1` 说明 planner 主动回退整帧路径；即使 dirty submit 已接入，出现该值时也应按整帧提交理解。
 9. CI 门限 profile 先按当前 runner 的 smoke 输入固化，后续随着优化落地再逐步收紧，不把“还未优化完”的目标值直接硬塞进日常短窗口 gate。

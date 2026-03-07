@@ -508,6 +508,7 @@ static void emit_compare_artifacts(const char* scene_name,
 
 static int run_scene_once(const char* scene_name,
                           const char* backend_name,
+                          vn_u32 perf_flags,
                           vn_u32* out_crc,
                           const char** out_actual_backend,
                           vn_u32* out_pixels,
@@ -542,6 +543,7 @@ static int run_scene_once(const char* scene_name,
     cfg.trace = 0u;
     cfg.keyboard = 0u;
     cfg.hold_on_end = 0u;
+    cfg.perf_flags = perf_flags;
 
     rc = vn_runtime_session_create(&cfg, &session);
     if (rc != VN_OK) {
@@ -595,6 +597,7 @@ static int check_optional_backend(const GoldenScene* golden,
     actual_backend = "none";
     rc = run_scene_once(golden->scene_name,
                         backend_name,
+                        VN_RUNTIME_PERF_DEFAULT_FLAGS,
                         &backend_crc,
                         &actual_backend,
                         actual_pixels,
@@ -722,6 +725,7 @@ int main(void) {
         actual_backend = "none";
         rc = run_scene_once(k_golden_scenes[i].scene_name,
                             "scalar",
+                            VN_RUNTIME_PERF_DEFAULT_FLAGS,
                             &scalar_crc,
                             &actual_backend,
                             scalar_pixels,
@@ -755,6 +759,64 @@ int main(void) {
         (void)printf("test_runtime_golden scalar scene=%s crc=0x%08X\n",
                      k_golden_scenes[i].scene_name,
                      (unsigned int)scalar_crc);
+
+        {
+            vn_u32 dirty_crc;
+            const char* dirty_backend;
+            PixelDiffStats dirty_stats;
+
+            dirty_crc = 0u;
+            dirty_backend = "none";
+            rc = run_scene_once(k_golden_scenes[i].scene_name,
+                                "scalar",
+                                VN_RUNTIME_PERF_DEFAULT_FLAGS | VN_RUNTIME_PERF_DIRTY_TILE,
+                                &dirty_crc,
+                                &dirty_backend,
+                                backend_pixels,
+                                VN_GOLDEN_PIXELS);
+            if (rc != VN_OK) {
+                (void)fprintf(stderr,
+                              "scene=%s scalar dirty rc=%d\n",
+                              k_golden_scenes[i].scene_name,
+                              rc);
+                exit_code = 1;
+                break;
+            }
+            if (strcmp(dirty_backend, "scalar") != 0) {
+                (void)fprintf(stderr,
+                              "scene=%s scalar dirty requested got=%s\n",
+                              k_golden_scenes[i].scene_name,
+                              dirty_backend);
+                exit_code = 1;
+                break;
+            }
+            collect_pixel_diff_stats(scalar_pixels,
+                                     backend_pixels,
+                                     VN_GOLDEN_PIXELS,
+                                     &dirty_stats);
+            if (dirty_crc != scalar_crc || dirty_stats.mismatch_count != 0u) {
+                emit_compare_artifacts(k_golden_scenes[i].scene_name,
+                                       "scalar_dirty",
+                                       scalar_pixels,
+                                       backend_pixels,
+                                       scalar_crc,
+                                       dirty_crc,
+                                       &dirty_stats,
+                                       &k_optional_backend_policy,
+                                       "failed");
+                (void)fprintf(stderr,
+                              "scene=%s scalar dirty mismatch baseline=0x%08X dirty=0x%08X mismatches=%u\n",
+                              k_golden_scenes[i].scene_name,
+                              (unsigned int)scalar_crc,
+                              (unsigned int)dirty_crc,
+                              (unsigned int)dirty_stats.mismatch_count);
+                exit_code = 1;
+                break;
+            }
+            (void)printf("test_runtime_golden scalar_dirty scene=%s crc=0x%08X\n",
+                         k_golden_scenes[i].scene_name,
+                         (unsigned int)dirty_crc);
+        }
 
         if (check_optional_backend(&k_golden_scenes[i],
                                    "avx2",

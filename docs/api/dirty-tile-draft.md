@@ -1,6 +1,6 @@
 # Dirty-Tile 增量渲染设计与 API 草案
 
-- 状态：`draft + slice-1 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner 已落地；dirty submit 仍未接入）
+- 状态：`draft + slice-2 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证）
 - 目标：把白皮书里的 `Dirty-Tile` 目标，落成可直接拆 PR 的运行时 / 前端 / 后端接口方案
 - 约束：保持 `C89`；继续坚持“前后端一份 API，跨架构只重写后端”
 
@@ -312,12 +312,12 @@ int renderer_submit_dirty(const VNRenderOp* ops,
 3. 生成 bitset、merge rect、实现 `>60%` 回退
 4. 新增单元测试，先不接 Runtime
 
-### Slice B: Scalar 参考实现
+### Slice B: Scalar + AVX2 + NEON + RVV 参考实现
 
 1. `vn_backend.h` / `vn_renderer.h` 新增 dirty submit 契约
-2. `scalar` 后端先支持 `submit_ops_dirty`
+2. `scalar`、`avx2`、`neon` 与 `rvv` 后端先支持 `submit_ops_dirty`
 3. Runtime 接上 `VN_RUNTIME_PERF_DIRTY_TILE`
-4. 让 `scalar` 作为功能正确性的参考实现
+4. 让 `scalar` 作为功能正确性的参考实现，`avx2` / `neon` / `rvv` 分别作为 x64 / arm64 / riscv64 主力后端同步收口
 
 ### Slice C: Runtime / Preview / Trace
 
@@ -358,7 +358,7 @@ int renderer_submit_dirty(const VNRenderOp* ops,
 
 ### 后端一致性
 
-1. `scalar` 先作为 dirty submit 参考
+1. `scalar` 继续作为 dirty submit 语义参考，`avx2` 作为 x64 主力实现
 2. `avx2/neon/rvv` 逐个对照 `scalar`
 3. 仍沿用当前 golden 容差策略，不另起一套判定口径
 
@@ -383,10 +383,10 @@ int renderer_submit_dirty(const VNRenderOp* ops,
 
 当前最合理的开工顺序是：
 
-1. 先做 `Slice A`：dirty plan/bounds/merge 的共享逻辑
-2. 立刻接 `Slice B`：先让 `scalar` 跑通 partial submit
-3. Runtime trace / preview counters 与 `issue.md` 同步更新
-4. 再把同一份 dirty submit API 下放到 `avx2 -> neon -> rvv`
+1. `Slice A`：dirty plan/bounds/merge 的共享逻辑已落地
+2. `Slice B`：`scalar` + `avx2` + `neon` + `rvv` partial submit 已落地
+3. 下一步补 `dirty on/off` runtime golden / perf 证据，并继续补齐 native RVV 设备上的长期验证
+4. 继续沿 `qemu-first -> native-rvv` 路线收紧 RVV 证据
 
 这样可以保证：
 

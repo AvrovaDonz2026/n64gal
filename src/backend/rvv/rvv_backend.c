@@ -31,11 +31,31 @@ static vn_u32 g_rvv_u_lut_cap = 0u;
 static vn_u32 g_rvv_v_lut_cap = 0u;
 static int g_rvv_ready = VN_FALSE;
 
-static int vn_rvv_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_x0, vn_u32* out_y0, vn_u32* out_x1, vn_u32* out_y1) {
+static void vn_rvv_fill_rect_uniform_clipped(vn_i16 x,
+                                             vn_i16 y,
+                                             vn_u16 w,
+                                             vn_u16 h,
+                                             vn_u32 color,
+                                             vn_u8 alpha,
+                                             const VNRenderRect* clip_rect);
+
+static int vn_rvv_clip_rect_region(vn_i16 x,
+                                    vn_i16 y,
+                                    vn_u16 w,
+                                    vn_u16 h,
+                                    const VNRenderRect* clip_rect,
+                                    vn_u32* out_x0,
+                                    vn_u32* out_y0,
+                                    vn_u32* out_x1,
+                                    vn_u32* out_y1) {
     int x0;
     int y0;
     int x1;
     int y1;
+    int clip_x0;
+    int clip_y0;
+    int clip_x1;
+    int clip_y1;
 
     if (out_x0 == (vn_u32*)0 || out_y0 == (vn_u32*)0 || out_x1 == (vn_u32*)0 || out_y1 == (vn_u32*)0) {
         return VN_FALSE;
@@ -48,6 +68,28 @@ static int vn_rvv_clip_rect(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32* out_
     y0 = (int)y;
     x1 = x0 + (int)w;
     y1 = y0 + (int)h;
+
+    if (clip_rect != (const VNRenderRect*)0) {
+        if (clip_rect->w == 0u || clip_rect->h == 0u) {
+            return VN_FALSE;
+        }
+        clip_x0 = (int)clip_rect->x;
+        clip_y0 = (int)clip_rect->y;
+        clip_x1 = clip_x0 + (int)clip_rect->w;
+        clip_y1 = clip_y0 + (int)clip_rect->h;
+        if (x0 < clip_x0) {
+            x0 = clip_x0;
+        }
+        if (y0 < clip_y0) {
+            y0 = clip_y0;
+        }
+        if (x1 > clip_x1) {
+            x1 = clip_x1;
+        }
+        if (y1 > clip_y1) {
+            y1 = clip_y1;
+        }
+    }
 
     if (x0 < 0) {
         x0 = 0;
@@ -477,14 +519,30 @@ static void vn_rvv_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn
 }
 #endif
 
-static void vn_rvv_clear_frame(vn_u8 gray) {
-    if (g_rvv_framebuffer == (vn_u32*)0 || g_rvv_pixels == 0u) {
+static void vn_rvv_clear_rect(vn_u8 gray, const VNRenderRect* clip_rect) {
+    if (clip_rect == (const VNRenderRect*)0) {
+        if (g_rvv_framebuffer == (vn_u32*)0 || g_rvv_pixels == 0u) {
+            return;
+        }
+        vn_rvv_fill_u32(g_rvv_framebuffer, g_rvv_pixels, vn_pp_make_gray(gray));
         return;
     }
-    vn_rvv_fill_u32(g_rvv_framebuffer, g_rvv_pixels, vn_pp_make_gray(gray));
+    vn_rvv_fill_rect_uniform_clipped(0,
+                                     0,
+                                     g_rvv_cfg.width,
+                                     g_rvv_cfg.height,
+                                     vn_pp_make_gray(gray),
+                                     255u,
+                                     clip_rect);
 }
 
-static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, vn_u8 alpha) {
+static void vn_rvv_fill_rect_uniform_clipped(vn_i16 x,
+                                             vn_i16 y,
+                                             vn_u16 w,
+                                             vn_u16 h,
+                                             vn_u32 color,
+                                             vn_u8 alpha,
+                                             const VNRenderRect* clip_rect) {
     vn_u32 x0;
     vn_u32 y0;
     vn_u32 x1;
@@ -494,7 +552,7 @@ static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_
     if (g_rvv_framebuffer == (vn_u32*)0) {
         return;
     }
-    if (vn_rvv_clip_rect(x, y, w, h, &x0, &y0, &x1, &y1) == VN_FALSE) {
+    if (vn_rvv_clip_rect_region(x, y, w, h, clip_rect, &x0, &y0, &x1, &y1) == VN_FALSE) {
         return;
     }
 
@@ -513,6 +571,10 @@ static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_
         /* Vectorize fade and translucent solid fills on the hot full-width path. */
         vn_rvv_blend_u32_uniform(row_ptr, x1 - x0, color, alpha);
     }
+}
+
+static void vn_rvv_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn_u32 color, vn_u8 alpha) {
+    vn_rvv_fill_rect_uniform_clipped(x, y, w, h, color, alpha, (const VNRenderRect*)0);
 }
 
 static void vn_rvv_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent) {
@@ -543,7 +605,8 @@ static void vn_rvv_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_st
     }
 }
 
-static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
+static void vn_rvv_draw_textured_rect_clipped(const VNRenderOp* op,
+                                             const VNRenderRect* clip_rect) {
     vn_u32 x0;
     vn_u32 y0;
     vn_u32 x1;
@@ -562,7 +625,7 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
     if (op->alpha == 0u) {
         return;
     }
-    if (vn_rvv_clip_rect(op->x, op->y, op->w, op->h, &x0, &y0, &x1, &y1) == VN_FALSE) {
+    if (vn_rvv_clip_rect_region(op->x, op->y, op->w, op->h, clip_rect, &x0, &y0, &x1, &y1) == VN_FALSE) {
         return;
     }
 
@@ -623,6 +686,10 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
                                            op->alpha);
         }
     }
+}
+
+static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
+    vn_rvv_draw_textured_rect_clipped(op, (const VNRenderRect*)0);
 }
 
 static int rvv_init(const RendererConfig* cfg) {
@@ -716,13 +783,72 @@ static int rvv_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
         const VNRenderOp* op;
         op = &ops[i];
         if (op->op == VN_OP_CLEAR) {
-            vn_rvv_clear_frame(op->alpha);
+            vn_rvv_clear_rect(op->alpha, (const VNRenderRect*)0);
         } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
             vn_rvv_draw_textured_rect(op);
         } else if (op->op == VN_OP_FADE) {
             vn_rvv_fill_rect_uniform(0, 0, g_rvv_cfg.width, g_rvv_cfg.height, 0xFF000000u, op->alpha);
         } else {
             return VN_E_FORMAT;
+        }
+    }
+    return VN_OK;
+}
+
+static int rvv_submit_ops_dirty(const VNRenderOp* ops,
+                                vn_u32 op_count,
+                                const VNRenderDirtySubmit* dirty_submit) {
+    const VNRenderOp* clear_op;
+    vn_u32 rect_index;
+
+    if (g_rvv_ready == VN_FALSE) {
+        return VN_E_RENDER_STATE;
+    }
+    if (dirty_submit == (const VNRenderDirtySubmit*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (ops == (const VNRenderOp*)0 && op_count != 0u) {
+        return VN_E_INVALID_ARG;
+    }
+    if (dirty_submit->rect_count != 0u && dirty_submit->rects == (const VNRenderRect*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (dirty_submit->width != g_rvv_cfg.width || dirty_submit->height != g_rvv_cfg.height) {
+        return VN_E_INVALID_ARG;
+    }
+    if (dirty_submit->full_redraw != 0u || op_count == 0u) {
+        return rvv_submit_ops(ops, op_count);
+    }
+    if (dirty_submit->rect_count == 0u) {
+        return VN_OK;
+    }
+    if (ops[0].op != VN_OP_CLEAR) {
+        return rvv_submit_ops(ops, op_count);
+    }
+
+    clear_op = &ops[0];
+    for (rect_index = 0u; rect_index < dirty_submit->rect_count; ++rect_index) {
+        const VNRenderRect* clip_rect;
+        vn_u32 i;
+
+        clip_rect = &dirty_submit->rects[rect_index];
+        vn_rvv_clear_rect(clear_op->alpha, clip_rect);
+        for (i = 1u; i < op_count; ++i) {
+            const VNRenderOp* op;
+            op = &ops[i];
+            if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
+                vn_rvv_draw_textured_rect_clipped(op, clip_rect);
+            } else if (op->op == VN_OP_FADE) {
+                vn_rvv_fill_rect_uniform_clipped(0,
+                                                 0,
+                                                 g_rvv_cfg.width,
+                                                 g_rvv_cfg.height,
+                                                 0xFF000000u,
+                                                 op->alpha,
+                                                 clip_rect);
+            } else if (op->op != VN_OP_CLEAR) {
+                return VN_E_FORMAT;
+            }
         }
     }
     return VN_OK;
@@ -748,7 +874,8 @@ static const VNRenderBackend g_rvv_backend = {
     rvv_begin_frame,
     rvv_submit_ops,
     rvv_end_frame,
-    rvv_query_caps
+    rvv_query_caps,
+    rvv_submit_ops_dirty
 };
 
 int vn_register_rvv_backend(void) {

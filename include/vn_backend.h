@@ -34,6 +34,21 @@ typedef struct {
 } VNRenderOp;
 
 typedef struct {
+    vn_u16 x;
+    vn_u16 y;
+    vn_u16 w;
+    vn_u16 h;
+} VNRenderRect;
+
+typedef struct {
+    vn_u16 width;
+    vn_u16 height;
+    vn_u32 rect_count;
+    vn_u32 full_redraw;
+    const VNRenderRect* rects;
+} VNRenderDirtySubmit;
+
+typedef struct {
     vn_u32 has_simd;
     vn_u32 has_lut_blend;
     vn_u32 has_tmem_cache;
@@ -48,6 +63,9 @@ typedef struct {
     int (*submit_ops)(const VNRenderOp* ops, vn_u32 op_count);
     void (*end_frame)(void);
     void (*query_caps)(VNBackendCaps* out_caps);
+    int (*submit_ops_dirty)(const VNRenderOp* ops,
+                            vn_u32 op_count,
+                            const VNRenderDirtySubmit* dirty_submit);
 } VNRenderBackend;
 
 int vn_backend_register(const VNRenderBackend* be);

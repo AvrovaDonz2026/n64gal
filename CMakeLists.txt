@@ -79,6 +79,10 @@ add_executable(test_renderer_fallback tests/unit/test_renderer_fallback.c)
 target_link_libraries(test_renderer_fallback PRIVATE vn_core)
 add_test(NAME unit_renderer_fallback COMMAND test_renderer_fallback)
 
+add_executable(test_renderer_dirty_submit tests/unit/test_renderer_dirty_submit.c)
+target_link_libraries(test_renderer_dirty_submit PRIVATE vn_core)
+add_test(NAME unit_renderer_dirty_submit COMMAND test_renderer_dirty_submit)
+
 add_executable(test_backend_consistency tests/unit/test_backend_consistency.c)
 target_link_libraries(test_backend_consistency PRIVATE vn_core)
 add_test(NAME unit_backend_consistency COMMAND test_backend_consistency)
@@ -126,6 +130,7 @@ set_tests_properties(
     unit_dirty_tiles
     unit_vnpak
     unit_renderer_fallback
+    unit_renderer_dirty_submit
     unit_backend_consistency
     unit_vm
     unit_runtime_api

@@ -76,6 +76,7 @@ TESTS=(
   test_dirty_tiles
   test_vnpak
   test_renderer_fallback
+  test_renderer_dirty_submit
   test_backend_consistency
   test_vm
   test_runtime_api
