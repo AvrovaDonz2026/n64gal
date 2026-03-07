@@ -51,6 +51,7 @@
 30. `ISSUE-008` 已继续补全 repeat compare 诊断：`tests/perf/run_perf_compare.sh --repeat N` 现在除中位数聚合外，还会导出 baseline/candidate `perf_summary_repeats.csv`、`compare/perf_repeat_variability.csv`、`compare/perf_repeat_variability.md`，并把 `Repeat Variability` 章节并入 `compare/perf_compare.md`；这条线直接服务于下一轮 `windows-x64` dirty `S3` 抖动排查，避免把短窗口噪声误判成真实 regression。
 31. `ISSUE-008` / `ISSUE-014` 已把 dirty repeat variability 再往 workflow summary 抬一层：`scripts/ci/run_perf_smoke_suite.sh` 现在会在 `perf_workflow_summary.md` 里额外生成 `Dirty-Tile Repeat Variability Digest`，直接汇总 `perf_repeat_variability.csv/.md` 的 scene 级 range；这会同时落到 `linux-x64/avx2`、`linux-arm64/neon`、`windows-arm64/neon` 三条原生 perf 线，便于并行判断 dirty on/off 是真实回退还是 short-window jitter。
 32. `ISSUE-014` 已按最快口径对齐路径先修 `linux-x64` perf：`.github/workflows/ci-matrix.yml` 的 Linux perf step 现在显式注入 `VN_PERF_CFLAGS=-O2 -DNDEBUG`，让 `run_perf.sh` / `run_kernel_bench.sh` 的 auto-build runner 不再落在无优化构建；同时 `scripts/ci/run_perf_smoke_suite.sh` 会把 `Perf CFLAGS` / `Perf LDFLAGS` 直接写进 `perf_workflow_summary.md`，避免后续再把 build-path mismatch 误判成 Linux runner 本身慢。
+33. `ISSUE-009` 本轮继续推进 `neon`：`src/backend/neon/neon_backend.c` 已补 uniform alpha/fade row kernel，并在 `vis_w > 256` 时接入宽行 `SPRITE/TEXT` row-palette 复用与 palette-row apply；本地 `aarch64-linux-gnu-gcc + qemu-aarch64` 已复核 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_runtime_golden` 全部通过。qemu kernel bench 仅作方向性留痕：`sprite_full_opaque` 约 `269.19ms -> 38.64ms`、`sprite_full_alpha180` 约 `328.57ms -> 144.20ms`，而 `fade` 在 qemu 下的 NEON 指令模拟仍明显偏慢，因此发布级 perf 仍以 GitHub 原生 arm64 runner artifact 为准。
 
 ### 平台目标（新增约束）
 
@@ -662,7 +663,7 @@ PERF_THRESHOLD_MODE=soft PERF_THRESHOLD_PROFILE=linux-riscv64-qemu-rvv-rev-smoke
 - [x] `neon` 后端最小可运行路径与注册链
 - [x] 自动选择链支持 `avx2 -> neon -> rvv -> scalar`
 - [x] NEON `fill` 核心算子（向量填充）
-- [ ] NEON `blend/tex/combine` 核心算子
+- [ ] NEON `blend/tex/combine` 核心算子（uniform blend + wide row-palette 已落地，`sample/combine` 深化向量化待续）
 - [x] aarch64 交叉编译通过
 - [x] arm64 Linux 原生构建与跑测（GitHub Actions `linux-arm64` 通过）
 - [x] arm64 Windows 原生构建验证（GitHub Actions `windows-arm64` 通过）

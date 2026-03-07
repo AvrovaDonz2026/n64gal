@@ -70,7 +70,7 @@ Render IR 单条指令。
 
 1. `scalar`：完整基线实现，可作为默认回退后端。
 2. `avx2`：已实现最小可运行链路。
-3. `neon`：已接入最小可运行链路，`fill` 与不透明矩形填充路径使用 NEON 向量写入，目标架构外返回 `VN_E_UNSUPPORTED`。
+3. `neon`：已接入最小可运行链路；`fill`、uniform alpha/fade，以及宽行 `SPRITE/TEXT` 的 row-palette 写回路径已使用 NEON/NEON-assisted 实现，目标架构外返回 `VN_E_UNSUPPORTED`。
 4. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充、统一颜色半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径使用 RVV 向量写入；其中 `sample -> combine` 已融合为单次行内向量流水，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
 
 实现说明：

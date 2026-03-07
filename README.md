@@ -331,7 +331,7 @@ baseline/candidate 全量 sweep 示例（非 CI smoke gate）：
 
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
-3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译与 GitHub `arm64 Linux/Windows` 原生 CI 已通过；`dirty submit` 也已纳入 `linux-arm64` / `windows-arm64` 的显式日志留痕，确保 GitHub runner 上实际命中 `neon`。当前剩余重点转向更多核心算子与长期 perf 证据。
+3. `neon`：最小可运行后端已接入，`fill` SIMD、uniform alpha/fade row kernel，以及宽行 `SPRITE/TEXT` 的 row-palette 复用/写回已落地；`aarch64` 交叉编译与 GitHub `arm64 Linux/Windows` 原生 CI 已通过，`dirty submit` 也已纳入 `linux-arm64` / `windows-arm64` 的显式日志留痕，确保 GitHub runner 上实际命中 `neon`。当前剩余重点转向 `sample/combine` 更深层向量化与更多 native perf 证据。
 4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径已向量化；其中 `sample -> combine` 已融合，`alpha=255` 已可直接写 framebuffer，`alpha<255` 也已收口到单循环 `blend/store`，UV LUT 已降到 8-bit 存储，`seed/checker` 常量和基础偏置也已前折叠。当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟、`scalar vs rvv` CRC 一致性，以及 `riscv-perf-report` 的 GitHub artifact 流程；在缺少原生 `riscv64/RVV` 设备时，项目阶段策略按 `qemu-first` 收口，原生验证与发布级 perf 证据后置。
 
 ## CI
