@@ -18,9 +18,32 @@ run_capture() {
   cat "$log_path"
 }
 
+dirty_submit_matched_backends() {
+  local log_path
+  local matches
+
+  log_path="$1"
+  if [[ ! -f "$log_path" ]]; then
+    echo "none"
+    return 0
+  fi
+
+  matches="$({ grep "test_renderer_dirty_submit matched backend=" "$log_path" || true; } | sed -E 's/.*backend=([^ ]+).*/\1/' | paste -sd ',' -)"
+  if [[ -z "$matches" ]]; then
+    echo "none"
+  else
+    echo "$matches"
+  fi
+}
+
 write_summary() {
   local status
+  local dirty_log
+  local dirty_matches
+
   status="$1"
+  dirty_log="$LOG_DIR/test_renderer_dirty_submit.log"
+  dirty_matches="$(dirty_submit_matched_backends "$dirty_log")"
   {
     echo "# CI Suite Summary"
     echo
@@ -29,6 +52,8 @@ write_summary() {
     echo "- Log dir: \`$LOG_DIR\`"
     echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
     echo "- Fallback log: \`$LOG_DIR/test_renderer_fallback.log\`"
+    echo "- Dirty submit log: \`$dirty_log\`"
+    echo "- Dirty submit matched backends: \`$dirty_matches\`"
     echo "- Golden runtime log: \`$LOG_DIR/test_runtime_golden.log\`"
     if compgen -G "$GOLDEN_ARTIFACT_DIR/*" >/dev/null; then
       echo "- Golden artifacts present: yes"

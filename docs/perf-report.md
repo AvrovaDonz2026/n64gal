@@ -66,6 +66,7 @@
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
 ./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_dirty_compare
+./scripts/ci/run_perf_smoke_suite.sh --out-dir /tmp/n64gal_perf_ci
 ```
 
 推荐读法：
@@ -185,10 +186,17 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## CI Artifact
 
-`linux-x64` CI job 会生成 `perf-linux-x64` artifact，默认比较：
+`linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化两组 smoke 对照：
 
-1. `scalar`
-2. `avx2`
+1. `scalar -> avx2`（附 `linux-x64-scalar-avx2-smoke` threshold report）
+2. `avx2 dirty off -> avx2 dirty on`（同一 backend 的 dirty-tile on/off compare）
+
+artifact 顶层会额外生成 `perf_workflow_summary.md`，把两组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：
+
+1. `scalar_vs_avx2/compare/perf_compare.md`
+2. `scalar_vs_avx2/compare/perf_threshold_report.md`
+3. `avx2_dirty_tile/compare/perf_compare.md`
+4. `perf_workflow_summary.md`
 
 当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
 

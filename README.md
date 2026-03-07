@@ -314,7 +314,7 @@ baseline/candidate 对照：
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
 6. `perf_report_template.md`
 
-完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 已可通过 `--perf-dirty-tile=<on|off>` 观察 dirty plan/submit 统计，但当前默认仍为 `off`，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持 partial submit。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off compare。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
+完整流程见 [`docs/perf-report.md`](./docs/perf-report.md)。当前 perf 脚本默认保留 `VN_RUNTIME_PERF_FRAME_REUSE + VN_RUNTIME_PERF_OP_CACHE`，因此测的是主线路径的整机收益；`VN_RUNTIME_PERF_DIRTY_TILE` 已可通过 `--perf-dirty-tile=<on|off>` 观察 dirty plan/submit 统计，但当前默认仍为 `off`，且目前 `scalar`、`avx2`、`neon`、`rvv` 都支持 partial submit。若要拆开归因，可直接用 `vn_player --trace` 分别验证：`--perf-frame-reuse=off`、`--perf-op-cache=off`、`--perf-dirty-tile=on`；也可以直接用 `tests/perf/run_perf_compare.sh` 对同一 backend 做 dirty on/off compare。GitHub Actions 的 `linux-x64` job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 固化 `scalar -> avx2` 与 `avx2 dirty off -> on` 两组 smoke 报告，并把汇总 markdown 一起收进 `perf-linux-x64` artifact。当前已固化一份 RVV 提交前后 smoke 报告：[`docs/perf-rvv-2026-03-06.md`](./docs/perf-rvv-2026-03-06.md)。
 
 平台矩阵、路径/文件 I/O 收口与验证路线见 [`docs/platform-matrix.md`](./docs/platform-matrix.md)。
 
@@ -324,7 +324,7 @@ baseline/candidate 对照：
 
 1. `scalar`：可用，作为行为基线与回退目标。
 2. `avx2`：可运行实现已接入（`CLEAR/SPRITE/TEXT/FADE` + `tex/combine` 采样），CPU 不支持时自动回退 `scalar`。
-3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译已通过，当前待补原生 arm64 验证与其余核心算子。
+3. `neon`：最小可运行后端已接入，`fill` SIMD 算子已落地，`aarch64` 交叉编译与 GitHub `arm64 Linux/Windows` 原生 CI 已通过；`dirty submit` 也已纳入 `linux-arm64` / `windows-arm64` 的显式日志留痕，确保 GitHub runner 上实际命中 `neon`。当前剩余重点转向更多核心算子与长期 perf 证据。
 4. `rvv`：最小可运行后端已接入，统一色 `fill`、半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径已向量化；其中 `sample -> combine` 已融合，`alpha=255` 已可直接写 framebuffer，`alpha<255` 也已收口到单循环 `blend/store`，UV LUT 已降到 8-bit 存储，`seed/checker` 常量和基础偏置也已前折叠。当前已验证 `riscv64` 交叉构建、`qemu-user` 功能冒烟、`scalar vs rvv` CRC 一致性，以及 `riscv-perf-report` 的 GitHub artifact 流程；在缺少原生 `riscv64/RVV` 设备时，项目阶段策略按 `qemu-first` 收口，原生验证与发布级 perf 证据后置。
 
 ## CI
@@ -336,15 +336,16 @@ baseline/candidate 对照：
 5. riscv64 交叉构建脚本：`scripts/ci/build_riscv64_cross.sh`
 6. riscv64 qemu 冒烟脚本：`scripts/ci/run_riscv64_qemu_suite.sh`
 7. riscv64 qemu perf 报告脚本：`scripts/ci/run_riscv64_qemu_perf_report.sh`
-8. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
-9. `linux-x64` 与 `linux-arm64` 会产出 `suite-linux-x64` / `suite-linux-arm64` artifact，内容包括 `ci_logs/`、`ci_suite_summary.md` 与 `golden_artifacts/`
-10. `windows-x64` 与 `windows-arm64` 统一通过 `scripts/ci/run_windows_suite.ps1` 产出 `suite-windows-x64` / `suite-windows-arm64` artifact，收纳 `configure/build/ctest` 日志以及 `test_renderer_fallback`、`test_runtime_api`、`test_runtime_golden` 复跑证据；脚本会在失败场景下尽量保留 summary 与已生成日志，且该链路已在 GitHub Actions push run `22772138491`（`2026-03-07 00:26 HKT`）完成实跑验证
-11. `linux-x64` 还会产出 `perf-linux-x64` artifact（`scalar vs avx2` 对照 + perf threshold report）
-12. `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 会产出对应 suite artifact，收纳 qemu smoke logs、fallback 证据与 golden artifact 目录
-13. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown + 可选 threshold report）；当前默认接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` gate，首次 dispatch run `22766736383` 已验证成功
-14. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
-15. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
-16. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
+8. x64 perf smoke wrapper：`scripts/ci/run_perf_smoke_suite.sh`
+9. workflow 已接入 `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 两个阻塞 job
+10. `linux-x64` 与 `linux-arm64` 会产出 `suite-linux-x64` / `suite-linux-arm64` artifact，内容包括 `ci_logs/`、`ci_suite_summary.md` 与 `golden_artifacts/`；其中 `ci_suite_summary.md` 会回显 `test_renderer_dirty_submit` 的 matched backend 列表，`linux-arm64` 还会在 workflow 内显式校验 `matched backend=neon`
+11. `windows-x64` 与 `windows-arm64` 统一通过 `scripts/ci/run_windows_suite.ps1` 产出 `suite-windows-x64` / `suite-windows-arm64` artifact，收纳 `configure/build/ctest` 日志以及 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_runtime_api`、`test_runtime_golden` 复跑证据；脚本会在失败场景下尽量保留 summary 与已生成日志，且该链路已在 GitHub Actions push run `22772138491`（`2026-03-07 00:26 HKT`）完成实跑验证。`windows-arm64` 现也会在 workflow 内显式校验 `matched backend=neon`
+12. `linux-x64` 还会产出 `perf-linux-x64` artifact（`scalar vs avx2` 门限报告 + `avx2 dirty off/on` compare + `perf_workflow_summary.md`）
+13. `linux-riscv64-qemu-scalar` 与 `linux-riscv64-qemu-rvv` 会产出对应 suite artifact，收纳 qemu smoke logs、fallback 证据与 golden artifact 目录
+14. `linux-riscv64-qemu-rvv-perf-report` 会在 `workflow_dispatch` / nightly 下产出 `perf-riscv64-qemu-rvv` artifact（`rvv` revision compare markdown + 可选 threshold report）；当前默认接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` gate，首次 dispatch run `22766736383` 已验证成功
+15. 当前 `riscv64` 策略为 `qemu-first`：先收口 `cross/qemu/golden/perf artifact`，原生 nightly 待设备到位后恢复
+16. RISC-V 工具链与验证路线：[`docs/riscv-toolchain.md`](./docs/riscv-toolchain.md)
+17. 性能报告流程：[`docs/perf-report.md`](./docs/perf-report.md)
 
 ## API 文档
 

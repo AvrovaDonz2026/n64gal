@@ -33,15 +33,21 @@ jobs:
             build_ci_cc/ci_logs
             build_ci_cc/ci_suite_summary.md
             build_ci_cc/golden_artifacts
-      - name: Perf compare
-        run: ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S3 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir "$RUNNER_TEMP/perf_compare"
+      - name: Perf smoke suite
+        run: ./scripts/ci/run_perf_smoke_suite.sh --out-dir "$RUNNER_TEMP/perf_linux_x64"
+      - name: Publish perf summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/perf_linux_x64/perf_workflow_summary.md" ]; then
+            cat "$RUNNER_TEMP/perf_linux_x64/perf_workflow_summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload perf artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: perf-linux-x64
           if-no-files-found: warn
-          path: ${{ runner.temp }}/perf_compare
+          path: ${{ runner.temp }}/perf_linux_x64
 
   windows-x64:
     runs-on: windows-latest
@@ -81,6 +87,21 @@ jobs:
           if [ -f build_ci_cc/ci_suite_summary.md ]; then
             cat build_ci_cc/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Verify NEON dirty-submit coverage
+        if: always()
+        run: |
+          log_path="build_ci_cc/ci_logs/test_renderer_dirty_submit.log"
+          if [ ! -f "$log_path" ]; then
+            echo "missing dirty submit log: $log_path" >&2
+            exit 1
+          fi
+          if ! grep -q "matched backend=neon" "$log_path"; then
+            echo "expected matched backend=neon in $log_path" >&2
+            cat "$log_path"
+            exit 1
+          fi
+          echo "- Verified dirty submit log on linux-arm64: \`$log_path\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified dirty submit backend hit: \`neon\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload native suite artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,6 +128,20 @@ jobs:
           if (Test-Path $SummaryPath) {
             Get-Content $SummaryPath | Add-Content $env:GITHUB_STEP_SUMMARY
           }
+      - name: Verify NEON dirty-submit coverage
+        if: always()
+        shell: pwsh
+        run: |
+          $LogPath = Join-Path 'build_ci_windows_arm64' 'ci_logs/test_renderer_dirty_submit.log'
+          if (-not (Test-Path $LogPath)) {
+            throw "missing dirty submit log: $LogPath"
+          }
+          if (-not (Select-String -Path $LogPath -Pattern 'matched backend=neon' -Quiet)) {
+            Get-Content $LogPath
+            throw "expected matched backend=neon in $LogPath"
+          }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Verified dirty submit log on windows-arm64: $LogPath"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Verified dirty submit backend hit: neon"
       - name: Upload suite artifact
         if: always()
         uses: actions/upload-artifact@v4

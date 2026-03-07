@@ -92,6 +92,29 @@ function Resolve-ExeDir {
     return (Join-Path $BuildDirAbs $ConfigurationName)
 }
 
+function Get-DirtySubmitMatchedBackends {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LogPath
+    )
+
+    if (-not (Test-Path $LogPath -PathType Leaf)) {
+        return 'none'
+    }
+
+    $Matches = @(Select-String -Path $LogPath -Pattern 'test_renderer_dirty_submit matched backend=([A-Za-z0-9_]+)' | ForEach-Object {
+        if ($_.Matches.Count -gt 0) {
+            $_.Matches[0].Groups[1].Value
+        }
+    } | Where-Object { $_ -and $_.Length -gt 0 } | Select-Object -Unique)
+
+    if ($Matches.Count -eq 0) {
+        return 'none'
+    }
+
+    return ($Matches -join ',')
+}
+
 function Write-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -127,6 +150,8 @@ function Write-Summary {
     else {
         'no (exact-match run or no diff output)'
     }
+    $DirtySubmitLogPath = Join-Path $LogDirText 'test_renderer_dirty_submit.log'
+    $DirtySubmitMatched = Get-DirtySubmitMatchedBackends -LogPath $DirtySubmitLogPath
 
     $Lines = @(
         '# CI Suite Summary',
@@ -142,6 +167,8 @@ function Write-Summary {
         "- Build log: $LogDirText/build.log",
         "- CTest log: $LogDirText/ctest.log",
         "- Fallback log: $LogDirText/test_renderer_fallback.log",
+        "- Dirty submit log: $DirtySubmitLogPath",
+        "- Dirty submit matched backends: $DirtySubmitMatched",
         "- Runtime API log: $LogDirText/test_runtime_api.log",
         "- Golden runtime log: $LogDirText/test_runtime_golden.log",
         "- Golden artifacts present: $GoldenPresent"
@@ -198,6 +225,7 @@ try {
         $ExeDirAbs = Resolve-ExeDir -BuildDirAbs $BuildDirAbs -ConfigurationName $Configuration
         $RerunSpecs = @(
             @{ Step = 'test_renderer_fallback'; File = 'test_renderer_fallback.exe'; Log = 'test_renderer_fallback.log' },
+            @{ Step = 'test_renderer_dirty_submit'; File = 'test_renderer_dirty_submit.exe'; Log = 'test_renderer_dirty_submit.log' },
             @{ Step = 'test_runtime_api'; File = 'test_runtime_api.exe'; Log = 'test_runtime_api.log' },
             @{ Step = 'test_runtime_golden'; File = 'test_runtime_golden.exe'; Log = 'test_runtime_golden.log' }
         )
@@ -238,6 +266,7 @@ try {
     }
     else {
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_renderer_fallback.log') -Reason 'build failed'
+        Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_renderer_dirty_submit.log') -Reason 'build failed'
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_runtime_api.log') -Reason 'build failed'
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_runtime_golden.log') -Reason 'build failed'
         $script:StepStatus['rerun-binaries'] = 'skipped(build-failed)'
