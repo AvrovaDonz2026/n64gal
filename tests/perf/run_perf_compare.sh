@@ -171,6 +171,180 @@ aggregate_perf_summary() {
   } > "$dest_dir/perf_repeat_aggregate.md"
 }
 
+repeat_metric_stats() {
+  local csv="$1"
+  local scene="$2"
+  local field="$3"
+  local values_tmp
+  local count
+  local min_value
+  local max_value
+  local median_value
+  local range_pct
+
+  values_tmp="$(mktemp)"
+  awk -F, -v scene="$scene" -v field="$field" 'NR > 1 && $2 == scene { print $field }' "$csv" | sort -n > "$values_tmp"
+
+  count="$(awk 'END { print NR + 0 }' "$values_tmp")"
+  if [[ "$count" -eq 0 ]]; then
+    rm -f "$values_tmp"
+    echo "repeat_metric_stats: missing scene=$scene field=$field csv=$csv" >&2
+    exit 1
+  fi
+
+  min_value="$(sed -n '1p' "$values_tmp")"
+  max_value="$(sed -n '$p' "$values_tmp")"
+  median_value="$(sorted_median "$values_tmp" "%.3f")"
+  range_pct="$(awk -v min="$min_value" -v max="$max_value" -v median="$median_value" 'BEGIN {
+    if ((median + 0.0) == 0.0) {
+      printf "%.2f", 0.0;
+    } else {
+      printf "%.2f", ((max - min) / median) * 100.0;
+    }
+  }')"
+
+  printf '%s,%s,%s,%s,%s\n' "$count" "$min_value" "$median_value" "$max_value" "$range_pct"
+  rm -f "$values_tmp"
+}
+
+write_repeat_variability_report() {
+  local baseline_label="$1"
+  local baseline_csv="$2"
+  local candidate_label="$3"
+  local candidate_csv="$4"
+  local out_dir="$5"
+  local base_scenes_tmp
+  local cand_scenes_tmp
+  local scene
+  local csv_path
+  local md_path
+  local base_p95_stats
+  local cand_p95_stats
+  local base_avg_stats
+  local cand_avg_stats
+  local base_runs
+  local cand_runs
+  local base_p95_min
+  local base_p95_median
+  local base_p95_max
+  local base_p95_range
+  local cand_p95_min
+  local cand_p95_median
+  local cand_p95_max
+  local cand_p95_range
+  local base_avg_min
+  local base_avg_median
+  local base_avg_max
+  local base_avg_range
+  local cand_avg_min
+  local cand_avg_median
+  local cand_avg_max
+  local cand_avg_range
+  local mean_base_p95_range
+  local mean_cand_p95_range
+
+  if [[ ! -f "$baseline_csv" || ! -f "$candidate_csv" ]]; then
+    echo "write_repeat_variability_report: repeat csv missing" >&2
+    exit 2
+  fi
+
+  mkdir -p "$out_dir"
+  csv_path="$out_dir/perf_repeat_variability.csv"
+  md_path="$out_dir/perf_repeat_variability.md"
+
+  echo "scene,baseline_label,candidate_label,baseline_runs,candidate_runs,baseline_p95_min_ms,baseline_p95_median_ms,baseline_p95_max_ms,baseline_p95_range_pct,candidate_p95_min_ms,candidate_p95_median_ms,candidate_p95_max_ms,candidate_p95_range_pct,baseline_avg_min_ms,baseline_avg_median_ms,baseline_avg_max_ms,baseline_avg_range_pct,candidate_avg_min_ms,candidate_avg_median_ms,candidate_avg_max_ms,candidate_avg_range_pct" > "$csv_path"
+
+  base_scenes_tmp="$(mktemp)"
+  cand_scenes_tmp="$(mktemp)"
+  tail -n +2 "$baseline_csv" | cut -d, -f2 | sort -u > "$base_scenes_tmp"
+  tail -n +2 "$candidate_csv" | cut -d, -f2 | sort -u > "$cand_scenes_tmp"
+
+  if ! cmp -s "$base_scenes_tmp" "$cand_scenes_tmp"; then
+    echo "repeat scene sets differ between baseline and candidate" >&2
+    diff -u "$base_scenes_tmp" "$cand_scenes_tmp" >&2 || true
+    rm -f "$base_scenes_tmp" "$cand_scenes_tmp"
+    exit 1
+  fi
+
+  while IFS= read -r scene; do
+    if [[ -z "$scene" ]]; then
+      continue
+    fi
+
+    base_p95_stats="$(repeat_metric_stats "$baseline_csv" "$scene" 4)"
+    cand_p95_stats="$(repeat_metric_stats "$candidate_csv" "$scene" 4)"
+    base_avg_stats="$(repeat_metric_stats "$baseline_csv" "$scene" 5)"
+    cand_avg_stats="$(repeat_metric_stats "$candidate_csv" "$scene" 5)"
+
+    IFS=, read -r base_runs base_p95_min base_p95_median base_p95_max base_p95_range <<< "$base_p95_stats"
+    IFS=, read -r cand_runs cand_p95_min cand_p95_median cand_p95_max cand_p95_range <<< "$cand_p95_stats"
+    IFS=, read -r _ base_avg_min base_avg_median base_avg_max base_avg_range <<< "$base_avg_stats"
+    IFS=, read -r _ cand_avg_min cand_avg_median cand_avg_max cand_avg_range <<< "$cand_avg_stats"
+
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+      "$scene" \
+      "$baseline_label" \
+      "$candidate_label" \
+      "$base_runs" \
+      "$cand_runs" \
+      "$base_p95_min" \
+      "$base_p95_median" \
+      "$base_p95_max" \
+      "$base_p95_range" \
+      "$cand_p95_min" \
+      "$cand_p95_median" \
+      "$cand_p95_max" \
+      "$cand_p95_range" \
+      "$base_avg_min" \
+      "$base_avg_median" \
+      "$base_avg_max" \
+      "$base_avg_range" \
+      "$cand_avg_min" \
+      "$cand_avg_median" \
+      "$cand_avg_max" \
+      "$cand_avg_range" >> "$csv_path"
+  done < "$base_scenes_tmp"
+
+  rm -f "$base_scenes_tmp" "$cand_scenes_tmp"
+
+  mean_base_p95_range="$(awk -F, 'NR > 1 { sum += $9; n += 1 } END { if (n == 0) printf "%.2f", 0.0; else printf "%.2f", sum / n }' "$csv_path")"
+  mean_cand_p95_range="$(awk -F, 'NR > 1 { sum += $13; n += 1 } END { if (n == 0) printf "%.2f", 0.0; else printf "%.2f", sum / n }' "$csv_path")"
+
+  {
+    echo "# Perf Repeat Variability"
+    echo
+    echo "- Baseline label: \`$baseline_label\`"
+    echo "- Candidate label: \`$candidate_label\`"
+    echo "- Baseline repeat rows: \`$baseline_csv\`"
+    echo "- Candidate repeat rows: \`$candidate_csv\`"
+    echo "- Repeat count: $REPEAT_COUNT"
+    echo "- Mean baseline p95 range: ${mean_base_p95_range}%"
+    echo "- Mean candidate p95 range: ${mean_cand_p95_range}%"
+    echo
+    echo "High range percentage indicates short-window jitter across repeats, even when the median compare stays stable."
+    echo
+    echo "| scene | ${baseline_label} p95 min / med / max | ${baseline_label} p95 range | ${candidate_label} p95 min / med / max | ${candidate_label} p95 range | ${baseline_label} avg range | ${candidate_label} avg range |"
+    echo "|---|---:|---:|---:|---:|---:|---:|"
+    tail -n +2 "$csv_path" | awk -F, '{
+      printf "| %s | %.3f / %.3f / %.3f | %.2f%% | %.3f / %.3f / %.3f | %.2f%% | %.2f%% | %.2f%% |\n",
+             $1,
+             $6 + 0.0,
+             $7 + 0.0,
+             $8 + 0.0,
+             $9 + 0.0,
+             $10 + 0.0,
+             $11 + 0.0,
+             $12 + 0.0,
+             $13 + 0.0,
+             $17 + 0.0,
+             $21 + 0.0;
+    }'
+  } > "$md_path"
+
+  echo "[perf-compare] wrote $csv_path"
+  echo "[perf-compare] wrote $md_path"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --baseline)
@@ -384,6 +558,9 @@ fi
   --out-dir "$COMPARE_DIR"
 
 if [[ "$REPEAT_COUNT" -gt 1 ]]; then
+  BASELINE_REPEATS_CSV="$BASELINE_DIR/perf_summary_repeats.csv"
+  CANDIDATE_REPEATS_CSV="$CANDIDATE_DIR/perf_summary_repeats.csv"
+
   {
     echo
     echo "## Repeat Aggregation"
@@ -393,6 +570,20 @@ if [[ "$REPEAT_COUNT" -gt 1 ]]; then
     echo "- Raw repeat dir: \`$REPEATS_DIR\`"
     echo "- Baseline aggregate summary: \`$BASELINE_SUMMARY_CSV\`"
     echo "- Candidate aggregate summary: \`$CANDIDATE_SUMMARY_CSV\`"
+  } >> "$COMPARE_DIR/perf_compare.md"
+
+  write_repeat_variability_report \
+    "$BASELINE_LABEL" \
+    "$BASELINE_REPEATS_CSV" \
+    "$CANDIDATE_LABEL" \
+    "$CANDIDATE_REPEATS_CSV" \
+    "$COMPARE_DIR"
+
+  {
+    echo
+    echo "## Repeat Variability"
+    echo
+    sed -n '2,$p' "$COMPARE_DIR/perf_repeat_variability.md"
   } >> "$COMPARE_DIR/perf_compare.md"
 fi
 

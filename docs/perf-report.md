@@ -68,7 +68,7 @@
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
 ./build_ci_cc/vn_player --backend scalar --scene S3 --resolution 1200x1600 --frames 128 --dt-ms 16 --hold-end --trace --perf-dynamic-resolution=on
-./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --repeat 3 --out-dir /tmp/n64gal_perf_dirty_compare
+./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S1,S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --repeat 3 --out-dir /tmp/n64gal_perf_dirty_compare
 ./tests/perf/run_perf_compare.sh --baseline scalar --baseline-label scalar_dynres_off --baseline-perf-dynamic-resolution off --candidate scalar --candidate-label scalar_dynres_on --candidate-perf-dynamic-resolution on --scenes S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 1200x1600 --out-dir /tmp/n64gal_perf_dynres_compare
 ./scripts/ci/run_perf_smoke_suite.sh --out-dir /tmp/n64gal_perf_ci
 ```
@@ -120,8 +120,10 @@
 3. `compare/perf_compare.csv`
 4. `compare/perf_compare.md`
 5. `compare/perf_threshold_metrics.csv` / `compare/perf_threshold_results.csv` / `compare/perf_threshold_report.md`（启用门限 profile 时）
+6. 当 `--repeat > 1` 时，baseline/candidate 各自额外写出 `perf_summary_repeats.csv` 与 `perf_repeat_aggregate.md`
+7. 当 `--repeat > 1` 时，`compare/` 目录额外写出 `perf_repeat_variability.csv` / `perf_repeat_variability.md`
 
-`perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比。
+`perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比；若 `--repeat > 1`，还会在同一文件尾部追加 `Repeat Aggregation` 与 `Repeat Variability` 两节。
 `perf_threshold_report.md` 会把 profile 中的每条门限检查展开成表格，适合直接进 CI artifact 或 issue 证据链。
 
 ## Perf Threshold Gate
@@ -145,7 +147,7 @@
   --profile linux-x64-scalar-avx2-smoke
 ```
 
-如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成；`run_perf_compare_revs.sh` 还支持 `--threshold-soft-fail`，适合先在噪声较大的 runner 上保留报告、不立即转阻塞。`run_perf_compare.sh` 现在额外支持 `--repeat N`，会把重复采样的 `p95_frame_ms` / `avg_frame_ms` / `max_rss_mb` 按 scene 做中位数聚合后再生成 compare artifact，适合 dirty-tile 这类短窗口抖动更明显的 on/off 对照。
+如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成；`run_perf_compare_revs.sh` 还支持 `--threshold-soft-fail`，适合先在噪声较大的 runner 上保留报告、不立即转阻塞。`run_perf_compare.sh` 现在额外支持 `--repeat N`，会把重复采样的 `p95_frame_ms` / `avg_frame_ms` / `max_rss_mb` 按 scene 做中位数聚合后再生成 compare artifact；同时还会导出 baseline/candidate 的 `perf_summary_repeats.csv`、`compare/perf_repeat_variability.csv`、`compare/perf_repeat_variability.md`，并把 `Repeat Variability` 章节直接并入 `compare/perf_compare.md`。这组附加产物会给出每个 scene 的 `min/median/max/range`，适合 dirty-tile、dynamic-resolution 或 Windows 短窗口 smoke 上的 jitter 诊断。
 
 ## Baseline vs Candidate Revision
 
@@ -274,3 +276,4 @@ artifact 顶层会额外生成 `perf_workflow_summary.md`，把四组 compare re
 7. `qemu-user` perf 只用于回归趋势判断；发版门槛必须看目标架构原生机器结果。
 8. `dirty_full_redraw=1` 说明 planner 主动回退整帧路径；即使 dirty submit 已接入，出现该值时也应按整帧提交理解。
 9. CI 门限 profile 先按当前 runner 的 smoke 输入固化，后续随着优化落地再逐步收紧，不把“还未优化完”的目标值直接硬塞进日常短窗口 gate。
+10. 当 compare 使用 `--repeat > 1` 时，先看 `Repeat Variability` 里的 `p95 range`；若某个 scene 的 range 已接近或超过收益量级，应先按 jitter 处理，再决定是否上升为真实回退。

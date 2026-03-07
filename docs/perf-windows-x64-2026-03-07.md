@@ -116,4 +116,4 @@
 
 1. 继续观察升级后的 `windows-x64-scalar-avx2-smoke` 正收益 gate，确认它在后续 run 上保持稳定。
 2. 如果后续还要继续压 AVX2，优先看 translucent textured row 的进一步批量 blend/pack，而不是回头重写 sample/hash。
-3. dirty-tile on/off 在 `windows-x64` 当前仍有 `S3` 短窗口噪声，后续应优先区分“真实回退”与“亚毫秒量级计时抖动”。
+3. dirty-tile on/off 在 `windows-x64` 当前仍有 `S3` 短窗口噪声；下一轮优先直接使用 `run_perf_compare.sh --repeat N` 新增的 `perf_repeat_variability.csv/.md` 与 `perf_compare.md -> Repeat Variability` 章节，先把“真实回退”与“亚毫秒量级计时抖动”拆开。
