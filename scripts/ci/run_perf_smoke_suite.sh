@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_ci_perf}"
-SCENES="S0,S3"
+SCENES="S1,S3"
 DURATION_SEC=2
 WARMUP_SEC=1
 DT_MS=16

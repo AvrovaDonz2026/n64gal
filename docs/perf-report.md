@@ -179,6 +179,8 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 其中 `perf_compare_revs.md` 会额外记录 host、compiler、runner prefix 与 revision 元数据，适合直接入库作为 issue 证据链。
 
+当前 `linux-x64` 主线 smoke 已切到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。但 `qemu-rvv` revision compare 仍暂时保留 `S0,S3` 作为 bring-up smoke：它主要服务于跨 revision 趋势留痕与 RVV 路径冒烟，和 native x64 主线 gate 的噪声结构并不相同；待 native RVV 设备到位后，再统一评估是否也切到更重场景。
+
 ## Checked-In Evidence
 
 当前仓库已经固化三份 perf 证据：
@@ -190,7 +192,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 其中：
 
 1. `perf-rvv-2026-03-06.md` 对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
-2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare，用于证明“已知必整帧”场景的确定性 planner/bounds 税已继续压低，且短窗口采样已改为 `repeat=3` 中位数聚合以降低单次漂移。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
+2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare；当前 compare 已从 `S0,S3` 调整到 `S1,S3`，因为 `S0` 在 shipped 路径上会被 frame reuse 压到约 `0.001ms`。它用于保留一个中等复杂度样本加一个更重样本的趋势证据，同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 3. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 
 另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；当前默认还会接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold mode，并把 `perf_threshold_report.md` 一并追加到 step summary / artifact。首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
@@ -200,7 +202,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 `linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化三组 smoke 对照：
 
 1. `scalar -> avx2`（附 `linux-x64-scalar-avx2-smoke` threshold report）
-2. `avx2 dirty off -> avx2 dirty on`（`S0,S3 @ 600x800, 6s/1s, repeat=3`，结果按中位数聚合，用于降低 dirty smoke 噪声；当前仍作为趋势 artifact，而非阻塞 gate）
+2. `avx2 dirty off -> avx2 dirty on`（`S1,S3 @ 600x800, 6s/1s, repeat=3`，结果按中位数聚合，用于降低 dirty smoke 噪声；其中 `S1` 负责承载中等复杂度测量，当前仍作为趋势 artifact，而非阻塞 gate）
 3. `scalar dynamic-resolution off -> on`（`S3 @ 1200x1600, 6s/1s`，用于验证 dynres 最小 runtime slice 的整机收益）
 
 artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：
