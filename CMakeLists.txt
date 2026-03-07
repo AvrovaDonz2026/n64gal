@@ -60,6 +60,11 @@ add_executable(vn_previewd
 )
 target_link_libraries(vn_previewd PRIVATE vn_preview)
 
+add_executable(vn_backend_kernel_bench
+    tests/perf/backend_kernel_bench.c
+)
+target_link_libraries(vn_backend_kernel_bench PRIVATE vn_core)
+
 add_executable(test_backend_registry tests/unit/test_backend_registry.c)
 target_link_libraries(test_backend_registry PRIVATE vn_core)
 add_test(NAME unit_backend_registry COMMAND test_backend_registry)

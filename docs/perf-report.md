@@ -222,22 +222,44 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 当前原生目标平台都通过参数化后的 `scripts/ci/run_perf_smoke_suite.sh` 生成 perf artifact：
 
-1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。
-2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
-3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，但它是 regression-envelope gate，而不是“必须正收益” gate。
-4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
+1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。
+2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
+3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，但它是 regression-envelope gate，而不是“必须正收益” gate。
+4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 
-`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；在新的 GitHub Windows runner artifact 出来之前，`windows-x64` 仍继续保留 regression-envelope gate，不提前假设它已经稳定转正。
+`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU，避免每像素跨 TU 调用公共 `pixel_pipeline.c`。在新的 GitHub Windows runner artifact 出来之前，`windows-x64` 仍继续保留 regression-envelope gate，不提前假设它已经稳定转正。
+
+## Kernel Bench
+
+为了解耦整机 smoke 和后端热路径，本仓库已新增 `tests/perf/backend_kernel_bench.c`、`tests/perf/run_kernel_bench.sh` 与 `tests/perf/run_kernel_compare.sh`。这套工具直接通过 `renderer_submit()` 强制跑单 op kernel，用于拆开观察 `CLEAR`、`FADE`、scene-sized textured op、以及 full-span textured op 的成本；backend 参数现支持 `scalar`、`avx2`、`neon`、`rvv` 与 `auto`（以当前 host/runner 实际可用 ISA 为准）。
+
+常用命令：
+
+```bash
+./tests/perf/run_kernel_bench.sh --backend scalar --iterations 24 --warmup 6 --out-csv /tmp/n64gal_kernel_scalar.csv
+./tests/perf/run_kernel_bench.sh --backend avx2 --iterations 24 --warmup 6 --out-csv /tmp/n64gal_kernel_avx2.csv
+./tests/perf/run_kernel_compare.sh --baseline scalar --candidate avx2 --resolution 600x800 --iterations 24 --warmup 6 --out-dir /tmp/n64gal_kernel_compare
+```
+
+当前本地 `linux-x64` 样本显示：
+
+1. `clear_full`: `2.072ms -> 0.662ms`
+2. `fade_full_alpha160`: `5.215ms -> 3.791ms`
+3. `sprite_full_opaque`: `25.306ms -> 19.173ms`
+4. `sprite_full_alpha180`: `30.249ms -> 25.215ms`
+
+这组数据说明当前 AVX2 的 `clear/fade` 已明显转正；如果 `windows-x64` runner 后续仍不转正，下一阶段主热点应继续集中排查 textured full-span 路径，而不是再次回头优化 clear/fade。
 
 其中 `linux-x64` 的 smoke / dirty compare 已固定为 `S1,S3 @ 600x800`，`dirty` compare 额外使用 `6s/1s + repeat=3` 中位数聚合；`S0` 只保留在全量 sweep 与 `qemu-rvv` bring-up smoke，因为它在 shipped 主路径上会被 frame reuse 压到约 `0.001ms`。arm64 与 Windows 当前沿用同样的 smoke 场景与 dynres 场景，只把 SIMD candidate 切到各自平台优先 ISA。
 
-artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown。目录结构按 candidate backend 动态命名，常见形式包括：
+artifact 顶层会额外生成 `perf_workflow_summary.md`，把四组 compare report 收口成一份 step summary 友好的 markdown。目录结构按 candidate backend 动态命名，常见形式包括：
 
 1. `scalar_vs_avx2/compare/perf_compare.md` 或 `scalar_vs_neon/compare/perf_compare.md`
 2. `scalar_vs_avx2/compare/perf_threshold_report.md`（仅在启用 threshold profile 时存在）
 3. `avx2_dirty_tile/compare/perf_compare.md` 或 `neon_dirty_tile/compare/perf_compare.md`
 4. `scalar_dynamic_resolution/compare/perf_compare.md`
-5. `perf_workflow_summary.md`
+5. `kernel_scalar_vs_avx2/compare/kernel_compare.md` 或 `kernel_scalar_vs_neon/compare/kernel_compare.md`
+6. `perf_workflow_summary.md`
 
 当前 CI 目标是快速回归与报告留档，不替代长时间本地压测。现阶段项目按 `qemu-first` 收口：先固化 `x64/arm64 native artifact + cross/qemu/golden/perf artifact`，原生 `native-riscv64` 设备到位前不把 nightly perf 当作日常阻塞。需要发布级结论时，仍应运行完整 `120s/20s` 窗口，并优先在原生目标机上采样。
 

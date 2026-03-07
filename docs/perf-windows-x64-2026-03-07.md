@@ -80,9 +80,24 @@
 1. 把 `uniform alpha fade` 从标量路径拉进 AVX2 是有效的。
 2. 把 `sample/combine/blend` 留在 AVX2 TU 内也没有引入新的语义或固定开销问题；`test_backend_consistency`、`test_runtime_golden` 与本地 smoke 都仍然维持正向结果。
 
+## Local Kernel Bench
+
+当前仓库已新增 `tests/perf/backend_kernel_bench.c` 与 `tests/perf/run_kernel_bench.sh`，用于把 `clear/fade/textured` 热点拆成独立 kernel。
+
+本地 `linux-x64` 样本（`24 iterations / 6 warmup / 600x800`）为：
+
+| kernel | scalar avg ms | avx2 avg ms | 结论 |
+|---|---:|---:|---|
+| `clear_full` | 2.072 | 0.662 | `avx2` 明显领先 |
+| `fade_full_alpha160` | 5.215 | 3.791 | `uniform alpha/fade` AVX2 row kernel 已形成稳定收益 |
+| `sprite_full_opaque` | 25.306 | 19.173 | textured 路径已改善，但仍是剩余大热点之一 |
+| `sprite_full_alpha180` | 30.249 | 25.215 | translucent textured 仍是后续最值得继续挖的区域 |
+
+这组数据的意义不是替代 GitHub Windows runner，而是帮助解释“下一步该盯哪里”：如果新的 `windows-x64` artifact 仍未转正，就优先继续看 textured full-span 路径，而不是回头重做 clear/fade。当前 `scripts/ci/run_perf_smoke_suite.sh` 也已把这套对照接成 `Compare D = kernel scalar -> avx2`，后续 GitHub `perf-windows-x64` artifact 会直接附带同口径的 kernel compare。
+
 ## Next Experiments
 
 1. 重新跑 GitHub `windows-x64` perf artifact，观察 `scalar -> avx2` 是否由负收益回到持平或正收益。
-2. 如果仍未转正，下一步优先补 Windows x64 专项 kernel benchmark，把 `fill_u32`、`uniform alpha blend`、`backend-local sample+combine+blend` 三段拆开测。
+2. 如果新的 runner artifact 仍未转正，优先使用已落地的 kernel benchmark 继续比对 `fill_u32`、`uniform alpha blend`、`backend-local sample+combine+blend` 三段。
 3. 如果 kernel benchmark 仍显示 textured 热路径是主瓶颈，再决定是否继续做真正的 AVX2 row-vectorized `sample/hash -> combine -> alpha`，而不是只停留在 backend-local 标量融合。
 4. 若 Windows/MSVC 仍表现异常，再补 objdump/asm 级分析，重点检查 `avx2_backend.obj` 周围是否存在不划算的调用边界或寄存器清理成本。

@@ -121,6 +121,7 @@ done
 cc "${CFLAGS[@]}" tests/integration/test_preview_protocol.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_preview_protocol"
 cc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
 cc "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_previewd"
+cc "${CFLAGS[@]}" tests/perf/backend_kernel_bench.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_backend_kernel_bench"
 cc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
 
 for test_name in "${TESTS[@]}"; do
@@ -132,4 +133,5 @@ for test_name in "${TESTS[@]}"; do
 done
 
 run_capture "$LOG_DIR/test_preview_protocol.log" "$BUILD_DIR/test_preview_protocol"
+run_capture "$LOG_DIR/test_backend_kernel_bench.log" "$BUILD_DIR/vn_backend_kernel_bench" --backend scalar --iterations 4 --warmup 1
 run_capture "$LOG_DIR/example_host_embed.log" "$BUILD_DIR/example_host_embed"
