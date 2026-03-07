@@ -32,6 +32,7 @@ typedef struct {
     vn_u32 bit_word_count;
     vn_u32* dirty_bits;
     vn_u32 prev_op_count;
+    vn_u32 prev_bounds_valid;
     VNRenderOp prev_ops[VN_DIRTY_OP_CAP];
     VNDirtyRect prev_bounds[VN_DIRTY_OP_CAP];
 } VNDirtyPlannerState;
@@ -51,5 +52,8 @@ int vn_dirty_planner_build(VNDirtyPlannerState* state,
 void vn_dirty_planner_commit(VNDirtyPlannerState* state,
                              const VNRenderOp* ops,
                              vn_u32 op_count);
+void vn_dirty_planner_commit_full_redraw(VNDirtyPlannerState* state,
+                                         const VNRenderOp* ops,
+                                         vn_u32 op_count);
 
 #endif

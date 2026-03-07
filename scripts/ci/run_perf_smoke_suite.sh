@@ -10,6 +10,9 @@ DURATION_SEC=2
 WARMUP_SEC=1
 DT_MS=16
 RESOLUTION="600x800"
+DIRTY_DURATION_SEC=6
+DIRTY_WARMUP_SEC=1
+DIRTY_REPEAT_COUNT=3
 DYNRES_SCENES="S3"
 DYNRES_DURATION_SEC=6
 DYNRES_WARMUP_SEC=1
@@ -42,6 +45,18 @@ while [[ $# -gt 0 ]]; do
       RESOLUTION="$2"
       shift 2
       ;;
+    --dirty-duration-sec)
+      DIRTY_DURATION_SEC="$2"
+      shift 2
+      ;;
+    --dirty-warmup-sec)
+      DIRTY_WARMUP_SEC="$2"
+      shift 2
+      ;;
+    --dirty-repeat-count)
+      DIRTY_REPEAT_COUNT="$2"
+      shift 2
+      ;;
     --dynres-scenes)
       DYNRES_SCENES="$2"
       shift 2
@@ -68,6 +83,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if ! [[ "$DIRTY_REPEAT_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "invalid --dirty-repeat-count value: $DIRTY_REPEAT_COUNT" >&2
+  exit 2
+fi
 
 SCALAR_AVX2_DIR="$OUT_DIR/scalar_vs_avx2"
 DIRTY_TILE_DIR="$OUT_DIR/avx2_dirty_tile"
@@ -114,10 +134,11 @@ append_report() {
   --candidate-label avx2_dirty_on \
   --candidate-perf-dirty-tile on \
   --scenes "$SCENES" \
-  --duration-sec "$DURATION_SEC" \
-  --warmup-sec "$WARMUP_SEC" \
+  --duration-sec "$DIRTY_DURATION_SEC" \
+  --warmup-sec "$DIRTY_WARMUP_SEC" \
   --dt-ms "$DT_MS" \
   --resolution "$RESOLUTION" \
+  --repeat "$DIRTY_REPEAT_COUNT" \
   --out-dir "$DIRTY_TILE_DIR"
 
 ./tests/perf/run_perf_compare.sh \
@@ -142,6 +163,8 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Smoke duration / warmup: \`${DURATION_SEC}s / ${WARMUP_SEC}s\`
 - dt_ms: \`$DT_MS\`
 - Smoke resolution: \`$RESOLUTION\`
+- Dirty duration / warmup: \`${DIRTY_DURATION_SEC}s / ${DIRTY_WARMUP_SEC}s\`
+- Dirty repeat count: \`$DIRTY_REPEAT_COUNT\`
 - Dynres scenes: \`$DYNRES_SCENES\`
 - Dynres duration / warmup: \`${DYNRES_DURATION_SEC}s / ${DYNRES_WARMUP_SEC}s\`
 - Dynres resolution: \`$DYNRES_RESOLUTION\`

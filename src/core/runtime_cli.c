@@ -392,6 +392,101 @@ static void runtime_dirty_stats_reset(VNRuntimeSession* session) {
     vn_dirty_plan_reset(&session->dirty_plan);
 }
 
+static void runtime_dirty_plan_seed(VNRuntimeSession* session,
+                                    VNDirtyPlan* plan) {
+    VNDirtyPlannerState* state;
+
+    if (session == (VNRuntimeSession*)0 || plan == (VNDirtyPlan*)0) {
+        return;
+    }
+    state = &session->dirty_planner;
+    vn_dirty_plan_reset(plan);
+    plan->width = state->width;
+    plan->height = state->height;
+    plan->tiles_x = state->tiles_x;
+    plan->tiles_y = state->tiles_y;
+    plan->bit_word_count = state->bit_word_count;
+}
+
+static void runtime_dirty_plan_force_full_redraw(VNRuntimeSession* session,
+                                                 VNDirtyPlan* plan) {
+    vn_u32 total_tiles;
+
+    if (session == (VNRuntimeSession*)0 || plan == (VNDirtyPlan*)0) {
+        return;
+    }
+    runtime_dirty_plan_seed(session, plan);
+    total_tiles = (vn_u32)plan->tiles_x * (vn_u32)plan->tiles_y;
+    plan->valid = 1u;
+    plan->full_redraw = 1u;
+    plan->dirty_tile_count = total_tiles;
+    plan->dirty_rect_count = 0u;
+    if (plan->width != 0u && plan->height != 0u) {
+        plan->rects[0].x = 0u;
+        plan->rects[0].y = 0u;
+        plan->rects[0].w = plan->width;
+        plan->rects[0].h = plan->height;
+        plan->dirty_rect_count = 1u;
+    }
+}
+
+static int runtime_dirty_plan_clear_equal(const VNRenderOp* a,
+                                          const VNRenderOp* b) {
+    if (a == (const VNRenderOp*)0 || b == (const VNRenderOp*)0) {
+        return VN_FALSE;
+    }
+    return (a->op == b->op &&
+            a->layer == b->layer &&
+            a->tex_id == b->tex_id &&
+            a->x == b->x &&
+            a->y == b->y &&
+            a->w == b->w &&
+            a->h == b->h &&
+            a->alpha == b->alpha &&
+            a->flags == b->flags) ? VN_TRUE : VN_FALSE;
+}
+
+static int runtime_prepare_dirty_plan_fast_path(VNRuntimeSession* session,
+                                                const VNRenderOp* ops,
+                                                vn_u32 op_count) {
+    VNDirtyPlannerState* state;
+    vn_u32 i;
+
+    if (session == (VNRuntimeSession*)0 || (ops == (const VNRenderOp*)0 && op_count != 0u)) {
+        return VN_FALSE;
+    }
+    state = &session->dirty_planner;
+    if (state->width == 0u || state->height == 0u || state->dirty_bits == (vn_u32*)0) {
+        return VN_FALSE;
+    }
+    if (state->bit_word_count < vn_dirty_word_count(state->width, state->height)) {
+        return VN_FALSE;
+    }
+    if (state->valid == 0u || state->prev_op_count != op_count || op_count == 0u) {
+        runtime_dirty_plan_force_full_redraw(session, &session->dirty_plan);
+        return VN_TRUE;
+    }
+    if (ops[0].op != VN_OP_CLEAR || state->prev_ops[0].op != VN_OP_CLEAR) {
+        runtime_dirty_plan_force_full_redraw(session, &session->dirty_plan);
+        return VN_TRUE;
+    }
+    if (runtime_dirty_plan_clear_equal(&ops[0], &state->prev_ops[0]) == VN_FALSE) {
+        runtime_dirty_plan_force_full_redraw(session, &session->dirty_plan);
+        return VN_TRUE;
+    }
+    for (i = 1u; i < op_count; ++i) {
+        if (ops[i].op == VN_OP_FADE || state->prev_ops[i].op == VN_OP_FADE) {
+            runtime_dirty_plan_force_full_redraw(session, &session->dirty_plan);
+            return VN_TRUE;
+        }
+        if (ops[i].op != state->prev_ops[i].op) {
+            runtime_dirty_plan_force_full_redraw(session, &session->dirty_plan);
+            return VN_TRUE;
+        }
+    }
+    return VN_FALSE;
+}
+
 static void runtime_dirty_planner_invalidate(VNRuntimeSession* session) {
     if (session == (VNRuntimeSession*)0) {
         return;
@@ -412,10 +507,12 @@ static void runtime_prepare_dirty_plan(VNRuntimeSession* session,
     if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) == VN_FALSE) {
         return;
     }
-    rc = vn_dirty_planner_build(&session->dirty_planner, ops, op_count, &session->dirty_plan);
-    if (rc != VN_OK) {
-        runtime_dirty_planner_invalidate(session);
-        return;
+    if (runtime_prepare_dirty_plan_fast_path(session, ops, op_count) == VN_FALSE) {
+        rc = vn_dirty_planner_build(&session->dirty_planner, ops, op_count, &session->dirty_plan);
+        if (rc != VN_OK) {
+            runtime_dirty_planner_invalidate(session);
+            return;
+        }
     }
     session->dirty_tile_count = session->dirty_plan.dirty_tile_count;
     session->dirty_rect_count = session->dirty_plan.dirty_rect_count;
@@ -436,6 +533,10 @@ static void runtime_commit_dirty_plan(VNRuntimeSession* session,
     }
     if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_DIRTY_TILE) == VN_FALSE) {
         runtime_dirty_planner_invalidate(session);
+        return;
+    }
+    if (session->dirty_plan.full_redraw != 0u) {
+        vn_dirty_planner_commit_full_redraw(&session->dirty_planner, ops, op_count);
         return;
     }
     vn_dirty_planner_commit(&session->dirty_planner, ops, op_count);

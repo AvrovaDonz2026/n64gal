@@ -13,6 +13,16 @@ static vn_u16 dirty_tiles_y(vn_u16 height) {
     return (vn_u16)((height + (vn_u16)(VN_DIRTY_TILE_SIZE - 1u)) / (vn_u16)VN_DIRTY_TILE_SIZE);
 }
 
+static void dirty_rect_zero(VNDirtyRect* rect) {
+    if (rect == (VNDirtyRect*)0) {
+        return;
+    }
+    rect->x = 0u;
+    rect->y = 0u;
+    rect->w = 0u;
+    rect->h = 0u;
+}
+
 static int dirty_rect_is_empty(const VNDirtyRect* rect) {
     if (rect == (const VNDirtyRect*)0) {
         return VN_TRUE;
@@ -27,19 +37,32 @@ static void dirty_bits_clear(vn_u32* bits, vn_u32 word_count) {
     (void)memset(bits, 0, (size_t)word_count * sizeof(vn_u32));
 }
 
-static void dirty_mark_tile(const VNDirtyPlannerState* state, vn_u32 tile_index) {
+static int dirty_mark_tile(const VNDirtyPlannerState* state,
+                           vn_u32 tile_index,
+                           vn_u32* marked_tile_count) {
     vn_u32 word_index;
     vn_u32 bit_index;
+    vn_u32 mask;
+    vn_u32 value;
 
-    if (state == (const VNDirtyPlannerState*)0 || state->dirty_bits == (vn_u32*)0) {
-        return;
+    if (state == (const VNDirtyPlannerState*)0 ||
+        state->dirty_bits == (vn_u32*)0 ||
+        marked_tile_count == (vn_u32*)0) {
+        return VN_FALSE;
     }
     word_index = tile_index >> 5;
     bit_index = tile_index & 31u;
     if (word_index >= state->bit_word_count) {
-        return;
+        return VN_FALSE;
     }
-    state->dirty_bits[word_index] |= (vn_u32)(1u << bit_index);
+    mask = (vn_u32)(1u << bit_index);
+    value = state->dirty_bits[word_index];
+    if ((value & mask) != 0u) {
+        return VN_FALSE;
+    }
+    state->dirty_bits[word_index] = value | mask;
+    *marked_tile_count += 1u;
+    return VN_TRUE;
 }
 
 static int dirty_test_tile(const VNDirtyPlannerState* state, vn_u32 tile_index) {
@@ -55,31 +78,6 @@ static int dirty_test_tile(const VNDirtyPlannerState* state, vn_u32 tile_index) 
         return VN_FALSE;
     }
     return ((state->dirty_bits[word_index] & (vn_u32)(1u << bit_index)) != 0u) ? VN_TRUE : VN_FALSE;
-}
-
-static vn_u32 dirty_count_bits(vn_u32 value) {
-    vn_u32 count;
-
-    count = 0u;
-    while (value != 0u) {
-        count += value & 1u;
-        value >>= 1;
-    }
-    return count;
-}
-
-static vn_u32 dirty_count_marked_tiles(const VNDirtyPlannerState* state) {
-    vn_u32 i;
-    vn_u32 count;
-
-    if (state == (const VNDirtyPlannerState*)0 || state->dirty_bits == (vn_u32*)0) {
-        return 0u;
-    }
-    count = 0u;
-    for (i = 0u; i < state->bit_word_count; ++i) {
-        count += dirty_count_bits(state->dirty_bits[i]);
-    }
-    return count;
 }
 
 static int dirty_op_equal(const VNRenderOp* a, const VNRenderOp* b) {
@@ -161,7 +159,9 @@ static int dirty_compute_rect(const VNRenderOp* op,
     return VN_TRUE;
 }
 
-static void dirty_mark_rect(const VNDirtyPlannerState* state, const VNDirtyRect* rect) {
+static void dirty_mark_rect(const VNDirtyPlannerState* state,
+                            const VNDirtyRect* rect,
+                            vn_u32* marked_tile_count) {
     vn_u32 tile_x0;
     vn_u32 tile_y0;
     vn_u32 tile_x1;
@@ -171,6 +171,7 @@ static void dirty_mark_rect(const VNDirtyPlannerState* state, const VNDirtyRect*
 
     if (state == (const VNDirtyPlannerState*)0 ||
         rect == (const VNDirtyRect*)0 ||
+        marked_tile_count == (vn_u32*)0 ||
         dirty_rect_is_empty(rect) != VN_FALSE) {
         return;
     }
@@ -189,7 +190,9 @@ static void dirty_mark_rect(const VNDirtyPlannerState* state, const VNDirtyRect*
 
     for (y = tile_y0; y <= tile_y1; ++y) {
         for (x = tile_x0; x <= tile_x1; ++x) {
-            dirty_mark_tile(state, y * (vn_u32)state->tiles_x + x);
+            (void)dirty_mark_tile(state,
+                                  y * (vn_u32)state->tiles_x + x,
+                                  marked_tile_count);
         }
     }
 }
@@ -314,12 +317,65 @@ void vn_dirty_planner_init(VNDirtyPlannerState* state,
     state->bit_word_count = bit_word_count;
 }
 
+static void dirty_clear_prev_bounds(VNDirtyPlannerState* state, vn_u32 start_index) {
+    vn_u32 i;
+
+    if (state == (VNDirtyPlannerState*)0) {
+        return;
+    }
+    for (i = start_index; i < VN_DIRTY_OP_CAP; ++i) {
+        dirty_rect_zero(&state->prev_bounds[i]);
+    }
+}
+
+static int dirty_copy_prev_ops(VNDirtyPlannerState* state,
+                               const VNRenderOp* ops,
+                               vn_u32 op_count) {
+    vn_u32 i;
+
+    if (state == (VNDirtyPlannerState*)0 ||
+        ops == (const VNRenderOp*)0 ||
+        op_count == 0u ||
+        op_count > VN_DIRTY_OP_CAP) {
+        return VN_E_INVALID_ARG;
+    }
+
+    state->prev_op_count = op_count;
+    for (i = 0u; i < op_count; ++i) {
+        state->prev_ops[i] = ops[i];
+    }
+    return VN_OK;
+}
+
+static int dirty_refresh_prev_bounds(VNDirtyPlannerState* state) {
+    vn_u32 i;
+    int rc;
+
+    if (state == (VNDirtyPlannerState*)0 || state->prev_op_count == 0u) {
+        return VN_E_INVALID_ARG;
+    }
+
+    for (i = 0u; i < state->prev_op_count; ++i) {
+        rc = dirty_compute_rect(&state->prev_ops[i], state->width, state->height, &state->prev_bounds[i]);
+        if (rc < 0) {
+            return rc;
+        }
+        if (rc == VN_FALSE) {
+            dirty_rect_zero(&state->prev_bounds[i]);
+        }
+    }
+    dirty_clear_prev_bounds(state, i);
+    state->prev_bounds_valid = 1u;
+    return VN_OK;
+}
+
 void vn_dirty_planner_invalidate(VNDirtyPlannerState* state) {
     if (state == (VNDirtyPlannerState*)0) {
         return;
     }
     state->valid = 0u;
     state->prev_op_count = 0u;
+    state->prev_bounds_valid = 0u;
 }
 
 int vn_dirty_planner_build(VNDirtyPlannerState* state,
@@ -328,7 +384,8 @@ int vn_dirty_planner_build(VNDirtyPlannerState* state,
                            VNDirtyPlan* out_plan) {
     vn_u32 i;
     vn_u32 total_tiles;
-    VNDirtyRect current_bounds[VN_DIRTY_OP_CAP];
+    vn_u32 marked_tile_count;
+    VNDirtyRect current_bounds;
     int rc;
 
     if (state == (VNDirtyPlannerState*)0 ||
@@ -352,6 +409,7 @@ int vn_dirty_planner_build(VNDirtyPlannerState* state,
     out_plan->bit_word_count = state->bit_word_count;
     dirty_bits_clear(state->dirty_bits, state->bit_word_count);
     total_tiles = (vn_u32)state->tiles_x * (vn_u32)state->tiles_y;
+    marked_tile_count = 0u;
 
     if (state->valid == 0u || state->prev_op_count != op_count || op_count == 0u) {
         dirty_plan_set_full_redraw(state, out_plan);
@@ -366,35 +424,43 @@ int vn_dirty_planner_build(VNDirtyPlannerState* state,
         return VN_OK;
     }
 
-    for (i = 0u; i < op_count; ++i) {
-        rc = dirty_compute_rect(&ops[i], state->width, state->height, &current_bounds[i]);
-        if (rc < 0) {
-            dirty_plan_set_full_redraw(state, out_plan);
-            return VN_OK;
-        }
+    for (i = 1u; i < op_count; ++i) {
         if (ops[i].op == VN_OP_FADE || state->prev_ops[i].op == VN_OP_FADE) {
             dirty_plan_set_full_redraw(state, out_plan);
             return VN_OK;
-        }
-        if (i == 0u) {
-            continue;
         }
         if (ops[i].op != state->prev_ops[i].op) {
             dirty_plan_set_full_redraw(state, out_plan);
             return VN_OK;
         }
-        if (dirty_op_equal(&ops[i], &state->prev_ops[i]) != VN_FALSE) {
-            continue;
-        }
-        if (dirty_rect_is_empty(&state->prev_bounds[i]) == VN_FALSE) {
-            dirty_mark_rect(state, &state->prev_bounds[i]);
-        }
-        if (dirty_rect_is_empty(&current_bounds[i]) == VN_FALSE) {
-            dirty_mark_rect(state, &current_bounds[i]);
+    }
+
+    if (state->prev_bounds_valid == 0u) {
+        rc = dirty_refresh_prev_bounds(state);
+        if (rc != VN_OK) {
+            dirty_plan_set_full_redraw(state, out_plan);
+            return VN_OK;
         }
     }
 
-    out_plan->dirty_tile_count = dirty_count_marked_tiles(state);
+    for (i = 1u; i < op_count; ++i) {
+        if (dirty_op_equal(&ops[i], &state->prev_ops[i]) != VN_FALSE) {
+            continue;
+        }
+        rc = dirty_compute_rect(&ops[i], state->width, state->height, &current_bounds);
+        if (rc < 0) {
+            dirty_plan_set_full_redraw(state, out_plan);
+            return VN_OK;
+        }
+        if (dirty_rect_is_empty(&state->prev_bounds[i]) == VN_FALSE) {
+            dirty_mark_rect(state, &state->prev_bounds[i], &marked_tile_count);
+        }
+        if (dirty_rect_is_empty(&current_bounds) == VN_FALSE) {
+            dirty_mark_rect(state, &current_bounds, &marked_tile_count);
+        }
+    }
+
+    out_plan->dirty_tile_count = marked_tile_count;
     out_plan->valid = 1u;
     if (out_plan->dirty_tile_count == 0u || total_tiles == 0u) {
         return VN_OK;
@@ -414,37 +480,32 @@ int vn_dirty_planner_build(VNDirtyPlannerState* state,
 void vn_dirty_planner_commit(VNDirtyPlannerState* state,
                              const VNRenderOp* ops,
                              vn_u32 op_count) {
-    vn_u32 i;
     int rc;
 
-    if (state == (VNDirtyPlannerState*)0 ||
-        ops == (const VNRenderOp*)0 ||
-        op_count == 0u ||
-        op_count > VN_DIRTY_OP_CAP) {
+    rc = dirty_copy_prev_ops(state, ops, op_count);
+    if (rc != VN_OK) {
         vn_dirty_planner_invalidate(state);
         return;
     }
+    rc = dirty_refresh_prev_bounds(state);
+    if (rc != VN_OK) {
+        vn_dirty_planner_invalidate(state);
+        return;
+    }
+    state->valid = 1u;
+}
 
-    state->prev_op_count = op_count;
-    for (i = 0u; i < op_count; ++i) {
-        state->prev_ops[i] = ops[i];
-        rc = dirty_compute_rect(&ops[i], state->width, state->height, &state->prev_bounds[i]);
-        if (rc < 0) {
-            vn_dirty_planner_invalidate(state);
-            return;
-        }
-        if (rc == VN_FALSE) {
-            state->prev_bounds[i].x = 0u;
-            state->prev_bounds[i].y = 0u;
-            state->prev_bounds[i].w = 0u;
-            state->prev_bounds[i].h = 0u;
-        }
+void vn_dirty_planner_commit_full_redraw(VNDirtyPlannerState* state,
+                                         const VNRenderOp* ops,
+                                         vn_u32 op_count) {
+    int rc;
+
+    rc = dirty_copy_prev_ops(state, ops, op_count);
+    if (rc != VN_OK) {
+        vn_dirty_planner_invalidate(state);
+        return;
     }
-    for (; i < VN_DIRTY_OP_CAP; ++i) {
-        state->prev_bounds[i].x = 0u;
-        state->prev_bounds[i].y = 0u;
-        state->prev_bounds[i].w = 0u;
-        state->prev_bounds[i].h = 0u;
-    }
+    dirty_clear_prev_bounds(state, 0u);
+    state->prev_bounds_valid = 0u;
     state->valid = 1u;
 }

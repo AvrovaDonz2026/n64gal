@@ -68,7 +68,7 @@
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off
 ./build_ci_cc/vn_player --scene S0 --frames 32 --hold-end --trace --perf-frame-reuse=off --perf-op-cache=off --perf-dirty-tile=on
 ./build_ci_cc/vn_player --backend scalar --scene S3 --resolution 1200x1600 --frames 128 --dt-ms 16 --hold-end --trace --perf-dynamic-resolution=on
-./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_dirty_compare
+./tests/perf/run_perf_compare.sh --baseline avx2 --baseline-label avx2_dirty_off --baseline-perf-dirty-tile off --candidate avx2 --candidate-label avx2_dirty_on --candidate-perf-dirty-tile on --scenes S0,S1,S2,S3 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --repeat 3 --out-dir /tmp/n64gal_perf_dirty_compare
 ./tests/perf/run_perf_compare.sh --baseline scalar --baseline-label scalar_dynres_off --baseline-perf-dynamic-resolution off --candidate scalar --candidate-label scalar_dynres_on --candidate-perf-dynamic-resolution on --scenes S3 --duration-sec 6 --warmup-sec 1 --dt-ms 16 --resolution 1200x1600 --out-dir /tmp/n64gal_perf_dynres_compare
 ./scripts/ci/run_perf_smoke_suite.sh --out-dir /tmp/n64gal_perf_ci
 ```
@@ -126,7 +126,7 @@
   --profile linux-x64-scalar-avx2-smoke
 ```
 
-如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成；`run_perf_compare_revs.sh` 还支持 `--threshold-soft-fail`，适合先在噪声较大的 runner 上保留报告、不立即转阻塞。
+如果直接走 `run_perf_compare.sh` / `run_perf_compare_revs.sh`，可以用 `--threshold-file` + `--threshold-profile` 让 compare 与 gate 一次完成；`run_perf_compare_revs.sh` 还支持 `--threshold-soft-fail`，适合先在噪声较大的 runner 上保留报告、不立即转阻塞。`run_perf_compare.sh` 现在额外支持 `--repeat N`，会把重复采样的 `p95_frame_ms` / `avg_frame_ms` / `max_rss_mb` 按 scene 做中位数聚合后再生成 compare artifact，适合 dirty-tile 这类短窗口抖动更明显的 on/off 对照。
 
 ## Baseline vs Candidate Revision
 
@@ -181,15 +181,17 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ## Checked-In Evidence
 
-当前仓库已经固化两份 perf 证据：
+当前仓库已经固化三份 perf 证据：
 
 1. [`docs/perf-rvv-2026-03-06.md`](./perf-rvv-2026-03-06.md)
-2. [`docs/perf-dynres-2026-03-07.md`](./perf-dynres-2026-03-07.md)
+2. [`docs/perf-dirty-2026-03-07.md`](./perf-dirty-2026-03-07.md)
+3. [`docs/perf-dynres-2026-03-07.md`](./perf-dynres-2026-03-07.md)
 
 其中：
 
 1. `perf-rvv-2026-03-06.md` 对应 `75ee8f9 -> ee42c39` 的 `rvv` 对比，主要用于证明融合优化系列在 `qemu-user` 环境下可以稳定得到正收益。它不是发布级原生基准，不能替代 riscv64 真机 perf。
-2. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
+2. `perf-dirty-2026-03-07.md` 记录了 dirty runtime fast-path、full-redraw shallow commit、以及 partial 路径增量 tile 计数落地后的 `avx2 dirty off -> on` 本地 repeat-median compare，用于证明“已知必整帧”场景的确定性 planner/bounds 税已继续压低，且短窗口采样已改为 `repeat=3` 中位数聚合以降低单次漂移。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
+3. `perf-dynres-2026-03-07.md` 记录了 `97cc92a` 上 `scalar dynres off -> on` 的本地 smoke 结果，用于证明动态分辨率 runtime slice 已能在真实 runtime 路径上形成可观测整机收益。它同样不是发布级基准，也不替代 GitHub runner 或目标机采样。
 
 另外，CI 已新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh` 包装入口，供 `workflow_dispatch` / nightly 的 `linux-riscv64-qemu-rvv-perf-report` job 直接产出同格式 artifact。该 workflow 默认使用比本地 smoke 更长的 `4s/2s` 窗口，以降低 qemu-user 短窗口抖动；当前默认还会接入 `linux-riscv64-qemu-rvv-rev-smoke` 的 `soft` threshold mode，并把 `perf_threshold_report.md` 一并追加到 step summary / artifact。首次 GitHub `workflow_dispatch` run `22766736383` 已验证 `Generate QEMU RVV perf report -> Publish perf summary -> Upload perf artifact` 全链成功。
 
@@ -198,7 +200,7 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 `linux-x64` CI job 现在通过 `scripts/ci/run_perf_smoke_suite.sh` 生成 `perf-linux-x64` artifact，默认固化三组 smoke 对照：
 
 1. `scalar -> avx2`（附 `linux-x64-scalar-avx2-smoke` threshold report）
-2. `avx2 dirty off -> avx2 dirty on`（同一 backend 的 dirty-tile on/off compare）
+2. `avx2 dirty off -> avx2 dirty on`（`S0,S3 @ 600x800, 6s/1s, repeat=3`，结果按中位数聚合，用于降低 dirty smoke 噪声；当前仍作为趋势 artifact，而非阻塞 gate）
 3. `scalar dynamic-resolution off -> on`（`S3 @ 1200x1600, 6s/1s`，用于验证 dynres 最小 runtime slice 的整机收益）
 
 artifact 顶层会额外生成 `perf_workflow_summary.md`，把三组 compare report 收口成一份 step summary 友好的 markdown；目录结构默认包括：

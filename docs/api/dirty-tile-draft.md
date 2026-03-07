@@ -1,6 +1,6 @@
 # Dirty-Tile 增量渲染设计与 API 草案
 
-- 状态：`draft + slice-3 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
+- 状态：`draft + slice-5 landed`（`VN_RUNTIME_PERF_DIRTY_TILE`、CLI/result/preview stats、内部 planner、`renderer_submit_dirty(...)`/`submit_ops_dirty(...)` 契约，以及 `scalar` + `avx2` + `neon` + `rvv` dirty submit 已落地；`rvv` 已完成 qemu smoke 验证；runtime 对 `FADE` / op 结构变化 / clear 变化等“已知必整帧”场景已同时补 planner short-circuit 与 full-redraw shallow commit，planner 会在重新回到可增量帧时惰性重建 `prev_bounds`，dirty tile 计数也已改成增量维护；`linux-x64` perf workflow 已固化 `dirty on/off` compare artifact，且 dirty compare 现已按 `repeat=3` 中位数聚合，`linux-arm64` / `windows-arm64` CI 也已显式留痕 `neon` dirty submit 命中）
 - 目标：把白皮书里的 `Dirty-Tile` 目标，落成可直接拆 PR 的运行时 / 前端 / 后端接口方案
 - 约束：保持 `C89`；继续坚持“前后端一份 API，跨架构只重写后端”
 
@@ -158,6 +158,7 @@ typedef struct {
     VNRenderOp prev_ops[16];
     VNDirtyRect prev_bounds[16];
     vn_u32 prev_op_count;
+    vn_u32 prev_bounds_valid;
 } DirtyTileState;
 ```
 
@@ -167,6 +168,7 @@ typedef struct {
 2. `dirty_bits` 在 session create 时按当前分辨率一次性分配
 3. `prev_ops + prev_bounds` 保存“上一帧真正提交到 framebuffer 的最终结果”
 4. 当前分辨率是 `600x800` 时，tile 总数为 `75 x 100 = 7500`，bitset 约 `940B`，成本可接受
+5. 当本帧已确定必须整帧提交时，可以只 shallow-commit `prev_ops`；`prev_bounds` 允许延迟到下一次重新进入可增量比较的帧再惰性重建
 
 ## 5.2 公开 API 草案
 
@@ -337,7 +339,7 @@ int renderer_submit_dirty(const VNRenderOp* ops,
 1. `run_perf.sh` 默认继续测 shipped path
 2. 新增 `--perf-dirty-tile=off` 归因说明
 3. `linux-x64` CI 已通过 `scripts/ci/run_perf_smoke_suite.sh` 固化 `avx2 dirty off/on` 对照报告
-4. dirty-tile 相关门限暂不阻塞，先继续观察 smoke 抖动
+4. 当前 runtime 已对“已知必整帧”场景 short-circuit 到 `full_redraw`，并在 full-redraw commit 阶段跳过整帧 `prev_bounds` 计算；回到可增量帧时再惰性重建，先把纯观测成本压到最低，再继续观察 smoke 抖动
 
 ## 9. 建议测试矩阵
 
@@ -385,7 +387,7 @@ int renderer_submit_dirty(const VNRenderOp* ops,
 
 1. `Slice A`：dirty plan/bounds/merge 的共享逻辑已落地
 2. `Slice B`：`scalar` + `avx2` + `neon` + `rvv` partial submit 已落地
-3. `dirty on/off` perf 证据已接到 `linux-x64` CI artifact；下一步继续补 runtime golden 细化与 native RVV 设备上的长期验证
+3. `dirty on/off` perf 证据已接到 `linux-x64` CI artifact，runtime 也已为 `FADE`/结构变化等必整帧场景补 short-circuit + shallow commit，planner 还补了增量 tile 计数；当前 dirty compare 已切到 `repeat=3` 中位数聚合，本地样本可更稳定地保留正收益趋势，但发布级结论仍需 native 目标机上的长期验证
 4. 继续沿 `qemu-first -> native-rvv` 路线收紧 RVV 证据
 
 这样可以保证：

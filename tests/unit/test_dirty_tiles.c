@@ -59,6 +59,7 @@ int main(void) {
     VNRenderOp ops[3];
     VNRenderOp moved_ops[3];
     VNRenderOp fade_ops[4];
+    VNRenderOp post_fade_ops[4];
     vn_u32 bits[8];
     vn_u32 word_count;
     int rc;
@@ -143,6 +144,50 @@ int main(void) {
     }
     if (plan.full_redraw == 0u) {
         (void)fprintf(stderr, "expected full redraw on fade op\n");
+        return 1;
+    }
+
+    vn_dirty_planner_commit_full_redraw(&state, fade_ops, 4u);
+    (void)memcpy(post_fade_ops, fade_ops, sizeof(fade_ops));
+    init_sprite(&post_fade_ops[3], 40, 40, 8u, 8u, 21u);
+
+    rc = vn_dirty_planner_build(&state, post_fade_ops, 4u, &plan);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "post-fade transition build failed rc=%d\n", rc);
+        return 1;
+    }
+    if (plan.full_redraw == 0u) {
+        (void)fprintf(stderr, "expected full redraw on fade-to-sprite transition\n");
+        return 1;
+    }
+
+    vn_dirty_planner_commit_full_redraw(&state, post_fade_ops, 4u);
+    rc = vn_dirty_planner_build(&state, post_fade_ops, 4u, &plan);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "post-fade steady build failed rc=%d\n", rc);
+        return 1;
+    }
+    if (plan.full_redraw != 0u || plan.dirty_tile_count != 0u || plan.dirty_rect_count != 0u) {
+        (void)fprintf(stderr,
+                      "expected lazy prev-bounds refresh to restore empty dirty plan tiles=%u rects=%u full=%u\n",
+                      (unsigned int)plan.dirty_tile_count,
+                      (unsigned int)plan.dirty_rect_count,
+                      (unsigned int)plan.full_redraw);
+        return 1;
+    }
+
+    post_fade_ops[3].x = 48;
+    rc = vn_dirty_planner_build(&state, post_fade_ops, 4u, &plan);
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "post-fade moved build failed rc=%d\n", rc);
+        return 1;
+    }
+    if (plan.full_redraw != 0u || plan.dirty_tile_count == 0u || plan.dirty_rect_count == 0u) {
+        (void)fprintf(stderr,
+                      "expected partial dirty plan after lazy refresh tiles=%u rects=%u full=%u\n",
+                      (unsigned int)plan.dirty_tile_count,
+                      (unsigned int)plan.dirty_rect_count,
+                      (unsigned int)plan.full_redraw);
         return 1;
     }
 
