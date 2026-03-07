@@ -190,6 +190,8 @@ SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
 mkdir -p "$OUT_DIR"
 
 HOST_CPU="$(vn_perf_detect_host_cpu)"
+PERF_CFLAGS_SUMMARY="${VN_PERF_CFLAGS:-}"
+PERF_LDFLAGS_SUMMARY="${VN_PERF_LDFLAGS:-}"
 
 append_report() {
   local title
@@ -364,6 +366,8 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Runner bin: \`${RUNNER_BIN:-auto-build}\`
 - Kernel runner bin: \`${KERNEL_RUNNER_BIN:-auto-build}\`
 - Skip build: \`${SKIP_BUILD}\`
+- Perf CFLAGS: \`${PERF_CFLAGS_SUMMARY:-none}\`
+- Perf LDFLAGS: \`${PERF_LDFLAGS_SUMMARY:-none}\`
 - Threshold profile: \`${THRESHOLD_PROFILE:-none}\`
 - Compare A: \`scalar -> $SIMD_BACKEND\`
 - Compare B: \`${SIMD_BACKEND} dirty-tile off -> on\`

@@ -34,6 +34,8 @@ jobs:
             build_ci_cc/ci_suite_summary.md
             build_ci_cc/golden_artifacts
       - name: Perf smoke suite
+        env:
+          VN_PERF_CFLAGS: -O2 -DNDEBUG
         run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-x64 --simd-backend avx2 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir "$RUNNER_TEMP/perf_linux_x64"
       - name: Publish perf summary
         if: always()
