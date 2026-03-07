@@ -74,6 +74,35 @@ fi
 COMPARE_CSV="$OUT_DIR/kernel_compare.csv"
 COMPARE_MD="$OUT_DIR/kernel_compare.md"
 
+csv_field() {
+  local csv_path="$1"
+  local field_name="$2"
+
+  awk -F, -v field_name="$field_name" '
+    NR == 1 {
+      for (i = 1; i <= NF; ++i) {
+        idx[$i] = i;
+      }
+      next;
+    }
+    NR > 1 {
+      if (idx[field_name] > 0) {
+        print $idx[field_name];
+      }
+      exit;
+    }
+  ' "$csv_path"
+}
+
+BASELINE_HOST_CPU="$(csv_field "$BASELINE_CSV" "host_cpu")"
+CANDIDATE_HOST_CPU="$(csv_field "$CANDIDATE_CSV" "host_cpu")"
+if [[ -z "$BASELINE_HOST_CPU" ]]; then
+  BASELINE_HOST_CPU="unknown"
+fi
+if [[ -z "$CANDIDATE_HOST_CPU" ]]; then
+  CANDIDATE_HOST_CPU="unknown"
+fi
+
 awk -F, \
   -v base_label="$BASELINE_LABEL" \
   -v cand_label="$CANDIDATE_LABEL" \
@@ -139,6 +168,8 @@ MEAN_THROUGHPUT_GAIN="$(awk -F, 'NR > 1 { sum += $16; n += 1 } END { if (n == 0)
   echo "- Candidate: \`$CANDIDATE_LABEL\`"
   echo "- Baseline kernel csv: \`$BASELINE_CSV\`"
   echo "- Candidate kernel csv: \`$CANDIDATE_CSV\`"
+  echo "- Baseline host CPU: \`$BASELINE_HOST_CPU\`"
+  echo "- Candidate host CPU: \`$CANDIDATE_HOST_CPU\`"
   echo "- Kernels compared: $KERNEL_COUNT"
   echo "- Mean avg speedup: ${MEAN_AVG_SPEEDUP}x"
   echo "- Mean avg gain: ${MEAN_AVG_GAIN}%"

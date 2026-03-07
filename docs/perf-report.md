@@ -125,6 +125,7 @@
 
 `perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比；若 `--repeat > 1`，还会在同一文件尾部追加 `Repeat Aggregation` 与 `Repeat Variability` 两节。
 `perf_threshold_report.md` 会把 profile 中的每条门限检查展开成表格，适合直接进 CI artifact 或 issue 证据链。
+当前 `run_perf.sh` / `run_perf_compare.sh` / `run_kernel_bench.sh` 也会自动记录 `host_cpu`：单 backend 输出会把它写进 `perf_summary.csv` 与 `perf_host_cpu.txt`，kernel bench 会写进 `kernel_bench.csv` 与 `kernel_host_cpu.txt`，compare markdown 和 `perf_workflow_summary.md` 也会直接回显这项元数据，便于跨 runner 排查 Linux/Windows 差异。
 当前 native smoke profile 里，`S10` 已通过 `scene_count == 3` 与 aggregate gain 被纳入 gate，但暂未为所有平台补独立的 per-scene `candidate_p95_ms` ceiling；在缺少更稳定原生样本前，先把它视为 coverage + aggregate smoke scene，而不是已完全收紧的第三条绝对时延门限。
 
 ## Perf Threshold Gate

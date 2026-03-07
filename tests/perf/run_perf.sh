@@ -105,6 +105,8 @@ fi
 SOURCE_ROOT="$(cd "$SOURCE_ROOT" && pwd)"
 cd "$SOURCE_ROOT"
 
+source "$SCRIPT_ROOT/tests/perf/host_cpu.sh"
+
 if [[ "$DT_MS" -le 0 ]]; then
   echo "dt-ms must be > 0" >&2
   exit 2
@@ -141,6 +143,9 @@ WARMUP_MS=$(( WARMUP_SEC * 1000 ))
 TOTAL_MS=$(( DURATION_SEC * 1000 ))
 
 mkdir -p "$OUT_DIR"
+
+HOST_CPU="$(vn_perf_detect_host_cpu)"
+printf "%s\n" "$HOST_CPU" > "$OUT_DIR/perf_host_cpu.txt"
 
 "$SOURCE_ROOT/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
 
@@ -196,7 +201,7 @@ fi
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {
-  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution"
+  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,host_cpu"
 } > "$SUMMARY_CSV"
 
 IFS=',' read -r -a SCENE_ARRAY <<< "$SCENES"
@@ -368,7 +373,7 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   MAX_RSS_MB="$(awk -F, 'NR>1 { if ($8 + 0 > max) max = $8 + 0 } END { printf "%.3f", max + 0.0 }' "$OUT_CSV")"
 
   {
-    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default},${PERF_DYNAMIC_RESOLUTION:-default}"
+    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default},${PERF_DYNAMIC_RESOLUTION:-default},${HOST_CPU}"
   } >> "$SUMMARY_CSV"
 
   echo "[perf] wrote $OUT_CSV samples=$SAMPLE_COUNT p95=${P95_FRAME_MS}ms passes=$PASS"
@@ -380,4 +385,5 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
 fi
 
 echo "[perf] wrote $OUT_DIR/perf_report_template.md"
-echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default}"
+echo "[perf] wrote $OUT_DIR/perf_host_cpu.txt cpu=$HOST_CPU"
+echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default} host_cpu=$HOST_CPU"

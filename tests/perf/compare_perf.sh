@@ -74,6 +74,35 @@ fi
 COMPARE_CSV="$OUT_DIR/perf_compare.csv"
 COMPARE_MD="$OUT_DIR/perf_compare.md"
 
+summary_field() {
+  local csv_path="$1"
+  local field_name="$2"
+
+  awk -F, -v field_name="$field_name" '
+    NR == 1 {
+      for (i = 1; i <= NF; ++i) {
+        idx[$i] = i;
+      }
+      next;
+    }
+    NR > 1 {
+      if (idx[field_name] > 0) {
+        print $idx[field_name];
+      }
+      exit;
+    }
+  ' "$csv_path"
+}
+
+BASELINE_HOST_CPU="$(summary_field "$BASELINE_CSV" "host_cpu")"
+CANDIDATE_HOST_CPU="$(summary_field "$CANDIDATE_CSV" "host_cpu")"
+if [[ -z "$BASELINE_HOST_CPU" ]]; then
+  BASELINE_HOST_CPU="unknown"
+fi
+if [[ -z "$CANDIDATE_HOST_CPU" ]]; then
+  CANDIDATE_HOST_CPU="unknown"
+fi
+
 awk -F, \
   -v base_label="$BASELINE_LABEL" \
   -v cand_label="$CANDIDATE_LABEL" \
@@ -138,6 +167,8 @@ MEAN_AVG_GAIN="$(awk -F, 'NR > 1 { sum += $13; n += 1 } END { if (n == 0) printf
   echo "- Candidate: \`$CANDIDATE_LABEL\`"
   echo "- Baseline summary: \`$BASELINE_CSV\`"
   echo "- Candidate summary: \`$CANDIDATE_CSV\`"
+  echo "- Baseline host CPU: \`$BASELINE_HOST_CPU\`"
+  echo "- Candidate host CPU: \`$CANDIDATE_HOST_CPU\`"
   echo "- Scenes compared: $SCENE_COUNT"
   echo "- Mean p95 speedup: ${MEAN_P95_SPEEDUP}x"
   echo "- Mean avg speedup: ${MEAN_AVG_SPEEDUP}x"

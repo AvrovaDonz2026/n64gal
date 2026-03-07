@@ -12,7 +12,7 @@
 
 ## 2. Device
 
-- CPU:
+- CPU: auto-captured in `perf_summary.csv` -> `host_cpu`
 - Memory:
 - OS:
 - Toolchain:

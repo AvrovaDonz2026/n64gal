@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+source "$ROOT_DIR/tests/perf/host_cpu.sh"
+
 SOURCE_ROOT="$ROOT_DIR"
 BACKEND="scalar"
 RESOLUTION="600x800"
@@ -69,6 +71,9 @@ elif [[ "$OUT_CSV" != /* ]]; then
 fi
 mkdir -p "$(dirname "$OUT_CSV")"
 
+HOST_CPU="$(vn_perf_detect_host_cpu)"
+printf "%s\n" "$HOST_CPU" > "$(dirname "$OUT_CSV")/kernel_host_cpu.txt"
+
 if [[ -z "$RUNNER_BIN" ]]; then
   RUNNER_BIN="$ROOT_DIR/build_ci_cc/vn_backend_kernel_bench"
 fi
@@ -129,4 +134,9 @@ fi
   --warmup "$WARMUP" \
   --csv "$OUT_CSV"
 
-echo "[kernel-bench] wrote $OUT_CSV backend=$BACKEND resolution=$RESOLUTION iterations=$ITERATIONS warmup=$WARMUP"
+TMP_CSV="$(mktemp)"
+awk -F, -v host_cpu="$HOST_CPU" 'NR == 1 { print $0 ",host_cpu"; next } { print $0 "," host_cpu }' "$OUT_CSV" > "$TMP_CSV"
+mv "$TMP_CSV" "$OUT_CSV"
+
+echo "[kernel-bench] wrote $OUT_CSV backend=$BACKEND resolution=$RESOLUTION iterations=$ITERATIONS warmup=$WARMUP host_cpu=$HOST_CPU"
+echo "[kernel-bench] wrote $(dirname "$OUT_CSV")/kernel_host_cpu.txt cpu=$HOST_CPU"

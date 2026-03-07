@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+source "$ROOT_DIR/tests/perf/host_cpu.sh"
+
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_ci_perf}"
 PLATFORM_LABEL="generic"
 SIMD_BACKEND="avx2"
@@ -187,6 +189,8 @@ DIRTY_CANDIDATE_REPEATS_CSV="$DIRTY_TILE_DIR/${SIMD_BACKEND}_dirty_on/perf_summa
 SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
 mkdir -p "$OUT_DIR"
 
+HOST_CPU="$(vn_perf_detect_host_cpu)"
+
 append_report() {
   local title
   local path
@@ -343,6 +347,7 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 # Perf Workflow Summary
 
 - Platform label: \`$PLATFORM_LABEL\`
+- Host CPU: \`$HOST_CPU\`
 - Output dir: \`$OUT_DIR\`
 - SIMD backend: \`$SIMD_BACKEND\`
 - Smoke scenes: \`$SCENES\`
