@@ -25,6 +25,15 @@ PERF_OP_CACHE=""
 PERF_DIRTY_TILE=""
 PERF_DYNAMIC_RESOLUTION=""
 
+append_source_if_exists() {
+  local rel_path
+
+  rel_path="$1"
+  if [[ -f "$SOURCE_ROOT/$rel_path" ]]; then
+    COMPILE_CMD+=("$rel_path")
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --backend)
@@ -174,9 +183,13 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     src/core/pack.c
     src/core/platform.c
     src/core/runtime_cli.c
-    src/core/dynamic_resolution.c
+  )
+  append_source_if_exists src/core/dynamic_resolution.c
+  COMPILE_CMD+=(
     src/frontend/render_ops.c
-    src/frontend/dirty_tiles.c
+  )
+  append_source_if_exists src/frontend/dirty_tiles.c
+  COMPILE_CMD+=(
     src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
     src/backend/neon/neon_backend.c

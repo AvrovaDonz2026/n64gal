@@ -18,7 +18,7 @@
 5. `VN_PERF_RUNNER_PREFIX=...`：为 perf runner 加前缀，例如 `qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu`。
 6. `VN_PERF_RUNNER_BIN=...`：覆盖临时 runner 输出路径，便于并行或 revision 对照。
 
-这套注入能力也是 `run_perf_compare_revs.sh` 的基础：脚本会先 `git archive` 两个 revision，再复用当前版本的 `run_perf.sh` 去驱动 baseline/candidate 两个源码树。因此，历史 revision 不需要额外回填新的 perf 工具逻辑。
+这套注入能力也是 `run_perf_compare_revs.sh` 的基础：脚本会先 `git archive` 两个 revision，再复用当前版本的 `run_perf.sh` 去驱动 baseline/candidate 两个源码树。因此，历史 revision 不需要额外回填新的 perf 工具逻辑。当前 `run_perf.sh` 也会按 `--source-root` 实际存在的文件条件性追加较新的可选模块（例如 `dynamic_resolution.c`、`dirty_tiles.c`），避免旧 revision 因缺少后加源码文件而在编译阶段提前失败。
 
 ## Single Backend Capture
 
