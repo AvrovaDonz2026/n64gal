@@ -99,6 +99,12 @@
 
 当前 `linux-x64` CI smoke gate 示例：
 
+为了让 `S1/S3/S10` 更容易和真实游戏画面对应，可以按下面理解：
+
+1. `S1`：标准循环对话场景，`BGM + 两段 TEXT + 周期性 FADE/WAIT + SE`；渲染上是中等负载的 `clear + sprite + text + fade`。
+2. `S3`：短节奏转场/收束场景，`TEXT -> FADE -> WAIT -> SE -> TEXT -> WAIT -> END`；仍是 4-op 中等负载，但更容易放大短窗口抖动。
+3. `S10`：重演出压力场景，`BGM + 三段 TEXT + FADE/WAIT loop`；渲染上额外带两层大号半透明 overlay sprite，是当前最接近多层 CG/立绘叠画的重样本。
+
 ```bash
 ./tests/perf/run_perf_compare.sh \
   --baseline scalar \

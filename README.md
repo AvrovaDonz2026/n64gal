@@ -305,7 +305,15 @@ baseline/candidate 全量 sweep 示例（非 CI smoke gate）：
 ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S0,S1,S2,S3,S10 --duration-sec 120 --warmup-sec 20 --dt-ms 16 --resolution 600x800 --out-dir /tmp/n64gal_perf_compare
 ```
 
-当前 GitHub Actions 的 `linux-x64` smoke gate 默认使用 `S1,S3,S10`，而不是上面的 `S0,S1,S2,S3,S10` 全量 sweep；原因是 `S0` 在 shipped 主路径上会被 `frame reuse` 压到约 `0.001ms`，已经失去有效测量价值，而 `S10` 则作为更重的 perf sample 补进 smoke coverage。若要复现当前 CI gate，请改用：
+当前 GitHub Actions 的 `linux-x64` smoke gate 默认使用 `S1,S3,S10`，而不是上面的 `S0,S1,S2,S3,S10` 全量 sweep；原因是 `S0` 在 shipped 主路径上会被 `frame reuse` 压到约 `0.001ms`，已经失去有效测量价值，而 `S10` 则作为更重的 perf sample 补进 smoke coverage。
+
+开发者理解 `S1/S3/S10` 时，可以直接把它们当成三类典型 VN 画面：
+
+1. `S1`：标准循环对话场景。脚本层面是 `BGM + 两段 TEXT + 周期性 FADE/WAIT + SE` 的 loop；渲染层面对应 `clear + 128x128 不透明角色 sprite + 320x36 文本框 + 全屏 fade`，适合作为“常规对话吞吐”样本。
+2. `S3`：短节奏转场/收束场景。脚本层面是更短的 `TEXT -> FADE -> WAIT -> SE -> TEXT -> WAIT -> END`；渲染层面仍是 4-op 中等负载，但节奏更紧，当前也更适合观察 `dirty-tile` 和短窗口 jitter。
+3. `S10`：重演出压力场景。脚本层面是 `BGM + 三段 TEXT + FADE/WAIT loop`；渲染层面是 `clear + 基础角色 sprite + 448x48 宽文本框 + 两层大号半透明 overlay sprite(504x332 / 432x208) + fade`，当前是最接近“多层 CG/立绘叠画”的重样本。
+
+若要复现当前 CI gate，请改用：
 
 ```bash
 ./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S1,S3,S10 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir /tmp/n64gal_perf_smoke
