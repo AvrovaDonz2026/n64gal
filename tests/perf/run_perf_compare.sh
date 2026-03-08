@@ -81,6 +81,8 @@ aggregate_perf_summary() {
   local perf_op_cache
   local perf_dirty_tile
   local perf_dynamic_resolution
+  local requested_backend
+  local actual_backend
   local host_cpu
   local p95_median
   local avg_median
@@ -97,7 +99,7 @@ aggregate_perf_summary() {
 
   mkdir -p "$dest_dir"
   head -n 1 "$first_csv" > "$summary_csv"
-  echo "run,scene,sample_count,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,pass,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,host_cpu" > "$repeats_csv"
+  echo "run,scene,sample_count,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,pass,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,requested_backend,actual_backend,host_cpu" > "$repeats_csv"
 
   scenes_tmp="$(mktemp)"
   tail -n +2 "$first_csv" | cut -d, -f1 | sort -u > "$scenes_tmp"
@@ -121,7 +123,15 @@ aggregate_perf_summary() {
     done
 
     first_row="$(sed -n '1p' "$rows_tmp")"
-    IFS=, read -r _ sample_count _ _ _ warmup_sec duration_sec backend dt_ms resolution pass perf_frame_reuse perf_op_cache perf_dirty_tile perf_dynamic_resolution host_cpu <<< "$first_row"
+    IFS=, read -r _ sample_count _ _ _ warmup_sec duration_sec backend dt_ms resolution pass perf_frame_reuse perf_op_cache perf_dirty_tile perf_dynamic_resolution requested_backend actual_backend host_cpu <<< "$first_row"
+
+    if ! awk -F, -v requested_backend="$requested_backend" -v actual_backend="$actual_backend" '
+      $16 != requested_backend || $17 != actual_backend { exit 1 }
+    ' "$rows_tmp"; then
+      rm -f "$rows_tmp" "$scenes_tmp"
+      echo "inconsistent requested/actual backend during repeat aggregation scene=$scene label=$label" >&2
+      exit 1
+    fi
 
     values_tmp="$(mktemp)"
     awk -F, '{ print $3 }' "$rows_tmp" | sort -n > "$values_tmp"
@@ -138,7 +148,7 @@ aggregate_perf_summary() {
     rss_median="$(sorted_median "$values_tmp" "%.3f")"
     rm -f "$values_tmp"
 
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
       "$scene" \
       "$sample_count" \
       "$p95_median" \
@@ -154,6 +164,8 @@ aggregate_perf_summary() {
       "$perf_op_cache" \
       "$perf_dirty_tile" \
       "$perf_dynamic_resolution" \
+      "$requested_backend" \
+      "$actual_backend" \
       "$host_cpu" >> "$summary_csv"
 
     rm -f "$rows_tmp"

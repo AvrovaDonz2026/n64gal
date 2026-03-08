@@ -558,12 +558,196 @@ static void vn_avx2_build_textured_row_palette(vn_u32* palette,
 
 #if VN_AVX2_IMPL_AVAILABLE
 VN_AVX2_TARGET_ATTR
-static __m256i vn_avx2_gather_palette8(const vn_u8* u_lut, const vn_u32* palette) {
+static __m256i vn_avx2_load_u_lut8_u32x8(const vn_u8* u_lut) {
     __m128i idx8;
-    __m256i idx32;
 
     idx8 = _mm_loadl_epi64((const __m128i*)(const void*)u_lut);
-    idx32 = _mm256_cvtepu8_epi32(idx8);
+    return _mm256_cvtepu8_epi32(idx8);
+}
+
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_hash32_u32x8(__m256i x) {
+    __m256i mul0;
+    __m256i mul1;
+
+    mul0 = _mm256_set1_epi32((int)0x7FEB352Du);
+    mul1 = _mm256_set1_epi32((int)0x846CA68Bu);
+    x = _mm256_xor_si256(x, _mm256_srli_epi32(x, 16));
+    x = _mm256_mullo_epi32(x, mul0);
+    x = _mm256_xor_si256(x, _mm256_srli_epi32(x, 15));
+    x = _mm256_mullo_epi32(x, mul1);
+    x = _mm256_xor_si256(x, _mm256_srli_epi32(x, 16));
+    return x;
+}
+
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_sample_combine_chunk_u32x8(__m256i u_vec,
+                                                  const VN_AVX2TexturedRowParams* params) {
+    __m256i mask_ff;
+    __m256i one_vec;
+    __m256i alt_bit;
+    __m256i alpha_mask;
+    __m256i zero_vec;
+    __m256i max_vec;
+    __m256i seed_xor_vec;
+    __m256i checker_xor_vec;
+    __m256i v8_vec;
+    __m256i hash_vec;
+    __m256i checker_mask;
+    __m256i alt_mask;
+    __m256i r_vec;
+    __m256i g_vec;
+    __m256i b_vec;
+
+    if (params == (const VN_AVX2TexturedRowParams*)0) {
+        return _mm256_setzero_si256();
+    }
+
+    mask_ff = _mm256_set1_epi32((int)0xFFu);
+    one_vec = _mm256_set1_epi32(1);
+    alt_bit = _mm256_set1_epi32((int)0x20u);
+    alpha_mask = _mm256_set1_epi32((int)0xFF000000u);
+    zero_vec = _mm256_setzero_si256();
+    max_vec = _mm256_set1_epi32(255);
+    seed_xor_vec = _mm256_set1_epi32((int)params->seed_xor);
+    checker_xor_vec = _mm256_set1_epi32((int)params->checker_xor);
+    v8_vec = _mm256_set1_epi32((int)params->v8);
+
+    u_vec = _mm256_and_si256(u_vec, mask_ff);
+    hash_vec = _mm256_xor_si256(_mm256_slli_epi32(u_vec, 8), seed_xor_vec);
+    hash_vec = vn_avx2_hash32_u32x8(hash_vec);
+
+    r_vec = _mm256_and_si256(hash_vec, mask_ff);
+    g_vec = _mm256_and_si256(_mm256_srli_epi32(hash_vec, 8), mask_ff);
+    b_vec = _mm256_and_si256(_mm256_srli_epi32(hash_vec, 16), mask_ff);
+
+    checker_mask = _mm256_and_si256(_mm256_xor_si256(_mm256_srli_epi32(u_vec, 5), checker_xor_vec), one_vec);
+    checker_mask = _mm256_cmpeq_epi32(checker_mask, one_vec);
+    alt_mask = _mm256_and_si256(_mm256_add_epi32(u_vec, v8_vec), alt_bit);
+    alt_mask = _mm256_cmpeq_epi32(alt_mask, alt_bit);
+    alt_mask = _mm256_andnot_si256(checker_mask, alt_mask);
+
+    r_vec = _mm256_add_epi32(r_vec, _mm256_and_si256(checker_mask, _mm256_set1_epi32(24)));
+    g_vec = _mm256_add_epi32(g_vec, _mm256_and_si256(checker_mask, _mm256_set1_epi32(24)));
+    b_vec = _mm256_add_epi32(b_vec, _mm256_and_si256(checker_mask, _mm256_set1_epi32(24)));
+
+    r_vec = _mm256_sub_epi32(r_vec, _mm256_and_si256(alt_mask, _mm256_set1_epi32(16)));
+    g_vec = _mm256_sub_epi32(g_vec, _mm256_and_si256(alt_mask, _mm256_set1_epi32(10)));
+    b_vec = _mm256_sub_epi32(b_vec, _mm256_and_si256(alt_mask, _mm256_set1_epi32(16)));
+
+    r_vec = _mm256_max_epi32(r_vec, zero_vec);
+    g_vec = _mm256_max_epi32(g_vec, zero_vec);
+    b_vec = _mm256_max_epi32(b_vec, zero_vec);
+    r_vec = _mm256_min_epi32(r_vec, max_vec);
+    g_vec = _mm256_min_epi32(g_vec, max_vec);
+    b_vec = _mm256_min_epi32(b_vec, max_vec);
+
+    r_vec = _mm256_add_epi32(r_vec, _mm256_set1_epi32(params->base_r));
+    g_vec = _mm256_add_epi32(g_vec, _mm256_set1_epi32(params->base_g));
+    b_vec = _mm256_add_epi32(b_vec, _mm256_set1_epi32(params->base_b));
+
+    if (params->op == VN_OP_TEXT) {
+        __m256i y_vec;
+
+        y_vec = _mm256_mullo_epi32(r_vec, _mm256_set1_epi32(54));
+        y_vec = _mm256_add_epi32(y_vec,
+                                 _mm256_mullo_epi32(g_vec, _mm256_set1_epi32(183)));
+        y_vec = _mm256_add_epi32(y_vec,
+                                 _mm256_mullo_epi32(b_vec, _mm256_set1_epi32(19)));
+        y_vec = _mm256_srli_epi32(y_vec, 8);
+        r_vec = _mm256_add_epi32(y_vec, _mm256_set1_epi32(52));
+        g_vec = _mm256_add_epi32(y_vec, _mm256_set1_epi32(44));
+        b_vec = _mm256_add_epi32(y_vec,
+                                 _mm256_set1_epi32(params->text_blue_bias));
+    } else if (params->op == VN_OP_SPRITE) {
+        b_vec = _mm256_add_epi32(b_vec,
+                                 _mm256_set1_epi32(params->sprite_blue_bias));
+    }
+
+    r_vec = _mm256_max_epi32(r_vec, zero_vec);
+    g_vec = _mm256_max_epi32(g_vec, zero_vec);
+    b_vec = _mm256_max_epi32(b_vec, zero_vec);
+    r_vec = _mm256_min_epi32(r_vec, max_vec);
+    g_vec = _mm256_min_epi32(g_vec, max_vec);
+    b_vec = _mm256_min_epi32(b_vec, max_vec);
+
+    return _mm256_or_si256(alpha_mask,
+                           _mm256_or_si256(_mm256_slli_epi32(r_vec, 16),
+                                           _mm256_or_si256(_mm256_slli_epi32(g_vec, 8),
+                                                           b_vec)));
+}
+
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_sample_combine_u_lut8(const vn_u8* u_lut,
+                                             const VN_AVX2TexturedRowParams* params) {
+    return vn_avx2_sample_combine_chunk_u32x8(vn_avx2_load_u_lut8_u32x8(u_lut), params);
+}
+
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_blend_rgb_chunk_u32x8(__m256i dst_vec,
+                                             __m256i src_vec,
+                                             vn_u8 alpha) {
+    __m256i mask_rb;
+    __m256i mask_g;
+    __m256i bias_rb;
+    __m256i bias_g;
+    __m256i one_rb;
+    __m256i one_g;
+    __m256i alpha_vec;
+    __m256i inv_vec;
+    __m256i alpha_mask;
+    __m256i src_rb;
+    __m256i src_g;
+    __m256i dst_rb;
+    __m256i dst_g;
+    __m256i rb;
+    __m256i g;
+
+    if (alpha >= 255u) {
+        return src_vec;
+    }
+    if (alpha == 0u) {
+        return dst_vec;
+    }
+
+    mask_rb = _mm256_set1_epi32((int)0x00FF00FFu);
+    mask_g = _mm256_set1_epi32((int)0x0000FF00u);
+    bias_rb = _mm256_set1_epi32((int)0x007F007Fu);
+    bias_g = _mm256_set1_epi32((int)0x00007F00u);
+    one_rb = _mm256_set1_epi32((int)0x00010001u);
+    one_g = _mm256_set1_epi32((int)0x00000100u);
+    alpha_vec = _mm256_set1_epi32((int)(vn_u32)alpha);
+    inv_vec = _mm256_set1_epi32((int)(255u - (vn_u32)alpha));
+    alpha_mask = _mm256_set1_epi32((int)0xFF000000u);
+    src_rb = _mm256_and_si256(src_vec, mask_rb);
+    src_g = _mm256_and_si256(src_vec, mask_g);
+    dst_rb = _mm256_and_si256(dst_vec, mask_rb);
+    dst_g = _mm256_and_si256(dst_vec, mask_g);
+
+    rb = _mm256_add_epi32(_mm256_mullo_epi32(src_rb, alpha_vec),
+                          _mm256_mullo_epi32(dst_rb, inv_vec));
+    rb = _mm256_add_epi32(rb, bias_rb);
+    rb = _mm256_add_epi32(rb,
+                          _mm256_add_epi32(one_rb,
+                                           _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb)));
+    rb = _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb);
+
+    g = _mm256_add_epi32(_mm256_mullo_epi32(src_g, alpha_vec),
+                         _mm256_mullo_epi32(dst_g, inv_vec));
+    g = _mm256_add_epi32(g, bias_g);
+    g = _mm256_add_epi32(g,
+                         _mm256_add_epi32(one_g,
+                                          _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g)));
+    g = _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g);
+
+    return _mm256_or_si256(_mm256_or_si256(rb, g), alpha_mask);
+}
+
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_gather_palette8(const vn_u8* u_lut, const vn_u32* palette) {
+    __m256i idx32;
+
+    idx32 = vn_avx2_load_u_lut8_u32x8(u_lut);
     return _mm256_i32gather_epi32((const int*)(const void*)palette, idx32, 4);
 }
 
@@ -598,15 +782,6 @@ static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
                                                     vn_u32 count,
                                                     const vn_u32* palette,
                                                     vn_u8 alpha) {
-    __m256i mask_rb;
-    __m256i mask_g;
-    __m256i bias_rb;
-    __m256i bias_g;
-    __m256i one_rb;
-    __m256i one_g;
-    __m256i alpha_vec;
-    __m256i inv_vec;
-    __m256i alpha_mask;
     vn_u32 i;
 
     if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
@@ -617,52 +792,15 @@ static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
         return;
     }
 
-    mask_rb = _mm256_set1_epi32((int)0x00FF00FFu);
-    mask_g = _mm256_set1_epi32((int)0x0000FF00u);
-    bias_rb = _mm256_set1_epi32((int)0x007F007Fu);
-    bias_g = _mm256_set1_epi32((int)0x00007F00u);
-    one_rb = _mm256_set1_epi32((int)0x00010001u);
-    one_g = _mm256_set1_epi32((int)0x00000100u);
-    alpha_vec = _mm256_set1_epi32((int)(vn_u32)alpha);
-    inv_vec = _mm256_set1_epi32((int)(255u - (vn_u32)alpha));
-    alpha_mask = _mm256_set1_epi32((int)0xFF000000u);
-
     i = 0u;
     while ((i + 8u) <= count) {
         __m256i src_vec;
         __m256i dst_vec;
-        __m256i src_rb;
-        __m256i src_g;
-        __m256i dst_rb;
-        __m256i dst_g;
-        __m256i rb;
-        __m256i g;
         __m256i out_vec;
 
         src_vec = vn_avx2_gather_palette8(u_lut + i, palette);
         dst_vec = _mm256_loadu_si256((const __m256i*)(const void*)(dst + i));
-        src_rb = _mm256_and_si256(src_vec, mask_rb);
-        src_g = _mm256_and_si256(src_vec, mask_g);
-        dst_rb = _mm256_and_si256(dst_vec, mask_rb);
-        dst_g = _mm256_and_si256(dst_vec, mask_g);
-
-        rb = _mm256_add_epi32(_mm256_mullo_epi32(src_rb, alpha_vec),
-                              _mm256_mullo_epi32(dst_rb, inv_vec));
-        rb = _mm256_add_epi32(rb, bias_rb);
-        rb = _mm256_add_epi32(rb,
-                              _mm256_add_epi32(one_rb,
-                                               _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb)));
-        rb = _mm256_and_si256(_mm256_srli_epi32(rb, 8), mask_rb);
-
-        g = _mm256_add_epi32(_mm256_mullo_epi32(src_g, alpha_vec),
-                             _mm256_mullo_epi32(dst_g, inv_vec));
-        g = _mm256_add_epi32(g, bias_g);
-        g = _mm256_add_epi32(g,
-                             _mm256_add_epi32(one_g,
-                                              _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g)));
-        g = _mm256_and_si256(_mm256_srli_epi32(g, 8), mask_g);
-
-        out_vec = _mm256_or_si256(_mm256_or_si256(rb, g), alpha_mask);
+        out_vec = vn_avx2_blend_rgb_chunk_u32x8(dst_vec, src_vec, alpha);
         _mm256_storeu_si256((__m256i*)(void*)(dst + i), out_vec);
         i += 8u;
     }
@@ -697,7 +835,11 @@ static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
                                                     vn_u8 alpha) {
     vn_u32 i;
 
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
+        return;
+    }
+    if (alpha >= 255u) {
+        vn_avx2_sample_texels_palette_row(dst, u_lut, count, palette);
         return;
     }
 
@@ -710,6 +852,7 @@ static void vn_avx2_sample_blend_texels_palette_row(vn_u32* dst,
 }
 #endif
 
+VN_AVX2_TARGET_ATTR
 static void vn_avx2_sample_texels_row(vn_u32* dst,
                                       const vn_u8* u_lut,
                                       vn_u32 count,
@@ -720,11 +863,25 @@ static void vn_avx2_sample_texels_row(vn_u32* dst,
         return;
     }
 
-    for (i = 0u; i < count; ++i) {
+#if VN_AVX2_IMPL_AVAILABLE
+    i = 0u;
+    while ((i + 8u) <= count) {
+        __m256i src_vec;
+
+        src_vec = vn_avx2_sample_combine_u_lut8(u_lut + i, params);
+        _mm256_storeu_si256((__m256i*)(void*)(dst + i), src_vec);
+        i += 8u;
+    }
+#else
+    i = 0u;
+#endif
+    while (i < count) {
         dst[i] = vn_avx2_sample_combine_texel((vn_u32)u_lut[i], params);
+        i += 1u;
     }
 }
 
+VN_AVX2_TARGET_ATTR
 static void vn_avx2_sample_blend_texels_row(vn_u32* dst,
                                             const vn_u8* u_lut,
                                             vn_u32 count,
@@ -735,15 +892,38 @@ static void vn_avx2_sample_blend_texels_row(vn_u32* dst,
     if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || params == (const VN_AVX2TexturedRowParams*)0) {
         return;
     }
+    if (alpha == 0u) {
+        return;
+    }
+    if (alpha >= 255u) {
+        vn_avx2_sample_texels_row(dst, u_lut, count, params);
+        return;
+    }
 
-    for (i = 0u; i < count; ++i) {
+#if VN_AVX2_IMPL_AVAILABLE
+    i = 0u;
+    while ((i + 8u) <= count) {
+        __m256i src_vec;
+        __m256i dst_vec;
+        __m256i out_vec;
+
+        src_vec = vn_avx2_sample_combine_u_lut8(u_lut + i, params);
+        dst_vec = _mm256_loadu_si256((const __m256i*)(const void*)(dst + i));
+        out_vec = vn_avx2_blend_rgb_chunk_u32x8(dst_vec, src_vec, alpha);
+        _mm256_storeu_si256((__m256i*)(void*)(dst + i), out_vec);
+        i += 8u;
+    }
+#else
+    i = 0u;
+#endif
+    while (i < count) {
         vn_u32 src;
 
         src = vn_avx2_sample_combine_texel((vn_u32)u_lut[i], params);
         dst[i] = vn_avx2_blend_rgb_local(dst[i], src, alpha);
+        i += 1u;
     }
 }
-
 
 static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
                                                const VNRenderRect* clip_rect) {

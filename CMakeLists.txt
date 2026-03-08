@@ -97,6 +97,10 @@ add_executable(test_backend_consistency tests/unit/test_backend_consistency.c)
 target_link_libraries(test_backend_consistency PRIVATE vn_core)
 add_test(NAME unit_backend_consistency COMMAND test_backend_consistency)
 
+add_executable(test_avx2_fastpath_parity tests/unit/test_avx2_fastpath_parity.c)
+target_link_libraries(test_avx2_fastpath_parity PRIVATE vn_core)
+add_test(NAME unit_avx2_fastpath_parity COMMAND test_avx2_fastpath_parity)
+
 add_executable(test_vm tests/unit/test_vm.c)
 target_link_libraries(test_vm PRIVATE vn_core)
 add_test(NAME unit_vm COMMAND test_vm)
@@ -147,6 +151,7 @@ set_tests_properties(
     unit_renderer_fallback
     unit_renderer_dirty_submit
     unit_backend_consistency
+    unit_avx2_fastpath_parity
     unit_vm
     unit_runtime_api
     unit_runtime_dynamic_resolution

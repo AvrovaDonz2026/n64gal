@@ -214,7 +214,7 @@ fi
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {
-  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,host_cpu"
+  echo "scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,requested_backend,actual_backend,host_cpu"
 } > "$SUMMARY_CSV"
 
 IFS=',' read -r -a SCENE_ARRAY <<< "$SCENES"
@@ -228,6 +228,7 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   SIM_ELAPSED_MS="0.000"
   FRAME_CURSOR=0
   PASS=0
+  ACTUAL_BACKEND=""
 
   while awk "BEGIN { exit !($SIM_ELAPSED_MS < $TOTAL_MS) }"; do
     PASS=$((PASS + 1))
@@ -268,6 +269,32 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
     fi
 
     "${RUNNER_CMD[@]}" >"$RAW_LOG" 2>"$RAW_ERR"
+
+    ACTUAL_BACKEND_PASS="$(awk '
+      /^vn_runtime ok / {
+        for (i = 1; i <= NF; ++i) {
+          split($i, kv, "=");
+          if (length(kv) == 2 && kv[1] == "backend") {
+            backend = kv[2];
+          }
+        }
+      }
+      END {
+        if (backend != "") {
+          print backend;
+        }
+      }
+    ' "$RAW_LOG")"
+    if [[ -z "$ACTUAL_BACKEND_PASS" ]]; then
+      ACTUAL_BACKEND_PASS="unknown"
+    fi
+    if [[ -z "$ACTUAL_BACKEND" || "$ACTUAL_BACKEND" == "unknown" ]]; then
+      ACTUAL_BACKEND="$ACTUAL_BACKEND_PASS"
+    elif [[ "$ACTUAL_BACKEND_PASS" != "unknown" && "$ACTUAL_BACKEND_PASS" != "$ACTUAL_BACKEND" ]]; then
+      echo "[perf] inconsistent actual backend scene=$SCENE requested=$BACKEND first=$ACTUAL_BACKEND current=$ACTUAL_BACKEND_PASS pass=$PASS" >&2
+      echo "[perf] see $RAW_LOG / $RAW_ERR" >&2
+      exit 1
+    fi
 
     STATE_TMP="$(mktemp)"
     awk \
@@ -386,10 +413,10 @@ for SCENE in "${SCENE_ARRAY[@]}"; do
   MAX_RSS_MB="$(awk -F, 'NR>1 { if ($8 + 0 > max) max = $8 + 0 } END { printf "%.3f", max + 0.0 }' "$OUT_CSV")"
 
   {
-    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default},${PERF_DYNAMIC_RESOLUTION:-default},${HOST_CPU}"
+    echo "${SCENE},${SAMPLE_COUNT},${P95_FRAME_MS},${AVG_FRAME_MS},${MAX_RSS_MB},${WARMUP_SEC},${DURATION_SEC},${BACKEND},${DT_MS},${RESOLUTION},${PASS},${PERF_FRAME_REUSE:-default},${PERF_OP_CACHE:-default},${PERF_DIRTY_TILE:-default},${PERF_DYNAMIC_RESOLUTION:-default},${BACKEND},${ACTUAL_BACKEND:-unknown},${HOST_CPU}"
   } >> "$SUMMARY_CSV"
 
-  echo "[perf] wrote $OUT_CSV samples=$SAMPLE_COUNT p95=${P95_FRAME_MS}ms passes=$PASS"
+  echo "[perf] wrote $OUT_CSV samples=$SAMPLE_COUNT p95=${P95_FRAME_MS}ms passes=$PASS requested_backend=$BACKEND actual_backend=${ACTUAL_BACKEND:-unknown}"
 done
 
 cp "$SCRIPT_ROOT/tests/perf/report_template.md" "$OUT_DIR/perf_report_template.md"
@@ -399,4 +426,4 @@ fi
 
 echo "[perf] wrote $OUT_DIR/perf_report_template.md"
 echo "[perf] wrote $OUT_DIR/perf_host_cpu.txt cpu=$HOST_CPU"
-echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default} host_cpu=$HOST_CPU"
+echo "[perf] done backend=$BACKEND scenes=$SCENES duration_sec=$DURATION_SEC warmup_sec=$WARMUP_SEC dt_ms=$DT_MS source_root=$SOURCE_ROOT perf_frame_reuse=${PERF_FRAME_REUSE:-default} perf_op_cache=${PERF_OP_CACHE:-default} perf_dirty_tile=${PERF_DIRTY_TILE:-default} perf_dynamic_resolution=${PERF_DYNAMIC_RESOLUTION:-default} host_cpu=$HOST_CPU actual_backend=per-scene"

@@ -571,11 +571,14 @@ static int run_scene_once(const char* scene_name,
     return rc;
 }
 
-static int check_optional_backend(const GoldenScene* golden,
-                                  const char* backend_name,
-                                  const vn_u32* expected_pixels,
-                                  vn_u32* actual_pixels,
-                                  int* out_compared_count) {
+static int check_optional_backend_mode(const GoldenScene* golden,
+                                       const char* backend_name,
+                                       const char* compare_name,
+                                       vn_u32 perf_flags,
+                                       int allow_scalar_fallback_skip,
+                                       const vn_u32* expected_pixels,
+                                       vn_u32* actual_pixels,
+                                       int* out_compared_count) {
     vn_u32 backend_crc;
     const char* actual_backend;
     PixelDiffStats stats;
@@ -585,6 +588,7 @@ static int check_optional_backend(const GoldenScene* golden,
 
     if (golden == (const GoldenScene*)0 ||
         backend_name == (const char*)0 ||
+        compare_name == (const char*)0 ||
         expected_pixels == (const vn_u32*)0 ||
         actual_pixels == (vn_u32*)0 ||
         out_compared_count == (int*)0) {
@@ -598,7 +602,7 @@ static int check_optional_backend(const GoldenScene* golden,
     actual_backend = "none";
     rc = run_scene_once(golden->scene_name,
                         backend_name,
-                        VN_RUNTIME_PERF_DEFAULT_FLAGS,
+                        perf_flags,
                         &backend_crc,
                         &actual_backend,
                         actual_pixels,
@@ -606,24 +610,32 @@ static int check_optional_backend(const GoldenScene* golden,
     if (rc == VN_E_UNSUPPORTED) {
         (void)printf("test_runtime_golden skipped scene=%s backend=%s\n",
                      golden->scene_name,
-                     backend_name);
+                     compare_name);
         return 0;
     }
     if (rc != VN_OK) {
         return 1;
     }
     if (strcmp(actual_backend, "scalar") == 0) {
-        (void)printf("test_runtime_golden skipped scene=%s backend=%s fallback=%s\n",
-                     golden->scene_name,
-                     backend_name,
-                     actual_backend);
-        return 0;
+        if (allow_scalar_fallback_skip != 0) {
+            (void)printf("test_runtime_golden skipped scene=%s backend=%s fallback=%s\n",
+                         golden->scene_name,
+                         compare_name,
+                         actual_backend);
+            return 0;
+        }
+        (void)fprintf(stderr,
+                      "scene=%s backend=%s unexpected fallback=%s\n",
+                      golden->scene_name,
+                      compare_name,
+                      actual_backend);
+        return 1;
     }
     if (strcmp(actual_backend, backend_name) != 0) {
         (void)fprintf(stderr,
                       "scene=%s requested=%s got=%s\n",
                       golden->scene_name,
-                      backend_name,
+                      compare_name,
                       actual_backend);
         return 1;
     }
@@ -640,7 +652,7 @@ static int check_optional_backend(const GoldenScene* golden,
     if (stats.mismatch_count == 0u) {
         if (backend_crc != golden->expected_crc) {
             emit_compare_artifacts(golden->scene_name,
-                                   backend_name,
+                                   compare_name,
                                    expected_pixels,
                                    actual_pixels,
                                    golden->expected_crc,
@@ -651,7 +663,7 @@ static int check_optional_backend(const GoldenScene* golden,
             (void)fprintf(stderr,
                           "scene=%s backend=%s exact pixels but crc mismatch expected=0x%08X got=0x%08X\n",
                           golden->scene_name,
-                          backend_name,
+                          compare_name,
                           (unsigned int)golden->expected_crc,
                           (unsigned int)backend_crc);
             return 1;
@@ -660,13 +672,13 @@ static int check_optional_backend(const GoldenScene* golden,
         *out_compared_count += 1;
         (void)printf("test_runtime_golden matched scene=%s backend=%s crc=0x%08X\n",
                      golden->scene_name,
-                     backend_name,
+                     compare_name,
                      (unsigned int)backend_crc);
         return 0;
     }
 
     emit_compare_artifacts(golden->scene_name,
-                           backend_name,
+                           compare_name,
                            expected_pixels,
                            actual_pixels,
                            golden->expected_crc,
@@ -679,7 +691,7 @@ static int check_optional_backend(const GoldenScene* golden,
         (void)fprintf(stderr,
                       "scene=%s backend=%s pixel mismatch count=%u mismatch_percent=%.4f max_channel_diff=%u threshold=mismatch_percent<%u max_channel_diff<=%u\n",
                       golden->scene_name,
-                      backend_name,
+                      compare_name,
                       (unsigned int)stats.mismatch_count,
                       mismatch_percent,
                       stats.max_channel_diff,
@@ -691,12 +703,27 @@ static int check_optional_backend(const GoldenScene* golden,
     *out_compared_count += 1;
     (void)printf("test_runtime_golden tolerated scene=%s backend=%s crc=0x%08X mismatch_count=%u mismatch_percent=%.4f max_channel_diff=%u\n",
                  golden->scene_name,
-                 backend_name,
+                 compare_name,
                  (unsigned int)backend_crc,
                  (unsigned int)stats.mismatch_count,
                  mismatch_percent,
                  stats.max_channel_diff);
     return 0;
+}
+
+static int check_optional_backend(const GoldenScene* golden,
+                                  const char* backend_name,
+                                  const vn_u32* expected_pixels,
+                                  vn_u32* actual_pixels,
+                                  int* out_compared_count) {
+    return check_optional_backend_mode(golden,
+                                       backend_name,
+                                       backend_name,
+                                       VN_RUNTIME_PERF_DEFAULT_FLAGS,
+                                       1,
+                                       expected_pixels,
+                                       actual_pixels,
+                                       out_compared_count);
 }
 
 int main(void) {
@@ -819,13 +846,31 @@ int main(void) {
                          (unsigned int)dirty_crc);
         }
 
-        if (check_optional_backend(&k_golden_scenes[i],
-                                   "avx2",
-                                   scalar_pixels,
-                                   backend_pixels,
-                                   &compared_count) != 0) {
-            exit_code = 1;
-            break;
+        {
+            int compared_before_avx2;
+
+            compared_before_avx2 = compared_count;
+            if (check_optional_backend(&k_golden_scenes[i],
+                                       "avx2",
+                                       scalar_pixels,
+                                       backend_pixels,
+                                       &compared_count) != 0) {
+                exit_code = 1;
+                break;
+            }
+            if (compared_count != compared_before_avx2) {
+                if (check_optional_backend_mode(&k_golden_scenes[i],
+                                                "avx2",
+                                                "avx2_dirty",
+                                                VN_RUNTIME_PERF_DEFAULT_FLAGS | VN_RUNTIME_PERF_DIRTY_TILE,
+                                                0,
+                                                scalar_pixels,
+                                                backend_pixels,
+                                                &compared_count) != 0) {
+                    exit_code = 1;
+                    break;
+                }
+            }
         }
         if (check_optional_backend(&k_golden_scenes[i],
                                    "neon",

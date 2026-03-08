@@ -105,6 +105,7 @@ TESTS=(
   test_renderer_fallback
   test_renderer_dirty_submit
   test_backend_consistency
+  test_avx2_fastpath_parity
   test_vm
   test_runtime_api
   test_runtime_dynamic_resolution

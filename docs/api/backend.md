@@ -66,11 +66,11 @@ Render IR 单条指令。
 2. ISA 私有头文件不得泄漏到 Frontend。
 3. 行为一致性以 `scalar` 为基准。
 
-## 5. 当前实现状态（2026-03-06）
+## 5. 当前实现状态（2026-03-09）
 
 1. `scalar`：完整基线实现，可作为默认回退后端。
-2. `avx2`：已实现最小可运行链路。
-3. `neon`：已接入最小可运行链路；`fill`、uniform alpha/fade，以及宽行 `SPRITE/TEXT` 的 row-palette 写回路径已使用 NEON/NEON-assisted 实现；最近一轮已补热循环常量外提、`div255` 预加载、palette-row no-stack lane pack 与更保守的大矩形 row-palette 启发式，目标架构外返回 `VN_E_UNSUPPORTED`。
+2. `avx2`：已实现最小可运行链路；当前工程判断已进入“稳定后维护优化”阶段。最近一轮已把 direct textured row 的 non-palette opaque/blend 路径接到 8-lane chunk `sample/hash -> combine -> blend` 主线，同时补上 x64 suite workflow 的 `matched backend=avx2` 显式校验、perf artifact 的 `requested_backend/actual_backend` 记账、`avx2_dirty` golden 对照，以及 `256/257` 边界 fast-path parity 单测；剩余重点转向 `S10`/kernel perf threshold、row-palette build 去标量化，以及 duplicated pixel-pipeline 语义的长期防漂移。
+3. `neon`：已接入最小可运行链路；`fill`、uniform alpha/fade，以及宽行 `SPRITE/TEXT` 的 row-palette 写回路径已使用 NEON/NEON-assisted 实现；最近一轮已补热循环常量外提、`div255` 预加载、palette-row no-stack lane pack、更保守的大矩形 row-palette 启发式，以及与 AVX2 对齐的 `row params + local sample/combine/blend` textured-row 热路径收口；随后又把 `sample/hash -> combine` 做成 4-lane chunk 内核，把 textured alpha blend 收口到 packed-channel 向量 helper，并把 row 级 `seed/checker/base_rgb/text_blue_bias` 常量前折叠到 params，当前 direct row opaque/blend 与 row-palette build 已复用同一核心，目标架构外返回 `VN_E_UNSUPPORTED`。
 4. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充、统一颜色半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径使用 RVV 向量写入；其中 `sample -> combine` 已融合为单次行内向量流水，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
 
 实现说明：
@@ -95,9 +95,10 @@ Render IR 单条指令。
 1. 新增 `test_backend_consistency`：同一组 `VNRenderOp` 在 `scalar` 与 `avx2` 下渲染后比较 framebuffer CRC32。
 2. 新增 `test_renderer_dirty_submit`：对同一组前后帧，校验 `scalar`、`avx2`、`neon`、`rvv` 的 dirty submit 都与整帧提交 CRC 一致；当前主机不支持的 ISA 自动跳过，`riscv64 qemu` smoke 还会额外执行 RVV 版二进制。
 3. 新增 `test_runtime_golden`：真实 `S0/S1/S2/S3/S10` 场景在 `600x800` 下固定标量 golden CRC，当前基线为 `S0=0x58C8928B`、`S1=0x80D7F175`、`S2=0x587BC5A4`、`S3=0x0BC0160F`、`S10=0xC9A161B9`，并在支持的平台上对照 `avx2/neon/rvv`。
-4. `test_runtime_golden` 对 `scalar` 继续要求 CRC 严格命中；对支持的 SIMD 后端则按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `test_runtime_golden_<scene>_<backend>_summary.txt`，便于直接定位首个差异点与阈值命中情况。若设置 `VN_GOLDEN_ARTIFACT_DIR`，这些产物会统一写入该目录；CI suite 脚本已用这条约定收集 artifact。
+4. `test_runtime_golden` 对 `scalar` 继续要求 CRC 严格命中；对支持的 SIMD 后端则按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `test_runtime_golden_<scene>_<backend>_summary.txt`，便于直接定位首个差异点与阈值命中情况。最近一轮又给 `avx2` 补了 `VN_RUNTIME_PERF_DIRTY_TILE` 下的 `avx2_dirty` golden 对照。若设置 `VN_GOLDEN_ARTIFACT_DIR`，这些产物会统一写入该目录；CI suite 脚本已用这条约定收集 artifact。
+5. 新增 `test_avx2_fastpath_parity`：用 targeted render-op case 直接比较 `scalar` 与 AVX2 的 fast path framebuffer，当前已覆盖 `SPRITE/TEXT`、opaque/alpha，以及 `256/257` 的 row-palette 边界。
 
-5. `test_runtime_api` 与 `test_preview_protocol` 现也补入 `S10` 端到端覆盖，直接校验 `scene_name -> pack -> VM -> frontend` 路径会落到 6-op 压力场景，并在库结果与外部协议输出里保留 `scene_name/op_count/bgm_id` 等关键字段。
+6. `test_runtime_api` 与 `test_preview_protocol` 现也补入 `S10` 端到端覆盖，直接校验 `scene_name -> pack -> VM -> frontend` 路径会落到 6-op 压力场景，并在库结果与外部协议输出里保留 `scene_name/op_count/bgm_id` 等关键字段。
 6. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
 7. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行，以及 `test_runtime_golden` 的 golden 容差对照 / `scalar vs rvv` CRC 一致性。
 

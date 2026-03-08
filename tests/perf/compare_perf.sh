@@ -96,11 +96,27 @@ summary_field() {
 
 BASELINE_HOST_CPU="$(summary_field "$BASELINE_CSV" "host_cpu")"
 CANDIDATE_HOST_CPU="$(summary_field "$CANDIDATE_CSV" "host_cpu")"
+BASELINE_REQUESTED_BACKEND="$(summary_field "$BASELINE_CSV" "requested_backend")"
+CANDIDATE_REQUESTED_BACKEND="$(summary_field "$CANDIDATE_CSV" "requested_backend")"
+BASELINE_ACTUAL_BACKEND="$(summary_field "$BASELINE_CSV" "actual_backend")"
+CANDIDATE_ACTUAL_BACKEND="$(summary_field "$CANDIDATE_CSV" "actual_backend")"
 if [[ -z "$BASELINE_HOST_CPU" ]]; then
   BASELINE_HOST_CPU="unknown"
 fi
 if [[ -z "$CANDIDATE_HOST_CPU" ]]; then
   CANDIDATE_HOST_CPU="unknown"
+fi
+if [[ -z "$BASELINE_REQUESTED_BACKEND" ]]; then
+  BASELINE_REQUESTED_BACKEND="$BASELINE_LABEL"
+fi
+if [[ -z "$CANDIDATE_REQUESTED_BACKEND" ]]; then
+  CANDIDATE_REQUESTED_BACKEND="$CANDIDATE_LABEL"
+fi
+if [[ -z "$BASELINE_ACTUAL_BACKEND" ]]; then
+  BASELINE_ACTUAL_BACKEND="unknown"
+fi
+if [[ -z "$CANDIDATE_ACTUAL_BACKEND" ]]; then
+  CANDIDATE_ACTUAL_BACKEND="unknown"
 fi
 
 awk -F, \
@@ -167,6 +183,10 @@ MEAN_AVG_GAIN="$(awk -F, 'NR > 1 { sum += $13; n += 1 } END { if (n == 0) printf
   echo "- Candidate: \`$CANDIDATE_LABEL\`"
   echo "- Baseline summary: \`$BASELINE_CSV\`"
   echo "- Candidate summary: \`$CANDIDATE_CSV\`"
+  echo "- Baseline requested backend: \`$BASELINE_REQUESTED_BACKEND\`"
+  echo "- Baseline actual backend: \`$BASELINE_ACTUAL_BACKEND\`"
+  echo "- Candidate requested backend: \`$CANDIDATE_REQUESTED_BACKEND\`"
+  echo "- Candidate actual backend: \`$CANDIDATE_ACTUAL_BACKEND\`"
   echo "- Baseline host CPU: \`$BASELINE_HOST_CPU\`"
   echo "- Candidate host CPU: \`$CANDIDATE_HOST_CPU\`"
   echo "- Scenes compared: $SCENE_COUNT"
