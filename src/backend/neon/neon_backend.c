@@ -389,14 +389,14 @@ typedef struct VN_NEONTexturedRowParams {
     int sprite_blue_bias;
     vn_u8 op;
 #if VN_NEON_IMPL_AVAILABLE
-    uint32x4_t seed_xor_vec;
-    uint32x4_t checker_xor_vec;
-    uint32x4_t v8_vec;
-    int32x4_t base_r_vec;
-    int32x4_t base_g_vec;
-    int32x4_t base_b_vec;
-    int32x4_t text_blue_bias_vec;
-    int32x4_t sprite_blue_bias_vec;
+    uint32_t seed_xor_lanes[4];
+    uint32_t checker_xor_lanes[4];
+    uint32_t v8_lanes[4];
+    int32_t base_r_lanes[4];
+    int32_t base_g_lanes[4];
+    int32_t base_b_lanes[4];
+    int32_t text_blue_bias_lanes[4];
+    int32_t sprite_blue_bias_lanes[4];
 #endif
 } VN_NEONTexturedRowParams;
 
@@ -435,14 +435,20 @@ static void vn_neon_init_textured_row_params(VN_NEONTexturedRowParams* params,
     params->sprite_blue_bias = 10;
     params->op = op;
 #if VN_NEON_IMPL_AVAILABLE
-    params->seed_xor_vec = vdupq_n_u32((uint32_t)params->seed_xor);
-    params->checker_xor_vec = vdupq_n_u32((uint32_t)params->checker_xor);
-    params->v8_vec = vdupq_n_u32((uint32_t)params->v8);
-    params->base_r_vec = vdupq_n_s32(params->base_r);
-    params->base_g_vec = vdupq_n_s32(params->base_g);
-    params->base_b_vec = vdupq_n_s32(params->base_b);
-    params->text_blue_bias_vec = vdupq_n_s32(params->text_blue_bias);
-    params->sprite_blue_bias_vec = vdupq_n_s32(params->sprite_blue_bias);
+    {
+        int lane;
+
+        for (lane = 0; lane < 4; ++lane) {
+            params->seed_xor_lanes[lane] = (uint32_t)params->seed_xor;
+            params->checker_xor_lanes[lane] = (uint32_t)params->checker_xor;
+            params->v8_lanes[lane] = (uint32_t)params->v8;
+            params->base_r_lanes[lane] = (int32_t)params->base_r;
+            params->base_g_lanes[lane] = (int32_t)params->base_g;
+            params->base_b_lanes[lane] = (int32_t)params->base_b;
+            params->text_blue_bias_lanes[lane] = (int32_t)params->text_blue_bias;
+            params->sprite_blue_bias_lanes[lane] = (int32_t)params->sprite_blue_bias;
+        }
+    }
 #endif
 }
 
@@ -663,7 +669,7 @@ static uint32x4_t vn_neon_sample_combine_chunk_u32x4(uint32x4_t u_vec,
     }
 
     u_vec = vandq_u32(u_vec, mask_ff);
-    seed_vec = veorq_u32(vshlq_n_u32(u_vec, 8), params->seed_xor_vec);
+    seed_vec = veorq_u32(vshlq_n_u32(u_vec, 8), vld1q_u32(params->seed_xor_lanes));
     hash_vec = vn_neon_hash32_u32x4(seed_vec);
 
     r_vec = vreinterpretq_s32_u32(vandq_u32(hash_vec, mask_ff));
@@ -671,10 +677,10 @@ static uint32x4_t vn_neon_sample_combine_chunk_u32x4(uint32x4_t u_vec,
     b_vec = vreinterpretq_s32_u32(vandq_u32(vshrq_n_u32(hash_vec, 16), mask_ff));
 
     checker_mask = vceqq_u32(vandq_u32(veorq_u32(vshrq_n_u32(u_vec, 5),
-                                                 params->checker_xor_vec),
+                                                 vld1q_u32(params->checker_xor_lanes)),
                                        one_vec),
                              one_vec);
-    alt_mask = vceqq_u32(vandq_u32(vaddq_u32(u_vec, params->v8_vec), alt_vec), alt_vec);
+    alt_mask = vceqq_u32(vandq_u32(vaddq_u32(u_vec, vld1q_u32(params->v8_lanes)), alt_vec), alt_vec);
     alt_mask = vandq_u32(vmvnq_u32(checker_mask), alt_mask);
 
     r_vec = vaddq_s32(r_vec, vreinterpretq_s32_u32(vandq_u32(checker_mask, vdupq_n_u32((uint32_t)24u))));
@@ -692,9 +698,9 @@ static uint32x4_t vn_neon_sample_combine_chunk_u32x4(uint32x4_t u_vec,
     g_vec = vminq_s32(g_vec, max_vec);
     b_vec = vminq_s32(b_vec, max_vec);
 
-    r_vec = vaddq_s32(r_vec, params->base_r_vec);
-    g_vec = vaddq_s32(g_vec, params->base_g_vec);
-    b_vec = vaddq_s32(b_vec, params->base_b_vec);
+    r_vec = vaddq_s32(r_vec, vld1q_s32(params->base_r_lanes));
+    g_vec = vaddq_s32(g_vec, vld1q_s32(params->base_g_lanes));
+    b_vec = vaddq_s32(b_vec, vld1q_s32(params->base_b_lanes));
 
     if (params->op == VN_OP_TEXT) {
         int32x4_t y_vec;
@@ -705,9 +711,9 @@ static uint32x4_t vn_neon_sample_combine_chunk_u32x4(uint32x4_t u_vec,
         y_vec = vshrq_n_s32(y_vec, 8);
         r_vec = vaddq_s32(y_vec, vdupq_n_s32(52));
         g_vec = vaddq_s32(y_vec, vdupq_n_s32(44));
-        b_vec = vaddq_s32(y_vec, params->text_blue_bias_vec);
+        b_vec = vaddq_s32(y_vec, vld1q_s32(params->text_blue_bias_lanes));
     } else if (params->op == VN_OP_SPRITE) {
-        b_vec = vaddq_s32(b_vec, params->sprite_blue_bias_vec);
+        b_vec = vaddq_s32(b_vec, vld1q_s32(params->sprite_blue_bias_lanes));
     }
 
     r_vec = vmaxq_s32(r_vec, zero_vec);

@@ -265,10 +265,10 @@ int main(void) {
     int compared_count;
     int rc;
 
-    if ((VN_ARCH_X64 || VN_ARCH_X86) == 0) {
-        (void)printf("test_avx2_fastpath_parity skipped (non-x86 host)\n");
-        return 0;
-    }
+#if !(VN_ARCH_X64 || VN_ARCH_X86)
+    (void)printf("test_avx2_fastpath_parity skipped (non-x86 host)\n");
+    return 0;
+#endif
 
     compared_count = 0;
 
