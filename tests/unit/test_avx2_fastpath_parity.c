@@ -17,6 +17,8 @@ vn_u32 vn_avx2_backend_debug_copy_framebuffer(vn_u32* out_pixels, vn_u32 pixel_c
 
 typedef void (*VNCaseBuilder)(VNRenderOp* ops, vn_u32* out_count);
 
+#if VN_ARCH_X64 || VN_ARCH_X86
+
 static void vn_fill_clear_op(VNRenderOp* op, vn_u8 gray) {
     if (op == (VNRenderOp*)0) {
         return;
@@ -261,14 +263,15 @@ static int compare_case(const char* case_name,
     return 0;
 }
 
-int main(void) {
-    int compared_count;
-    int rc;
+#endif
 
+int main(void) {
 #if !(VN_ARCH_X64 || VN_ARCH_X86)
     (void)printf("test_avx2_fastpath_parity skipped (non-x86 host)\n");
     return 0;
-#endif
+#else
+    int compared_count;
+    int rc;
 
     compared_count = 0;
 
@@ -292,4 +295,5 @@ int main(void) {
 
     (void)printf("test_avx2_fastpath_parity ok compared=%d\n", compared_count);
     return 0;
+#endif
 }
