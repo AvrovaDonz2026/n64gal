@@ -17,6 +17,10 @@ RESOLUTION="600x800"
 DIRTY_DURATION_SEC=6
 DIRTY_WARMUP_SEC=1
 DIRTY_REPEAT_COUNT=3
+JITTER_SCENES=""
+JITTER_DURATION_SEC=10
+JITTER_WARMUP_SEC=2
+JITTER_REPEAT_COUNT=5
 DYNRES_SCENES="S3"
 DYNRES_DURATION_SEC=6
 DYNRES_WARMUP_SEC=1
@@ -26,6 +30,8 @@ KERNEL_ITERATIONS=24
 KERNEL_WARMUP=6
 THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
 THRESHOLD_PROFILE="linux-x64-scalar-avx2-smoke"
+KERNEL_THRESHOLD_PROFILE=""
+KERNEL_THRESHOLD_MODE="off"
 RUNNER_BIN=""
 KERNEL_RUNNER_BIN=""
 SKIP_BUILD=0
@@ -103,6 +109,22 @@ while [[ $# -gt 0 ]]; do
       DIRTY_REPEAT_COUNT="$2"
       shift 2
       ;;
+    --jitter-scenes)
+      JITTER_SCENES="$2"
+      shift 2
+      ;;
+    --jitter-duration-sec)
+      JITTER_DURATION_SEC="$2"
+      shift 2
+      ;;
+    --jitter-warmup-sec)
+      JITTER_WARMUP_SEC="$2"
+      shift 2
+      ;;
+    --jitter-repeat-count)
+      JITTER_REPEAT_COUNT="$2"
+      shift 2
+      ;;
     --dynres-scenes)
       DYNRES_SCENES="$2"
       shift 2
@@ -139,8 +161,21 @@ while [[ $# -gt 0 ]]; do
       THRESHOLD_PROFILE="$2"
       shift 2
       ;;
+    --kernel-threshold-profile)
+      KERNEL_THRESHOLD_PROFILE="$2"
+      shift 2
+      ;;
+    --kernel-threshold-mode)
+      KERNEL_THRESHOLD_MODE="$2"
+      shift 2
+      ;;
     --no-threshold)
       THRESHOLD_PROFILE=""
+      shift 1
+      ;;
+    --no-kernel-threshold)
+      KERNEL_THRESHOLD_PROFILE=""
+      KERNEL_THRESHOLD_MODE="off"
       shift 1
       ;;
     *)
@@ -152,6 +187,10 @@ done
 
 if ! [[ "$DIRTY_REPEAT_COUNT" =~ ^[1-9][0-9]*$ ]]; then
   echo "invalid --dirty-repeat-count value: $DIRTY_REPEAT_COUNT" >&2
+  exit 2
+fi
+if [[ -n "$JITTER_SCENES" ]] && ! [[ "$JITTER_REPEAT_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "invalid --jitter-repeat-count value: $JITTER_REPEAT_COUNT" >&2
   exit 2
 fi
 if ! [[ "$KERNEL_ITERATIONS" =~ ^[1-9][0-9]*$ ]]; then
@@ -186,6 +225,10 @@ DIRTY_VARIABILITY_MD="$DIRTY_TILE_DIR/compare/perf_repeat_variability.md"
 DIRTY_REPEATS_DIR="$DIRTY_TILE_DIR/repeats"
 DIRTY_BASELINE_REPEATS_CSV="$DIRTY_TILE_DIR/${SIMD_BACKEND}_dirty_off/perf_summary_repeats.csv"
 DIRTY_CANDIDATE_REPEATS_CSV="$DIRTY_TILE_DIR/${SIMD_BACKEND}_dirty_on/perf_summary_repeats.csv"
+JITTER_DIR="$OUT_DIR/${SIMD_BACKEND}_dirty_jitter"
+JITTER_VARIABILITY_CSV="$JITTER_DIR/compare/perf_repeat_variability.csv"
+JITTER_VARIABILITY_MD="$JITTER_DIR/compare/perf_repeat_variability.md"
+JITTER_REPEATS_DIR="$JITTER_DIR/repeats"
 SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
 mkdir -p "$OUT_DIR"
 
@@ -307,6 +350,31 @@ if [[ "$SKIP_BUILD" -eq 1 ]]; then
 fi
 ./tests/perf/run_perf_compare.sh "${DIRTY_ARGS[@]}"
 
+if [[ -n "$JITTER_SCENES" ]]; then
+  JITTER_ARGS=(
+    --baseline "$SIMD_BACKEND"
+    --baseline-label "${SIMD_BACKEND}_dirty_off_long"
+    --baseline-perf-dirty-tile off
+    --candidate "$SIMD_BACKEND"
+    --candidate-label "${SIMD_BACKEND}_dirty_on_long"
+    --candidate-perf-dirty-tile on
+    --scenes "$JITTER_SCENES"
+    --duration-sec "$JITTER_DURATION_SEC"
+    --warmup-sec "$JITTER_WARMUP_SEC"
+    --dt-ms "$DT_MS"
+    --resolution "$RESOLUTION"
+    --repeat "$JITTER_REPEAT_COUNT"
+    --out-dir "$JITTER_DIR"
+  )
+  if [[ -n "$RUNNER_BIN" ]]; then
+    JITTER_ARGS+=(--runner-bin "$RUNNER_BIN")
+  fi
+  if [[ "$SKIP_BUILD" -eq 1 ]]; then
+    JITTER_ARGS+=(--skip-build)
+  fi
+  ./tests/perf/run_perf_compare.sh "${JITTER_ARGS[@]}"
+fi
+
 DYNRES_ARGS=(
   --baseline scalar
   --baseline-label scalar_dynres_off
@@ -345,6 +413,20 @@ if [[ "$SKIP_BUILD" -eq 1 ]]; then
 fi
 ./tests/perf/run_kernel_compare.sh "${KERNEL_ARGS[@]}"
 
+KERNEL_THRESHOLD_REPORT="$KERNEL_COMPARE_DIR/compare/kernel_threshold_report.md"
+if [[ -n "$KERNEL_THRESHOLD_PROFILE" && "$KERNEL_THRESHOLD_MODE" != "off" ]]; then
+  KERNEL_THRESHOLD_ARGS=(
+    --compare-csv "$KERNEL_COMPARE_DIR/compare/kernel_compare.csv"
+    --threshold-file "$THRESHOLD_FILE"
+    --profile "$KERNEL_THRESHOLD_PROFILE"
+    --out-dir "$KERNEL_COMPARE_DIR/compare"
+  )
+  if [[ "$KERNEL_THRESHOLD_MODE" == "soft" ]]; then
+    KERNEL_THRESHOLD_ARGS+=(--soft-fail)
+  fi
+  ./tests/perf/check_kernel_thresholds.sh "${KERNEL_THRESHOLD_ARGS[@]}"
+fi
+
 cat > "$SUMMARY_MD" <<EOF_SUMMARY
 # Perf Workflow Summary
 
@@ -369,6 +451,8 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Perf CFLAGS: \`${PERF_CFLAGS_SUMMARY:-none}\`
 - Perf LDFLAGS: \`${PERF_LDFLAGS_SUMMARY:-none}\`
 - Threshold profile: \`${THRESHOLD_PROFILE:-none}\`
+- Kernel threshold profile: \`${KERNEL_THRESHOLD_PROFILE:-none}\`
+- Kernel threshold mode: \`${KERNEL_THRESHOLD_MODE}\`
 - Compare A: \`scalar -> $SIMD_BACKEND\`
 - Compare B: \`${SIMD_BACKEND} dirty-tile off -> on\`
 - Compare C: \`scalar dynamic-resolution off -> on\`
@@ -380,6 +464,10 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Artifact B candidate repeats CSV: \`$DIRTY_CANDIDATE_REPEATS_CSV\`
 - Artifact B variability report: \`$DIRTY_VARIABILITY_MD\`
 - Artifact B variability CSV: \`$DIRTY_VARIABILITY_CSV\`
+- Artifact B2 dir: \`$JITTER_DIR\`
+- Artifact B2 repeats dir: \`$JITTER_REPEATS_DIR\`
+- Artifact B2 variability report: \`$JITTER_VARIABILITY_MD\`
+- Artifact B2 variability CSV: \`$JITTER_VARIABILITY_CSV\`
 - Artifact C dir: \`$DYNRES_DIR\`
 - Artifact D dir: \`$KERNEL_COMPARE_DIR\`
 
@@ -398,7 +486,21 @@ else
 fi
 append_report "${SIMD_BACKEND} Dirty-Tile Off vs On Compare" "$DIRTY_TILE_DIR/compare/perf_compare.md"
 append_dirty_variability_digest "${SIMD_BACKEND} Dirty-Tile Repeat Variability Digest" "$DIRTY_VARIABILITY_CSV" "$DIRTY_VARIABILITY_MD" "${SIMD_BACKEND}_dirty_off" "${SIMD_BACKEND}_dirty_on"
+if [[ -n "$JITTER_SCENES" ]]; then
+  append_report "${SIMD_BACKEND} Dirty-Tile Long-Window Compare" "$JITTER_DIR/compare/perf_compare.md"
+  append_dirty_variability_digest "${SIMD_BACKEND} Dirty-Tile Long-Window Repeat Variability Digest" "$JITTER_VARIABILITY_CSV" "$JITTER_VARIABILITY_MD" "${SIMD_BACKEND}_dirty_off_long" "${SIMD_BACKEND}_dirty_on_long"
+fi
 append_report "Scalar Dynamic-Resolution Off vs On Compare" "$DYNRES_DIR/compare/perf_compare.md"
 append_report "Kernel Scalar vs ${SIMD_BACKEND} Compare" "$KERNEL_COMPARE_DIR/compare/kernel_compare.md"
+if [[ -n "$KERNEL_THRESHOLD_PROFILE" && "$KERNEL_THRESHOLD_MODE" != "off" ]]; then
+  append_report "Kernel Scalar vs ${SIMD_BACKEND} Threshold" "$KERNEL_THRESHOLD_REPORT"
+else
+  {
+    echo "## Kernel Scalar vs ${SIMD_BACKEND} Threshold"
+    echo
+    echo "_disabled: kernel threshold profile not configured for this platform_"
+    echo
+  } >> "$SUMMARY_MD"
+fi
 
 echo "[ci-perf] done platform=$PLATFORM_LABEL simd_backend=$SIMD_BACKEND out=$OUT_DIR"

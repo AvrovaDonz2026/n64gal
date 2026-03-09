@@ -131,8 +131,8 @@
 
 `perf_compare.md` 会给出每个 scene 的 `p95/avg/max_rss` 对比，以及 speedup / gain 百分比；若 `--repeat > 1`，还会在同一文件尾部追加 `Repeat Aggregation` 与 `Repeat Variability` 两节。
 `perf_threshold_report.md` 会把 profile 中的每条门限检查展开成表格，适合直接进 CI artifact 或 issue 证据链。
-当前 `run_perf.sh` / `run_perf_compare.sh` / `run_kernel_bench.sh` 也会自动记录 `host_cpu`：单 backend 输出会把它写进 `perf_summary.csv` 与 `perf_host_cpu.txt`，kernel bench 会写进 `kernel_bench.csv` 与 `kernel_host_cpu.txt`，compare markdown 和 `perf_workflow_summary.md` 也会直接回显这项元数据，便于跨 runner 排查 Linux/Windows 差异。`run_perf.sh` 现在还会把 `requested_backend` 与 `actual_backend` 一起写进 `perf_summary.csv`，`compare_perf.sh` 也会在 `perf_compare.md` 顶部同时回显这两项，用来识别静默 fallback。`perf_workflow_summary.md` 还会额外回显 `VN_PERF_CFLAGS` / `VN_PERF_LDFLAGS`，这样可以直接看出 CI 这次 perf 到底是不是优化构建。
-当前 native smoke profile 里，`S10` 已通过 `scene_count == 3` 与 aggregate gain 被纳入 gate，但暂未为所有平台补独立的 per-scene `candidate_p95_ms` ceiling；在缺少更稳定原生样本前，先把它视为 coverage + aggregate smoke scene，而不是已完全收紧的第三条绝对时延门限。
+当前 `run_perf.sh` / `run_perf_compare.sh` / `run_kernel_bench.sh` 也会自动记录 `host_cpu`：单 backend 输出会把它写进 `perf_summary.csv` 与 `perf_host_cpu.txt`，kernel bench 会写进 `kernel_bench.csv` 与 `kernel_host_cpu.txt`，compare markdown 和 `perf_workflow_summary.md` 也会直接回显这项元数据，便于跨 runner 排查 Linux/Windows 差异。`run_perf.sh` 现在还会把 `requested_backend` 与 `actual_backend` 一起写进 `perf_summary.csv`，`compare_perf.sh` 也会在 `perf_compare.md` 顶部同时回显这两项，用来识别静默 fallback；最新一轮又新增 `check_kernel_thresholds.sh`，可对 `kernel_compare.csv` 做单独 threshold 检查。`perf_workflow_summary.md` 还会额外回显 `VN_PERF_CFLAGS` / `VN_PERF_LDFLAGS`，这样可以直接看出 CI 这次 perf 到底是不是优化构建。
+当前 native smoke profile 里，`S10` 已不再只是 coverage + aggregate smoke scene：最新一轮已给 `linux-x64-scalar-avx2-smoke` 与 `windows-x64-scalar-avx2-smoke` 补上 `S10 candidate_p95_ms <= 4.0` 的独立门限。与此同时，`kernel scalar -> avx2` 的 `sprite_full_opaque` / `sprite_full_alpha180` 也已接上一层 `soft/report-only` threshold，用来先观察 x64 full-span textured hotspot 是否发生局部回退。
 
 ## Perf Threshold Gate
 
@@ -140,9 +140,9 @@
 
 当前已落地的 profile：
 
-1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke hard gate。
+1. `linux-x64-scalar-avx2-smoke`：GitHub `ubuntu-latest` 上的 `scalar -> avx2` smoke hard gate；最新一轮已额外补上 `S10 candidate_p95_ms <= 4.0` 的独立 scene 门限。
 2. `linux-arm64-scalar-neon-smoke`：GitHub `ubuntu-24.04-arm` 上的 `scalar -> neon` smoke hard gate。
-3. `windows-x64-scalar-avx2-smoke`：GitHub `windows-latest` 上的 `scalar -> avx2` 正收益 gate；在连续两次 Windows x64 原生成功 run 都转正后，门限已收紧为 non-negative gain。
+3. `windows-x64-scalar-avx2-smoke`：GitHub `windows-latest` 上的 `scalar -> avx2` 正收益 gate；在连续两次 Windows x64 原生成功 run 都转正后，门限已收紧为 non-negative gain，并已额外补上 `S10 candidate_p95_ms <= 4.0` 的独立 scene 门限。
 4. `windows-arm64-scalar-neon-smoke`：GitHub `windows-11-arm` 上的 `scalar -> neon` smoke hard gate。
 5. `linux-riscv64-qemu-rvv-rev-smoke`：`qemu-riscv64` 下的 RVV revision compare 门限，现已接到 `.github/workflows/riscv-perf-report.yml`，默认以 `soft` 模式产出报告但不直接打红 workflow。
 
@@ -234,10 +234,10 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 1. `linux-x64 -> perf-linux-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `linux-x64-scalar-avx2-smoke` threshold report，并作为 native perf hard gate。与此同时，suite workflow 现也会像 arm64 `neon` 一样显式校验 `test_renderer_dirty_submit.log` 里命中 `matched backend=avx2`，避免 x64 静默 fallback 仍让 CI 继续为绿。
 2. `linux-arm64 -> perf-linux-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `linux-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。该 job 现已和 `linux-x64` 一样使用独立的 `-O2 -DNDEBUG` perf auto-build runner，不再复用 `run_cc_suite.sh` 产出的未优化测试二进制，否则会把 build-path mismatch 误报成 NEON regression。
-3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，并已升级为正收益 gate。
+3. `windows-x64 -> perf-windows-x64`：`scalar -> avx2`、`avx2 dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> avx2`；`Compare A` 当前附 `windows-x64-scalar-avx2-smoke` threshold report，并已升级为正收益 gate。与此同时，该 job 还会额外跑一条 `S3 + 10s/2s + repeat=5` 的 dirty long-window report-only compare，用来观察 `windows-x64 dirty S3` 的长窗口噪声。
 4. `windows-arm64 -> perf-windows-arm64`：`scalar -> neon`、`neon dirty off -> on`、`scalar dynamic-resolution off -> on`、`kernel scalar -> neon`；`Compare A` 当前附 `windows-arm64-scalar-neon-smoke` threshold report，并作为 native perf hard gate。
 
-`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前 suite workflow 也已和 `windows-arm64/neon` 一样，显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU，并继续补了一轮 textured row palette + repeated-`v8` reuse，避免 full-span 路径重复计算同一批 texel。GitHub `windows-x64` 连续两次成功 run `22795078202`（head `d6081b4`）与 `22795471059`（head `19788ce`，均为 2026-03-07）都已经显示 `scalar -> avx2` 的强正收益；因此 `windows-x64-scalar-avx2-smoke` 现已从 regression-envelope gate 升级为正收益 gate。
+`windows-x64` 的近况与专项分析见 [`docs/perf-windows-x64-2026-03-07.md`](./perf-windows-x64-2026-03-07.md)。当前 suite workflow 也已和 `windows-arm64/neon` 一样，显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`；perf workflow 则额外保留一条 `S3 + 10s/2s + repeat=5` 的 dirty long-window report-only compare，作为短窗口 `dirty S3` 噪声判断的补充证据。当前仓库已先把 AVX2 的 `uniform alpha/fade` row kernel 补进后端，并把 `fill_u32` 改成对齐前缀 + aligned store；随后又把 `SPRITE/TEXT` 的 `sample/hash -> combine -> blend` 热循环收回 AVX2 TU，并继续补了一轮 textured row palette + repeated-`v8` reuse，避免 full-span 路径重复计算同一批 texel。GitHub `windows-x64` 连续两次成功 run `22795078202`（head `d6081b4`）与 `22795471059`（head `19788ce`，均为 2026-03-07）都已经显示 `scalar -> avx2` 的强正收益；因此 `windows-x64-scalar-avx2-smoke` 现已从 regression-envelope gate 升级为正收益 gate。
 
 ## Kernel Bench
 

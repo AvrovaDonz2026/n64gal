@@ -26,3 +26,13 @@ windows-arm64-scalar-neon-smoke,__all__,scene_count,==,3.000,windows arm64 nativ
 windows-arm64-scalar-neon-smoke,__all__,mean_p95_gain_pct,>=,0.000,mean p95 gain must stay non-negative versus scalar on Windows arm64
 windows-arm64-scalar-neon-smoke,__all__,min_p95_gain_pct,>=,-5.000,no single Windows arm64 smoke scene may regress by more than 5 percent p95
 windows-arm64-scalar-neon-smoke,__all__,max_rss_delta_mb,<=,0.250,Windows arm64 smoke RSS delta must stay within 0.25 MB
+linux-x64-scalar-avx2-smoke,S10,candidate_p95_ms,<=,4.000,S10 smoke p95 must stay under the Linux x64 CI ceiling
+windows-x64-scalar-avx2-smoke,S10,candidate_p95_ms,<=,4.000,S10 smoke p95 must stay under the Windows x64 CI ceiling
+linux-x64-scalar-avx2-kernel-smoke,sprite_full_opaque,candidate_p95_ms,<=,1.000,linux x64 sprite_full_opaque kernel p95 should stay under the report-only envelope
+linux-x64-scalar-avx2-kernel-smoke,sprite_full_opaque,p95_gain_pct,>=,75.000,linux x64 sprite_full_opaque kernel should keep strong p95 gain
+linux-x64-scalar-avx2-kernel-smoke,sprite_full_alpha180,candidate_p95_ms,<=,1.200,linux x64 sprite_full_alpha180 kernel p95 should stay under the report-only envelope
+linux-x64-scalar-avx2-kernel-smoke,sprite_full_alpha180,p95_gain_pct,>=,75.000,linux x64 sprite_full_alpha180 kernel should keep strong p95 gain
+windows-x64-scalar-avx2-kernel-smoke,sprite_full_opaque,candidate_p95_ms,<=,1.000,windows x64 sprite_full_opaque kernel p95 should stay under the report-only envelope
+windows-x64-scalar-avx2-kernel-smoke,sprite_full_opaque,p95_gain_pct,>=,75.000,windows x64 sprite_full_opaque kernel should keep strong p95 gain
+windows-x64-scalar-avx2-kernel-smoke,sprite_full_alpha180,candidate_p95_ms,<=,1.200,windows x64 sprite_full_alpha180 kernel p95 should stay under the report-only envelope
+windows-x64-scalar-avx2-kernel-smoke,sprite_full_alpha180,p95_gain_pct,>=,75.000,windows x64 sprite_full_alpha180 kernel should keep strong p95 gain

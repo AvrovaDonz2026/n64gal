@@ -51,7 +51,7 @@ jobs:
       - name: Perf smoke suite
         env:
           VN_PERF_CFLAGS: -O2 -DNDEBUG
-        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-x64 --simd-backend avx2 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --out-dir "$RUNNER_TEMP/perf_linux_x64"
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label linux-x64 --simd-backend avx2 --threshold-file tests/perf/perf_thresholds.csv --threshold-profile linux-x64-scalar-avx2-smoke --kernel-threshold-profile linux-x64-scalar-avx2-kernel-smoke --kernel-threshold-mode soft --out-dir "$RUNNER_TEMP/perf_linux_x64"
       - name: Publish perf summary
         if: always()
         run: |
@@ -107,7 +107,7 @@ jobs:
             build_ci_windows_x64/golden_artifacts
       - name: Perf smoke suite
         shell: bash
-        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-x64 --simd-backend avx2 --skip-build --runner-bin build/Release/vn_player.exe --threshold-file tests/perf/perf_thresholds.csv --threshold-profile windows-x64-scalar-avx2-smoke --out-dir build_ci_perf_windows_x64
+        run: ./scripts/ci/run_perf_smoke_suite.sh --platform-label windows-x64 --simd-backend avx2 --skip-build --runner-bin build/Release/vn_player.exe --threshold-file tests/perf/perf_thresholds.csv --threshold-profile windows-x64-scalar-avx2-smoke --kernel-threshold-profile windows-x64-scalar-avx2-kernel-smoke --kernel-threshold-mode soft --jitter-scenes S3 --jitter-duration-sec 10 --jitter-warmup-sec 2 --jitter-repeat-count 5 --out-dir build_ci_perf_windows_x64
       - name: Publish perf summary
         if: always()
         shell: pwsh
