@@ -197,6 +197,7 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 | ISSUE-023 | 预览协议与无 GUI 预览进程 | M4 | P2 | 4d |
 | ISSUE-024 | 宿主 SDK 与版本协商文档 | M4 | P1 | 3d |
 | ISSUE-025 | 扩展清单、兼容矩阵与生态治理 | M4 | P2 | 3d |
+| ISSUE-026 | x64-only VM JIT 实验与决策门槛 | M4 | P2 | 4d |
 
 ---
 
@@ -1569,5 +1570,53 @@ ctest --test-dir build --output-on-failure -R example_host_embed
 ### 回退策略
 
 生态尚未开放时至少先维护官方兼容矩阵与治理规则，不直接承诺第三方插件 ABI 稳定。
+
+## ISSUE-026 x64-only VM JIT 实验与决策门槛
+
+- Labels: `type:feature`, `type:perf`, `priority:P2`, `blocked`
+- Milestone: `M4-engine-ecosystem`
+- Depends on: `ISSUE-008`, `ISSUE-017`, `ISSUE-024`
+- Blocking: 非当前主线阻塞项；仅在现有 raster/perf 热点基本收敛后开启实验
+
+### 目标
+
+把“要不要做 JIT”从口头讨论收口成有门槛的技术实验，而不是直接把 runtime codegen 拉进主线。
+
+### 交付物
+
+- `docs/jit-strategy.md`
+- `x64-only VM JIT` 实验开关设计草案
+- 一份基于 `vm_ms/frame_ms` 的 go/no-go 结论
+
+### 任务清单
+
+- [x] 写出 `JIT` 的决策文档，明确当前不是主线阻塞项
+- [x] 明确非目标：不做 renderer JIT，不做多架构 runtime codegen
+- [ ] 先补 `vm_ms/build_ms/raster_ms` 的稳定归因样本，确认是否真值得做 JIT
+- [ ] 若进入实验，只限 `x64 Linux/Windows`，且默认关闭
+- [ ] 设计 `VN_EXPERIMENTAL_VM_JIT` / `--experimental-vm-jit=on|off` 的最小契约
+- [ ] 定义 `vm_jit_enabled/compiled_blocks/hits/fallbacks` 的观测字段
+- [ ] 用独立 experiment workflow 验证 correctness，不接主线 gate
+- [ ] 根据整机 `p95 frame_ms` 是否有 `>=5%` 的稳定改善做 go/no-go 决策
+
+### 验收命令
+
+```bash
+cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -c include/vn_runtime.h -o /tmp/vn_runtime_h.o
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate avx2 --scenes S1,S3,S10
+```
+
+### DoD
+
+- [x] 文档明确写出“短期不把 JIT 作为主线阻塞项”
+- [ ] 只有在 `vm_ms` 占比足够大时才允许进入实验
+- [ ] 实验范围被锁死为 `x64-only + VM-only + 默认关闭`
+- [ ] 有明确的 stop criteria，而不是无限扩张实验范围
+
+### 回退策略
+
+若实验收益不足或平台成本过高，直接终止 JIT 分支，回到 AOT specialization / deeper cache 路线，不影响当前解释器主线。
+
+---
 
 ---
