@@ -543,6 +543,13 @@ static vn_u32 vn_avx2_sample_combine_texel(vn_u32 u8, const VN_AVX2TexturedRowPa
     return (vn_u32)(0xFF000000u | ((vn_u32)r << 16) | ((vn_u32)g << 8) | (vn_u32)b);
 }
 
+#if VN_AVX2_IMPL_AVAILABLE
+VN_AVX2_TARGET_ATTR
+static __m256i vn_avx2_sample_combine_chunk_u32x8(__m256i u_vec,
+                                                  const VN_AVX2TexturedRowParams* params);
+#endif
+
+VN_AVX2_TARGET_ATTR
 static void vn_avx2_build_textured_row_palette(vn_u32* palette,
                                                const VN_AVX2TexturedRowParams* params) {
     vn_u32 i;
@@ -551,8 +558,29 @@ static void vn_avx2_build_textured_row_palette(vn_u32* palette,
         return;
     }
 
-    for (i = 0u; i < 256u; ++i) {
+#if VN_AVX2_IMPL_AVAILABLE
+    {
+        __m256i u_vec;
+        __m256i step_vec;
+
+        u_vec = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        step_vec = _mm256_set1_epi32(8);
+        i = 0u;
+        while ((i + 8u) <= 256u) {
+            __m256i src_vec;
+
+            src_vec = vn_avx2_sample_combine_chunk_u32x8(u_vec, params);
+            _mm256_storeu_si256((__m256i*)(void*)(palette + i), src_vec);
+            u_vec = _mm256_add_epi32(u_vec, step_vec);
+            i += 8u;
+        }
+    }
+#else
+    i = 0u;
+#endif
+    while (i < 256u) {
         palette[i] = vn_avx2_sample_combine_texel(i, params);
+        i += 1u;
     }
 }
 
@@ -925,6 +953,12 @@ static void vn_avx2_sample_blend_texels_row(vn_u32* dst,
     }
 }
 
+static int vn_avx2_should_use_row_palette(vn_u32 vis_w,
+                                           vn_u32 vis_h) {
+    (void)vis_h;
+    return (vis_w > 256u ? VN_TRUE : VN_FALSE);
+}
+
 static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
                                                const VNRenderRect* clip_rect) {
     vn_u32 x0;
@@ -977,7 +1011,7 @@ static void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
     vn_avx2_build_coord_lut(g_avx2_u_lut, vis_w, local_x_start, op->w);
     vn_avx2_build_coord_lut(g_avx2_v_lut, vis_h, local_y_start, op->h);
 
-    use_row_palette = (vis_w > 256u ? VN_TRUE : VN_FALSE);
+    use_row_palette = vn_avx2_should_use_row_palette(vis_w, vis_h);
     have_row_palette = VN_FALSE;
     cached_v8 = 0u;
 
