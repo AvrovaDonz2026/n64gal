@@ -131,6 +131,21 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Verified dirty submit log on windows-x64: $LogPath"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Verified dirty submit backend hit: avx2"
+      - name: MSVC Debug compile-only
+        if: success()
+        shell: pwsh
+        run: |
+          $LogPath = Join-Path 'build_ci_windows_x64' 'ci_logs/build_debug.log'
+          $script:NativeExitCode = 0
+          & {
+            cmake --build build --config Debug 2>&1
+            $script:NativeExitCode = $LASTEXITCODE
+          } | Tee-Object -FilePath $LogPath
+          $NativeExitCode = $script:NativeExitCode
+          if ($NativeExitCode -ne 0) {
+            throw "Debug compile-only failed rc=$NativeExitCode"
+          }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Verified windows-x64 MSVC Debug compile-only: $LogPath"
       - name: Upload suite artifact
         if: always()
         uses: actions/upload-artifact@v4
