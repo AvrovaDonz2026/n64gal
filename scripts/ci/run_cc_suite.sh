@@ -9,6 +9,7 @@ LOG_DIR="$BUILD_DIR/ci_logs"
 GOLDEN_ARTIFACT_DIR="$BUILD_DIR/golden_artifacts"
 SUMMARY_MD="$BUILD_DIR/ci_suite_summary.md"
 mkdir -p "$BUILD_DIR" "$LOG_DIR" "$GOLDEN_ARTIFACT_DIR"
+CC_BIN="${CC:-cc}"
 
 run_capture() {
   local log_path
@@ -119,14 +120,14 @@ TESTS=(
 )
 
 for test_name in "${TESTS[@]}"; do
-  cc "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
+  "$CC_BIN" "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
 done
 
-cc "${CFLAGS[@]}" tests/integration/test_preview_protocol.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_preview_protocol"
-cc "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
-cc "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_previewd"
-cc "${CFLAGS[@]}" tests/perf/backend_kernel_bench.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_backend_kernel_bench"
-cc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
+"$CC_BIN" "${CFLAGS[@]}" tests/integration/test_preview_protocol.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_preview_protocol"
+"$CC_BIN" "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
+"$CC_BIN" "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_previewd"
+"$CC_BIN" "${CFLAGS[@]}" tests/perf/backend_kernel_bench.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_backend_kernel_bench"
+"$CC_BIN" "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
 
 for test_name in "${TESTS[@]}"; do
   if [[ "$test_name" == "test_runtime_golden" ]]; then

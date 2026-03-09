@@ -48,6 +48,42 @@ jobs:
             build_ci_cc/ci_logs
             build_ci_cc/ci_suite_summary.md
             build_ci_cc/golden_artifacts
+      - name: Native C89 suite (clang)
+        env:
+          CC: clang
+          BUILD_DIR: build_ci_cc_clang
+        run: ./scripts/ci/run_cc_suite.sh
+      - name: Publish native clang suite summary
+        if: always()
+        run: |
+          if [ -f build_ci_cc_clang/ci_suite_summary.md ]; then
+            cat build_ci_cc_clang/ci_suite_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Verify AVX2 dirty-submit coverage (clang)
+        if: always()
+        run: |
+          log_path="build_ci_cc_clang/ci_logs/test_renderer_dirty_submit.log"
+          if [ ! -f "$log_path" ]; then
+            echo "missing dirty submit log: $log_path" >&2
+            exit 1
+          fi
+          if ! grep -q "matched backend=avx2" "$log_path"; then
+            echo "expected matched backend=avx2 in $log_path" >&2
+            cat "$log_path"
+            exit 1
+          fi
+          echo "- Verified dirty submit log on linux-x64-clang: \`$log_path\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Verified dirty submit backend hit (clang): \`avx2\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload native clang suite artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-linux-x64-clang
+          if-no-files-found: warn
+          path: |
+            build_ci_cc_clang/ci_logs
+            build_ci_cc_clang/ci_suite_summary.md
+            build_ci_cc_clang/golden_artifacts
       - name: Perf smoke suite
         env:
           VN_PERF_CFLAGS: -O2 -DNDEBUG
