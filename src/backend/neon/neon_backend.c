@@ -110,15 +110,6 @@ static int vn_neon_clip_rect_region(vn_i16 x,
 }
 
 #if VN_NEON_IMPL_AVAILABLE
-static uint32x4_t vn_neon_div255_round_u32_preloaded(uint32x4_t value,
-                                                     uint32x4_t bias,
-                                                     uint32x4_t one) {
-    value = vaddq_u32(value, bias);
-    value = vaddq_u32(value, one);
-    value = vaddq_u32(value, vshrq_n_u32(value, 8));
-    return vshrq_n_u32(value, 8);
-}
-
 static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
     uint32x4_t vec;
     vn_u32 i;
@@ -136,18 +127,17 @@ static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
 }
 
 static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, vn_u8 alpha) {
-    uint32x4_t mask;
+    uint32x4_t mask_rb;
+    uint32x4_t mask_g;
+    uint32x4_t bias_rb;
+    uint32x4_t bias_g;
+    uint32x4_t one_rb;
+    uint32x4_t one_g;
+    uint32x4_t src_rb;
+    uint32x4_t src_g;
     uint32x4_t alpha_mask;
-    uint32x4_t bias_vec;
-    uint32x4_t one_vec;
-    uint32x4_t src_r_vec;
-    uint32x4_t src_g_vec;
-    uint32x4_t src_b_vec;
-    vn_u32 src_r_prod;
-    vn_u32 src_g_prod;
-    vn_u32 src_b_prod;
-    vn_u32 inv;
     uint32_t inv_u32;
+    uint32_t alpha_u32;
     vn_u32 i;
 
     if (dst == (vn_u32*)0 || count == 0u || alpha == 0u) {
@@ -158,51 +148,48 @@ static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, v
         return;
     }
 
-    mask = vdupq_n_u32((uint32_t)0xFFu);
+    mask_rb = vdupq_n_u32((uint32_t)0x00FF00FFu);
+    mask_g = vdupq_n_u32((uint32_t)0x0000FF00u);
+    bias_rb = vdupq_n_u32((uint32_t)0x007F007Fu);
+    bias_g = vdupq_n_u32((uint32_t)0x00007F00u);
+    one_rb = vdupq_n_u32((uint32_t)0x00010001u);
+    one_g = vdupq_n_u32((uint32_t)0x00000100u);
     alpha_mask = vdupq_n_u32((uint32_t)0xFF000000u);
-    bias_vec = vdupq_n_u32((uint32_t)127u);
-    one_vec = vdupq_n_u32((uint32_t)1u);
-    inv = (vn_u32)(255u - (vn_u32)alpha);
-    inv_u32 = (uint32_t)inv;
-    src_r_prod = ((color >> 16) & 0xFFu) * (vn_u32)alpha;
-    src_g_prod = ((color >> 8) & 0xFFu) * (vn_u32)alpha;
-    src_b_prod = (color & 0xFFu) * (vn_u32)alpha;
-    src_r_vec = vdupq_n_u32((uint32_t)src_r_prod);
-    src_g_vec = vdupq_n_u32((uint32_t)src_g_prod);
-    src_b_vec = vdupq_n_u32((uint32_t)src_b_prod);
+    inv_u32 = (uint32_t)(255u - (vn_u32)alpha);
+    alpha_u32 = (uint32_t)alpha;
+    src_rb = vandq_u32(vdupq_n_u32((uint32_t)color), mask_rb);
+    src_g = vandq_u32(vdupq_n_u32((uint32_t)color), mask_g);
 
     i = 0u;
     while ((i + 4u) <= count) {
         uint32x4_t dst_px;
-        uint32x4_t dr;
-        uint32x4_t dg;
-        uint32x4_t db;
-        uint32x4_t rr;
-        uint32x4_t rg;
+        uint32x4_t dst_rb;
+        uint32x4_t dst_g;
         uint32x4_t rb;
+        uint32x4_t g;
         uint32x4_t out;
 
         dst_px = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        dr = vandq_u32(vshrq_n_u32(dst_px, 16), mask);
-        dg = vandq_u32(vshrq_n_u32(dst_px, 8), mask);
-        db = vandq_u32(dst_px, mask);
+        dst_rb = vandq_u32(dst_px, mask_rb);
+        dst_g = vandq_u32(dst_px, mask_g);
 
-        rr = vmulq_n_u32(dr, inv_u32);
-        rr = vaddq_u32(rr, src_r_vec);
-        rr = vn_neon_div255_round_u32_preloaded(rr, bias_vec, one_vec);
+        rb = vaddq_u32(vmulq_n_u32(src_rb, alpha_u32),
+                       vmulq_n_u32(dst_rb, inv_u32));
+        rb = vaddq_u32(rb, bias_rb);
+        rb = vaddq_u32(rb,
+                       vaddq_u32(one_rb,
+                                 vandq_u32(vshrq_n_u32(rb, 8), mask_rb)));
+        rb = vandq_u32(vshrq_n_u32(rb, 8), mask_rb);
 
-        rg = vmulq_n_u32(dg, inv_u32);
-        rg = vaddq_u32(rg, src_g_vec);
-        rg = vn_neon_div255_round_u32_preloaded(rg, bias_vec, one_vec);
+        g = vaddq_u32(vmulq_n_u32(src_g, alpha_u32),
+                      vmulq_n_u32(dst_g, inv_u32));
+        g = vaddq_u32(g, bias_g);
+        g = vaddq_u32(g,
+                      vaddq_u32(one_g,
+                                vandq_u32(vshrq_n_u32(g, 8), mask_g)));
+        g = vandq_u32(vshrq_n_u32(g, 8), mask_g);
 
-        rb = vmulq_n_u32(db, inv_u32);
-        rb = vaddq_u32(rb, src_b_vec);
-        rb = vn_neon_div255_round_u32_preloaded(rb, bias_vec, one_vec);
-
-        rr = vshlq_n_u32(rr, 16);
-        rg = vshlq_n_u32(rg, 8);
-        out = vorrq_u32(vorrq_u32(rr, rg), rb);
-        out = vorrq_u32(out, alpha_mask);
+        out = vorrq_u32(vorrq_u32(rb, g), alpha_mask);
         vst1q_u32((uint32_t*)(void*)(dst + i), out);
         i += 4u;
     }
