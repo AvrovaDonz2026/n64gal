@@ -55,6 +55,21 @@ int vn_avx2_clip_rect_region(vn_i16 x,
                              vn_u32* out_x1,
                              vn_u32* out_y1);
 
+void vn_avx2_fill_rect_uniform_clipped(vn_i16 x,
+                                       vn_i16 y,
+                                       vn_u16 w,
+                                       vn_u16 h,
+                                       vn_u32 color,
+                                       vn_u8 alpha,
+                                       const VNRenderRect* clip_rect);
+void vn_avx2_clear_rect(vn_u8 gray, const VNRenderRect* clip_rect);
+void vn_avx2_fill_rect_uniform(vn_i16 x,
+                               vn_i16 y,
+                               vn_u16 w,
+                               vn_u16 h,
+                               vn_u32 color,
+                               vn_u8 alpha);
+
 void vn_avx2_draw_textured_rect(const VNRenderOp* op);
 void vn_avx2_draw_textured_rect_clipped(const VNRenderOp* op,
                                         const VNRenderRect* clip_rect);

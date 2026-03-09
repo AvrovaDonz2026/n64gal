@@ -14,7 +14,7 @@ endif()
 
 if(MSVC)
     if(CMAKE_VS_PLATFORM_NAME STREQUAL "x64" OR CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
-        set_source_files_properties(src/backend/avx2/avx2_backend.c src/backend/avx2/avx2_textured.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
+        set_source_files_properties(src/backend/avx2/avx2_backend.c src/backend/avx2/avx2_fill_fade.c src/backend/avx2/avx2_textured.c PROPERTIES COMPILE_OPTIONS "/arch:AVX2")
     endif()
 endif()
 
@@ -30,6 +30,7 @@ add_library(vn_core
     src/frontend/dirty_tiles.c
     src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
+    src/backend/avx2/avx2_fill_fade.c
     src/backend/avx2/avx2_textured.c
     src/backend/neon/neon_backend.c
     src/backend/rvv/rvv_backend.c

@@ -81,6 +81,7 @@ COMMON_SRC=(
   src/frontend/dirty_tiles.c
   src/backend/common/pixel_pipeline.c
   src/backend/avx2/avx2_backend.c
+  src/backend/avx2/avx2_fill_fade.c
   src/backend/avx2/avx2_textured.c
   src/backend/neon/neon_backend.c
   src/backend/rvv/rvv_backend.c

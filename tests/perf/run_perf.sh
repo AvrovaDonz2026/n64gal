@@ -192,6 +192,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
   COMPILE_CMD+=(
     src/backend/common/pixel_pipeline.c
     src/backend/avx2/avx2_backend.c
+    src/backend/avx2/avx2_fill_fade.c
   )
   append_source_if_exists src/backend/avx2/avx2_textured.c
   COMPILE_CMD+=(
