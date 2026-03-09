@@ -5,6 +5,8 @@
 #include "vn_error.h"
 #include "../../src/core/build_config.h"
 
+#if VN_ARCH_X64 || VN_ARCH_X86
+
 static int init_backend(vn_u32 flags, char* out_name, size_t out_name_cap) {
     RendererConfig cfg;
     int rc;
@@ -30,6 +32,8 @@ static int init_backend(vn_u32 flags, char* out_name, size_t out_name_cap) {
     renderer_shutdown();
     return 0;
 }
+
+#endif
 
 int main(void) {
 #if !(VN_ARCH_X64 || VN_ARCH_X86)
@@ -78,3 +82,4 @@ int main(void) {
     return 0;
 #endif
 }
+
