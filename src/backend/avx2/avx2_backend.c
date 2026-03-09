@@ -451,6 +451,16 @@ typedef struct VN_AVX2TexturedRowParams {
     int text_blue_bias;
     int sprite_blue_bias;
     vn_u8 op;
+#if VN_AVX2_IMPL_AVAILABLE
+    int seed_xor_lanes[8];
+    int checker_xor_lanes[8];
+    int v8_lanes[8];
+    int base_r_lanes[8];
+    int base_g_lanes[8];
+    int base_b_lanes[8];
+    int text_blue_bias_lanes[8];
+    int sprite_blue_bias_lanes[8];
+#endif
 } VN_AVX2TexturedRowParams;
 
 static void vn_avx2_init_textured_row_params(VN_AVX2TexturedRowParams* params,
@@ -487,6 +497,22 @@ static void vn_avx2_init_textured_row_params(VN_AVX2TexturedRowParams* params,
     params->text_blue_bias = 24 + (int)layer * 6;
     params->sprite_blue_bias = 10;
     params->op = op;
+#if VN_AVX2_IMPL_AVAILABLE
+    {
+        int lane;
+
+        for (lane = 0; lane < 8; ++lane) {
+            params->seed_xor_lanes[lane] = (int)params->seed_xor;
+            params->checker_xor_lanes[lane] = (int)params->checker_xor;
+            params->v8_lanes[lane] = (int)params->v8;
+            params->base_r_lanes[lane] = params->base_r;
+            params->base_g_lanes[lane] = params->base_g;
+            params->base_b_lanes[lane] = params->base_b;
+            params->text_blue_bias_lanes[lane] = params->text_blue_bias;
+            params->sprite_blue_bias_lanes[lane] = params->sprite_blue_bias;
+        }
+    }
+#endif
 }
 
 static vn_u32 vn_avx2_sample_combine_texel(vn_u32 u8, const VN_AVX2TexturedRowParams* params) {
@@ -637,9 +663,9 @@ static __m256i vn_avx2_sample_combine_chunk_u32x8(__m256i u_vec,
     alpha_mask = _mm256_set1_epi32((int)0xFF000000u);
     zero_vec = _mm256_setzero_si256();
     max_vec = _mm256_set1_epi32(255);
-    seed_xor_vec = _mm256_set1_epi32((int)params->seed_xor);
-    checker_xor_vec = _mm256_set1_epi32((int)params->checker_xor);
-    v8_vec = _mm256_set1_epi32((int)params->v8);
+    seed_xor_vec = _mm256_loadu_si256((const __m256i*)(const void*)params->seed_xor_lanes);
+    checker_xor_vec = _mm256_loadu_si256((const __m256i*)(const void*)params->checker_xor_lanes);
+    v8_vec = _mm256_loadu_si256((const __m256i*)(const void*)params->v8_lanes);
 
     u_vec = _mm256_and_si256(u_vec, mask_ff);
     hash_vec = _mm256_xor_si256(_mm256_slli_epi32(u_vec, 8), seed_xor_vec);
@@ -670,9 +696,9 @@ static __m256i vn_avx2_sample_combine_chunk_u32x8(__m256i u_vec,
     g_vec = _mm256_min_epi32(g_vec, max_vec);
     b_vec = _mm256_min_epi32(b_vec, max_vec);
 
-    r_vec = _mm256_add_epi32(r_vec, _mm256_set1_epi32(params->base_r));
-    g_vec = _mm256_add_epi32(g_vec, _mm256_set1_epi32(params->base_g));
-    b_vec = _mm256_add_epi32(b_vec, _mm256_set1_epi32(params->base_b));
+    r_vec = _mm256_add_epi32(r_vec, _mm256_loadu_si256((const __m256i*)(const void*)params->base_r_lanes));
+    g_vec = _mm256_add_epi32(g_vec, _mm256_loadu_si256((const __m256i*)(const void*)params->base_g_lanes));
+    b_vec = _mm256_add_epi32(b_vec, _mm256_loadu_si256((const __m256i*)(const void*)params->base_b_lanes));
 
     if (params->op == VN_OP_TEXT) {
         __m256i y_vec;
@@ -686,10 +712,10 @@ static __m256i vn_avx2_sample_combine_chunk_u32x8(__m256i u_vec,
         r_vec = _mm256_add_epi32(y_vec, _mm256_set1_epi32(52));
         g_vec = _mm256_add_epi32(y_vec, _mm256_set1_epi32(44));
         b_vec = _mm256_add_epi32(y_vec,
-                                 _mm256_set1_epi32(params->text_blue_bias));
+                                 _mm256_loadu_si256((const __m256i*)(const void*)params->text_blue_bias_lanes));
     } else if (params->op == VN_OP_SPRITE) {
         b_vec = _mm256_add_epi32(b_vec,
-                                 _mm256_set1_epi32(params->sprite_blue_bias));
+                                 _mm256_loadu_si256((const __m256i*)(const void*)params->sprite_blue_bias_lanes));
     }
 
     r_vec = _mm256_max_epi32(r_vec, zero_vec);
