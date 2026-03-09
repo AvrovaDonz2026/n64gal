@@ -518,11 +518,15 @@ static uint32x4_t vn_neon_blend_rgb_chunk_u32x4(uint32x4_t dst_px,
 #endif
 
 static void vn_neon_build_textured_row_palette(vn_u32* palette,
+                                               vn_u32* palette_rb,
+                                               vn_u32* palette_g,
                                                const VN_NEONTexturedRowParams* params) {
     vn_u32 i;
 #if VN_NEON_IMPL_AVAILABLE
     uint32x4_t u_vec;
     uint32x4_t step_vec;
+    uint32x4_t mask_rb;
+    uint32x4_t mask_g;
 #endif
 
     if (palette == (vn_u32*)0 || params == (const VN_NEONTexturedRowParams*)0) {
@@ -530,6 +534,8 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
     }
 
 #if VN_NEON_IMPL_AVAILABLE
+    mask_rb = vdupq_n_u32((uint32_t)0x00FF00FFu);
+    mask_g = vdupq_n_u32((uint32_t)0x0000FF00u);
     u_vec = vdupq_n_u32((uint32_t)0u);
     u_vec = vsetq_lane_u32((uint32_t)1u, u_vec, 1);
     u_vec = vsetq_lane_u32((uint32_t)2u, u_vec, 2);
@@ -541,6 +547,12 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
 
         src_vec = vn_neon_sample_combine_chunk_u32x4(u_vec, params);
         vst1q_u32((uint32_t*)(void*)(palette + i), src_vec);
+        if (palette_rb != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette_rb + i), vandq_u32(src_vec, mask_rb));
+        }
+        if (palette_g != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette_g + i), vandq_u32(src_vec, mask_g));
+        }
         u_vec = vaddq_u32(u_vec, step_vec);
         i += 4u;
     }
@@ -548,7 +560,16 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
     i = 0u;
 #endif
     while (i < 256u) {
-        palette[i] = vn_neon_sample_combine_texel(i, params);
+        vn_u32 src;
+
+        src = vn_neon_sample_combine_texel(i, params);
+        palette[i] = src;
+        if (palette_rb != (vn_u32*)0) {
+            palette_rb[i] = src & 0x00FF00FFu;
+        }
+        if (palette_g != (vn_u32*)0) {
+            palette_g[i] = src & 0x0000FF00u;
+        }
         i += 1u;
     }
 }
@@ -798,6 +819,79 @@ static uint32x4_t vn_neon_palette_chunk_u32x4(const vn_u8* u_lut,
     return vec;
 }
 
+static uint32x4_t vn_neon_blend_rgb_palette_packed_chunk_u32x4(uint32x4_t dst_px,
+                                                               uint32x4_t src_rb,
+                                                               uint32x4_t src_g,
+                                                               vn_u8 alpha) {
+    const uint32x4_t mask_rb = vdupq_n_u32((uint32_t)0x00FF00FFu);
+    const uint32x4_t mask_g = vdupq_n_u32((uint32_t)0x0000FF00u);
+    const uint32x4_t bias_rb = vdupq_n_u32((uint32_t)0x007F007Fu);
+    const uint32x4_t bias_g = vdupq_n_u32((uint32_t)0x00007F00u);
+    const uint32x4_t one_rb = vdupq_n_u32((uint32_t)0x00010001u);
+    const uint32x4_t one_g = vdupq_n_u32((uint32_t)0x00000100u);
+    const uint32x4_t alpha_mask = vdupq_n_u32((uint32_t)0xFF000000u);
+    const uint32_t inv_u32 = (uint32_t)(255u - (vn_u32)alpha);
+    const uint32_t alpha_u32 = (uint32_t)alpha;
+    uint32x4_t dst_rb;
+    uint32x4_t dst_g;
+    uint32x4_t rb;
+    uint32x4_t g;
+
+    if (alpha >= 255u) {
+        return vorrq_u32(vorrq_u32(src_rb, src_g), alpha_mask);
+    }
+    if (alpha == 0u) {
+        return dst_px;
+    }
+
+    dst_rb = vandq_u32(dst_px, mask_rb);
+    dst_g = vandq_u32(dst_px, mask_g);
+
+    rb = vaddq_u32(vmulq_n_u32(src_rb, alpha_u32),
+                   vmulq_n_u32(dst_rb, inv_u32));
+    rb = vaddq_u32(rb, bias_rb);
+    rb = vaddq_u32(rb,
+                   vaddq_u32(one_rb,
+                             vandq_u32(vshrq_n_u32(rb, 8), mask_rb)));
+    rb = vandq_u32(vshrq_n_u32(rb, 8), mask_rb);
+
+    g = vaddq_u32(vmulq_n_u32(src_g, alpha_u32),
+                  vmulq_n_u32(dst_g, inv_u32));
+    g = vaddq_u32(g, bias_g);
+    g = vaddq_u32(g,
+                  vaddq_u32(one_g,
+                            vandq_u32(vshrq_n_u32(g, 8), mask_g)));
+    g = vandq_u32(vshrq_n_u32(g, 8), mask_g);
+
+    return vorrq_u32(vorrq_u32(rb, g), alpha_mask);
+}
+
+static uint32x4_t vn_neon_palette_rb_chunk_u32x4(const vn_u8* u_lut,
+                                                 const vn_u32* palette_rb,
+                                                 vn_u32 base_idx) {
+    uint32x4_t vec;
+
+    vec = vdupq_n_u32((uint32_t)0u);
+    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
+    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
+    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
+    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
+    return vec;
+}
+
+static uint32x4_t vn_neon_palette_g_chunk_u32x4(const vn_u8* u_lut,
+                                                const vn_u32* palette_g,
+                                                vn_u32 base_idx) {
+    uint32x4_t vec;
+
+    vec = vdupq_n_u32((uint32_t)0u);
+    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
+    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
+    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
+    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
+    return vec;
+}
+
 static void vn_neon_sample_texels_palette_row(vn_u32* dst,
                                               const vn_u8* u_lut,
                                               vn_u32 count,
@@ -826,9 +920,13 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
                                                     const vn_u8* u_lut,
                                                     vn_u32 count,
                                                     const vn_u32* palette,
+                                                    const vn_u32* palette_rb,
+                                                    const vn_u32* palette_g,
                                                     vn_u8 alpha) {
     vn_u32 i;
 
+    (void)palette_rb;
+    (void)palette_g;
     if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
         return;
     }
@@ -836,16 +934,27 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
         vn_neon_sample_texels_palette_row(dst, u_lut, count, palette);
         return;
     }
+    if (palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0) {
+        for (i = 0u; i < count; ++i) {
+            vn_u32 src;
+
+            src = palette[(vn_u32)u_lut[i]];
+            dst[i] = vn_neon_blend_rgb_local(dst[i], src, alpha);
+        }
+        return;
+    }
 
     i = 0u;
     while ((i + 4u) <= count) {
         uint32x4_t dst_px;
-        uint32x4_t src_px;
+        uint32x4_t src_rb;
+        uint32x4_t src_g;
         uint32x4_t out;
 
         dst_px = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        src_px = vn_neon_palette_chunk_u32x4(u_lut, palette, i);
-        out = vn_neon_blend_rgb_chunk_u32x4(dst_px, src_px, alpha);
+        src_rb = vn_neon_palette_rb_chunk_u32x4(u_lut, palette_rb, i);
+        src_g = vn_neon_palette_g_chunk_u32x4(u_lut, palette_g, i);
+        out = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px, src_rb, src_g, alpha);
         vst1q_u32((uint32_t*)(void*)(dst + i), out);
         i += 4u;
     }
@@ -877,9 +986,13 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
                                                     const vn_u8* u_lut,
                                                     vn_u32 count,
                                                     const vn_u32* palette,
+                                                    const vn_u32* palette_rb,
+                                                    const vn_u32* palette_g,
                                                     vn_u8 alpha) {
     vn_u32 i;
 
+    (void)palette_rb;
+    (void)palette_g;
     if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
         return;
     }
@@ -914,6 +1027,8 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     int have_row_palette;
     vn_u32 cached_v8;
     vn_u32 row_palette[256];
+    vn_u32 row_palette_rb[256];
+    vn_u32 row_palette_g[256];
     VN_NEONTexturedRowParams params;
 
     if (op == (const VNRenderOp*)0 || g_neon_framebuffer == (vn_u32*)0) {
@@ -972,7 +1087,7 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
                                                  op->layer,
                                                  op->flags,
                                                  op->op);
-                vn_neon_build_textured_row_palette(row_palette, &params);
+                vn_neon_build_textured_row_palette(row_palette, row_palette_rb, row_palette_g, &params);
                 cached_v8 = v8;
                 have_row_palette = VN_TRUE;
             }
@@ -987,6 +1102,8 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
                                                         g_neon_u_lut,
                                                         vis_w,
                                                         row_palette,
+                                                        row_palette_rb,
+                                                        row_palette_g,
                                                         op->alpha);
             }
             continue;
