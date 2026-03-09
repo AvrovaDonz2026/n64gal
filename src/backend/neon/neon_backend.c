@@ -27,8 +27,10 @@ static vn_u32 g_neon_height = 0u;
 static vn_u32 g_neon_pixels = 0u;
 static vn_u8* g_neon_u_lut = (vn_u8*)0;
 static vn_u8* g_neon_v_lut = (vn_u8*)0;
+static vn_u32* g_neon_palette_row_cache = (vn_u32*)0;
 static vn_u32 g_neon_u_lut_cap = 0u;
 static vn_u32 g_neon_v_lut_cap = 0u;
+static vn_u32 g_neon_palette_row_cache_cap = 0u;
 static int g_neon_ready = VN_FALSE;
 
 static int vn_neon_clip_rect_region(vn_i16 x,
@@ -1046,10 +1048,10 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     if (vis_w == 0u || vis_h == 0u) {
         return;
     }
-    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0) {
+    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0) {
         return;
     }
-    if (vis_w > g_neon_u_lut_cap || vis_h > g_neon_v_lut_cap) {
+    if (vis_w > g_neon_u_lut_cap || vis_h > g_neon_v_lut_cap || vis_w > g_neon_palette_row_cache_cap) {
         return;
     }
 
@@ -1088,15 +1090,20 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
                                                  op->flags,
                                                  op->op);
                 vn_neon_build_textured_row_palette(row_palette, row_palette_rb, row_palette_g, &params);
+                if (op->alpha >= 255u) {
+                    vn_neon_sample_texels_palette_row(g_neon_palette_row_cache,
+                                                      g_neon_u_lut,
+                                                      vis_w,
+                                                      row_palette);
+                }
                 cached_v8 = v8;
                 have_row_palette = VN_TRUE;
             }
 
             if (op->alpha >= 255u) {
-                vn_neon_sample_texels_palette_row(row_ptr,
-                                                  g_neon_u_lut,
-                                                  vis_w,
-                                                  row_palette);
+                (void)memcpy(row_ptr,
+                             g_neon_palette_row_cache,
+                             (size_t)vis_w * sizeof(vn_u32));
             } else {
                 vn_neon_sample_blend_texels_palette_row(row_ptr,
                                                         g_neon_u_lut,
@@ -1139,6 +1146,7 @@ static int neon_init(const RendererConfig* cfg) {
     vn_u32 pixels;
     size_t u_lut_bytes;
     size_t v_lut_bytes;
+    size_t palette_row_cache_bytes;
 
     if (cfg == (const RendererConfig*)0 || cfg->width == 0u || cfg->height == 0u) {
         return VN_E_INVALID_ARG;
@@ -1158,17 +1166,23 @@ static int neon_init(const RendererConfig* cfg) {
     }
     u_lut_bytes = (size_t)cfg->width * sizeof(vn_u8);
     v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
+    palette_row_cache_bytes = (size_t)cfg->width * sizeof(vn_u32);
     g_neon_u_lut = (vn_u8*)malloc(u_lut_bytes);
     g_neon_v_lut = (vn_u8*)malloc(v_lut_bytes);
-    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0) {
+    g_neon_palette_row_cache = (vn_u32*)malloc(palette_row_cache_bytes);
+    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0) {
         if (g_neon_u_lut != (vn_u8*)0) {
             free(g_neon_u_lut);
         }
         if (g_neon_v_lut != (vn_u8*)0) {
             free(g_neon_v_lut);
         }
+        if (g_neon_palette_row_cache != (vn_u32*)0) {
+            free(g_neon_palette_row_cache);
+        }
         g_neon_u_lut = (vn_u8*)0;
         g_neon_v_lut = (vn_u8*)0;
+        g_neon_palette_row_cache = (vn_u32*)0;
         free(g_neon_framebuffer);
         g_neon_framebuffer = (vn_u32*)0;
         return VN_E_NOMEM;
@@ -1181,6 +1195,7 @@ static int neon_init(const RendererConfig* cfg) {
     g_neon_pixels = pixels;
     g_neon_u_lut_cap = (vn_u32)cfg->width;
     g_neon_v_lut_cap = (vn_u32)cfg->height;
+    g_neon_palette_row_cache_cap = (vn_u32)cfg->width;
     g_neon_ready = VN_TRUE;
     return VN_OK;
 }
@@ -1195,14 +1210,19 @@ static void neon_shutdown(void) {
     if (g_neon_v_lut != (vn_u8*)0) {
         free(g_neon_v_lut);
     }
+    if (g_neon_palette_row_cache != (vn_u32*)0) {
+        free(g_neon_palette_row_cache);
+    }
     g_neon_framebuffer = (vn_u32*)0;
     g_neon_u_lut = (vn_u8*)0;
     g_neon_v_lut = (vn_u8*)0;
+    g_neon_palette_row_cache = (vn_u32*)0;
     g_neon_stride = 0u;
     g_neon_height = 0u;
     g_neon_pixels = 0u;
     g_neon_u_lut_cap = 0u;
     g_neon_v_lut_cap = 0u;
+    g_neon_palette_row_cache_cap = 0u;
     g_neon_cfg.width = 0u;
     g_neon_cfg.height = 0u;
     g_neon_cfg.flags = 0u;
