@@ -182,12 +182,16 @@ static int avx2_init(const RendererConfig* cfg) {
     return avx2_init_common(cfg, VN_FALSE);
 }
 
+#if VN_AVX2_ASM_FILL_AVAILABLE
 static int avx2_asm_init(const RendererConfig* cfg) {
-    if (VN_AVX2_ASM_FILL_AVAILABLE == 0) {
-        return VN_E_UNSUPPORTED;
-    }
     return avx2_init_common(cfg, VN_TRUE);
 }
+#else
+static int avx2_asm_init(const RendererConfig* cfg) {
+    (void)cfg;
+    return VN_E_UNSUPPORTED;
+}
+#endif
 
 static void avx2_shutdown(void) {
     if (g_avx2_framebuffer != (vn_u32*)0) {
