@@ -290,7 +290,7 @@ static void vn_neon_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn
     vn_neon_fill_rect_uniform_clipped(x, y, w, h, color, alpha, (const VNRenderRect*)0);
 }
 
-static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent) {
+static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent, vn_u32 tail_pad) {
     vn_u32 i;
     vn_u32 denom;
     vn_u32 value;
@@ -302,7 +302,7 @@ static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_s
         for (i = 0u; i < count; ++i) {
             out_lut[i] = 0u;
         }
-        for (i = 0u; i < VN_NEON_U_LUT_PAD; ++i) {
+        for (i = 0u; i < tail_pad; ++i) {
             out_lut[count + i] = 0u;
         }
         return;
@@ -319,7 +319,7 @@ static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_s
         out_lut[i] = (vn_u8)q;
         value += 255u;
     }
-    for (i = 0u; i < VN_NEON_U_LUT_PAD; ++i) {
+    for (i = 0u; i < tail_pad; ++i) {
         out_lut[count + i] = 0u;
     }
 }
@@ -1155,8 +1155,8 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     local_x_start = (vn_u32)local_x_start_i;
     local_y_start = (vn_u32)local_y_start_i;
 
-    vn_neon_build_coord_lut(g_neon_u_lut, vis_w, local_x_start, op->w);
-    vn_neon_build_coord_lut(g_neon_v_lut, vis_h, local_y_start, op->h);
+    vn_neon_build_coord_lut(g_neon_u_lut, vis_w, local_x_start, op->w, VN_NEON_U_LUT_PAD);
+    vn_neon_build_coord_lut(g_neon_v_lut, vis_h, local_y_start, op->h, 0u);
 
     use_row_palette = ((vis_w >= 384u && vis_h >= 64u) ? VN_TRUE : VN_FALSE);
     have_row_palette = VN_FALSE;

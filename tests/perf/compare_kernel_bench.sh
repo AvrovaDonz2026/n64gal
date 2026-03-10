@@ -62,12 +62,37 @@ BASE_KERNELS_TMP="$(mktemp)"
 CAND_KERNELS_TMP="$(mktemp)"
 trap 'rm -f "$BASE_KERNELS_TMP" "$CAND_KERNELS_TMP"' EXIT
 
+kernel_sets_equal() {
+  local left_file="$1"
+  local right_file="$2"
+
+  awk 'NR == FNR {
+    left[FNR] = $0;
+    left_count = FNR;
+    next;
+  }
+  {
+    if (FNR > left_count || $0 != left[FNR]) {
+      exit 1;
+    }
+  }
+  END {
+    if (FNR != left_count) {
+      exit 1;
+    }
+    exit 0;
+  }' "$left_file" "$right_file"
+}
+
 tail -n +2 "$BASELINE_CSV" | cut -d, -f1 | sort -u > "$BASE_KERNELS_TMP"
 tail -n +2 "$CANDIDATE_CSV" | cut -d, -f1 | sort -u > "$CAND_KERNELS_TMP"
 
-if ! cmp -s "$BASE_KERNELS_TMP" "$CAND_KERNELS_TMP"; then
+if ! kernel_sets_equal "$BASE_KERNELS_TMP" "$CAND_KERNELS_TMP"; then
   echo "kernel sets differ between baseline and candidate" >&2
-  diff -u "$BASE_KERNELS_TMP" "$CAND_KERNELS_TMP" >&2 || true
+  echo "[baseline kernels]" >&2
+  cat "$BASE_KERNELS_TMP" >&2
+  echo "[candidate kernels]" >&2
+  cat "$CAND_KERNELS_TMP" >&2
   exit 1
 fi
 
