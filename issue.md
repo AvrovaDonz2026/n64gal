@@ -80,6 +80,7 @@
 47. `ISSUE-008` 已补一份 x64 host evidence：新增 `docs/perf-x64-hosts-2026-03-09.md`，对照最新成功 `ci-matrix` run `22839497568` 的 `perf-linux-x64` / `perf-windows-x64` artifact，明确记录 `AMD EPYC 7763` 与 `Intel Xeon Platinum 8370C` 两条 x64 runner 的 scene/kernel 收益形状差异，用于后续解释 x64 gate 与 host-specific perf 变化。
 
 44. `ISSUE-008` 已把 `windows-x64 dirty S3` 的长窗口观察任务接进 perf workflow：`scripts/ci/run_perf_smoke_suite.sh` 现在支持可选的 `jitter-scenes/duration/warmup/repeat` 参数，`.github/workflows/ci-matrix.yml` 的 `perf-windows-x64` 现已启用 `S3 + 10s/2s + repeat=5` 的 report-only dirty compare，并把长窗口 `perf_compare.md` 与 `perf_repeat_variability.csv/.md` 摘要继续并入 `perf_workflow_summary.md`。这样后续可以把“短窗口 smoke 抖动”和“长窗口真实回退”分开解读。
+45. `ISSUE-008` 已把 `avx2_asm` 接进 Linux x64 perf 留痕链：`scripts/ci/run_perf_smoke_suite.sh` 现支持可选 `--asm-kernel-backend`，`.github/workflows/ci-matrix.yml` 的 `perf-linux-x64` 已启用 `kernel avx2 -> avx2_asm` 的 report-only compare，并把结果作为 `Compare E` 写进 `perf_workflow_summary.md`。这条线当前不设硬门限，只用于持续观察 GNU x64 runner 上 `clear/fill` 实验后端的真实收益形状。
 
 ### 平台目标（新增约束）
 

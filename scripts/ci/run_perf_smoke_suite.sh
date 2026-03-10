@@ -32,6 +32,7 @@ THRESHOLD_FILE="tests/perf/perf_thresholds.csv"
 THRESHOLD_PROFILE="linux-x64-scalar-avx2-smoke"
 KERNEL_THRESHOLD_PROFILE=""
 KERNEL_THRESHOLD_MODE="off"
+ASM_KERNEL_BACKEND=""
 RUNNER_BIN=""
 KERNEL_RUNNER_BIN=""
 SKIP_BUILD=0
@@ -169,6 +170,10 @@ while [[ $# -gt 0 ]]; do
       KERNEL_THRESHOLD_MODE="$2"
       shift 2
       ;;
+    --asm-kernel-backend)
+      ASM_KERNEL_BACKEND="$2"
+      shift 2
+      ;;
     --no-threshold)
       THRESHOLD_PROFILE=""
       shift 1
@@ -220,6 +225,7 @@ SCALAR_SIMD_DIR="$OUT_DIR/scalar_vs_${SIMD_BACKEND}"
 DIRTY_TILE_DIR="$OUT_DIR/${SIMD_BACKEND}_dirty_tile"
 DYNRES_DIR="$OUT_DIR/scalar_dynamic_resolution"
 KERNEL_COMPARE_DIR="$OUT_DIR/kernel_scalar_vs_${SIMD_BACKEND}"
+ASM_KERNEL_COMPARE_DIR=""
 DIRTY_VARIABILITY_CSV="$DIRTY_TILE_DIR/compare/perf_repeat_variability.csv"
 DIRTY_VARIABILITY_MD="$DIRTY_TILE_DIR/compare/perf_repeat_variability.md"
 DIRTY_REPEATS_DIR="$DIRTY_TILE_DIR/repeats"
@@ -230,6 +236,9 @@ JITTER_VARIABILITY_CSV="$JITTER_DIR/compare/perf_repeat_variability.csv"
 JITTER_VARIABILITY_MD="$JITTER_DIR/compare/perf_repeat_variability.md"
 JITTER_REPEATS_DIR="$JITTER_DIR/repeats"
 SUMMARY_MD="$OUT_DIR/perf_workflow_summary.md"
+if [[ -n "$ASM_KERNEL_BACKEND" ]]; then
+  ASM_KERNEL_COMPARE_DIR="$OUT_DIR/kernel_${SIMD_BACKEND}_vs_${ASM_KERNEL_BACKEND}"
+fi
 mkdir -p "$OUT_DIR"
 
 HOST_CPU="$(vn_perf_detect_host_cpu)"
@@ -413,6 +422,24 @@ if [[ "$SKIP_BUILD" -eq 1 ]]; then
 fi
 ./tests/perf/run_kernel_compare.sh "${KERNEL_ARGS[@]}"
 
+if [[ -n "$ASM_KERNEL_BACKEND" ]]; then
+  ASM_KERNEL_ARGS=(
+    --baseline "$SIMD_BACKEND"
+    --candidate "$ASM_KERNEL_BACKEND"
+    --resolution "$KERNEL_RESOLUTION"
+    --iterations "$KERNEL_ITERATIONS"
+    --warmup "$KERNEL_WARMUP"
+    --out-dir "$ASM_KERNEL_COMPARE_DIR"
+  )
+  if [[ -n "$KERNEL_RUNNER_BIN" ]]; then
+    ASM_KERNEL_ARGS+=(--runner-bin "$KERNEL_RUNNER_BIN")
+  fi
+  if [[ "$SKIP_BUILD" -eq 1 ]]; then
+    ASM_KERNEL_ARGS+=(--skip-build)
+  fi
+  ./tests/perf/run_kernel_compare.sh "${ASM_KERNEL_ARGS[@]}"
+fi
+
 KERNEL_THRESHOLD_REPORT="$KERNEL_COMPARE_DIR/compare/kernel_threshold_report.md"
 if [[ -n "$KERNEL_THRESHOLD_PROFILE" && "$KERNEL_THRESHOLD_MODE" != "off" ]]; then
   KERNEL_THRESHOLD_ARGS=(
@@ -457,6 +484,7 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Compare B: \`${SIMD_BACKEND} dirty-tile off -> on\`
 - Compare C: \`scalar dynamic-resolution off -> on\`
 - Compare D: \`kernel scalar -> $SIMD_BACKEND\`
+- Compare E: \`kernel ${SIMD_BACKEND} -> ${ASM_KERNEL_BACKEND:-disabled}\`
 - Artifact A dir: \`$SCALAR_SIMD_DIR\`
 - Artifact B dir: \`$DIRTY_TILE_DIR\`
 - Artifact B repeats dir: \`$DIRTY_REPEATS_DIR\`
@@ -470,6 +498,7 @@ cat > "$SUMMARY_MD" <<EOF_SUMMARY
 - Artifact B2 variability CSV: \`$JITTER_VARIABILITY_CSV\`
 - Artifact C dir: \`$DYNRES_DIR\`
 - Artifact D dir: \`$KERNEL_COMPARE_DIR\`
+- Artifact E dir: \`${ASM_KERNEL_COMPARE_DIR:-disabled}\`
 
 EOF_SUMMARY
 
@@ -492,6 +521,9 @@ if [[ -n "$JITTER_SCENES" ]]; then
 fi
 append_report "Scalar Dynamic-Resolution Off vs On Compare" "$DYNRES_DIR/compare/perf_compare.md"
 append_report "Kernel Scalar vs ${SIMD_BACKEND} Compare" "$KERNEL_COMPARE_DIR/compare/kernel_compare.md"
+if [[ -n "$ASM_KERNEL_BACKEND" ]]; then
+  append_report "Kernel ${SIMD_BACKEND} vs ${ASM_KERNEL_BACKEND} Compare" "$ASM_KERNEL_COMPARE_DIR/compare/kernel_compare.md"
+fi
 if [[ -n "$KERNEL_THRESHOLD_PROFILE" && "$KERNEL_THRESHOLD_MODE" != "off" ]]; then
   append_report "Kernel Scalar vs ${SIMD_BACKEND} Threshold" "$KERNEL_THRESHOLD_REPORT"
 else
