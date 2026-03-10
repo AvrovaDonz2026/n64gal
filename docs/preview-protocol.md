@@ -60,7 +60,7 @@
 3. `--project-dir=<path>`
 4. `--pack=<path>`
 5. `--scene=<name>`
-6. `--backend=auto|scalar|avx2|neon|rvv`
+6. `--backend=auto|scalar|avx2|avx2_asm|neon|rvv`
 7. `--resolution=<width>x<height>`
 8. `--frames=<n>`
 9. `--dt-ms=<n>`
@@ -110,7 +110,7 @@ response=tests/integration/preview_protocol_response.tmp.json
 | `project_dir` | no | 相对 `pack_path` 的解析基准目录 |
 | `pack_path` / `pack` | no | `.vnpak` 路径；默认 `assets/demo/demo.vnpak` |
 | `scene_name` / `scene` | no | 逻辑场景名；默认 `S0` |
-| `backend` | no | `auto|scalar|avx2|neon|rvv` |
+| `backend` | no | `auto|scalar|avx2|avx2_asm|neon|rvv` |
 | `resolution` | no | 形如 `600x800` |
 | `width` / `height` | no | 分开给宽高；若与 `resolution` 同时出现，以最后写入值为准 |
 | `frames` | no | session 最大推进帧数 |

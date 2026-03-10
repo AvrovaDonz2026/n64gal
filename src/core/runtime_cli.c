@@ -1238,6 +1238,9 @@ static vn_u32 parse_backend_flag(const char* value) {
     if (strcmp(value, "avx2") == 0) {
         return VN_RENDERER_FLAG_FORCE_AVX2;
     }
+    if (strcmp(value, "avx2_asm") == 0) {
+        return VN_RENDERER_FLAG_FORCE_AVX2_ASM;
+    }
     if (strcmp(value, "neon") == 0) {
         return VN_RENDERER_FLAG_FORCE_NEON;
     }
@@ -1606,7 +1609,8 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
         session->renderer_cfg.flags &= ~(VN_RENDERER_FLAG_FORCE_SCALAR |
                                          VN_RENDERER_FLAG_FORCE_AVX2 |
                                          VN_RENDERER_FLAG_FORCE_NEON |
-                                         VN_RENDERER_FLAG_FORCE_RVV);
+                                         VN_RENDERER_FLAG_FORCE_RVV |
+                                         VN_RENDERER_FLAG_FORCE_AVX2_ASM);
         session->renderer_cfg.flags |= force_flag;
     }
 

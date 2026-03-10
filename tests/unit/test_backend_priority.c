@@ -42,6 +42,7 @@ int main(void) {
 #else
     char scalar_name[16];
     char avx2_name[16];
+    char avx2_asm_name[16];
     char simd_name[16];
 
     if (init_backend(VN_RENDERER_FLAG_FORCE_SCALAR, scalar_name, sizeof(scalar_name)) != 0) {
@@ -60,7 +61,19 @@ int main(void) {
         return 1;
     }
 
+    if (init_backend(VN_RENDERER_FLAG_FORCE_AVX2_ASM, avx2_asm_name, sizeof(avx2_asm_name)) != 0) {
+        return 1;
+    }
+    if (strcmp(avx2_asm_name, "avx2_asm") != 0 && strcmp(avx2_asm_name, "scalar") != 0) {
+        (void)fprintf(stderr, "forced avx2_asm expected backend=avx2_asm/scalar got=%s\n", avx2_asm_name);
+        return 1;
+    }
+
     if (init_backend(VN_RENDERER_FLAG_SIMD, simd_name, sizeof(simd_name)) != 0) {
+        return 1;
+    }
+    if (strcmp(simd_name, "avx2_asm") == 0) {
+        (void)fprintf(stderr, "simd auto must not select force-only avx2_asm\n");
         return 1;
     }
     if (strcmp(avx2_name, "avx2") == 0) {
@@ -75,11 +88,11 @@ int main(void) {
         }
     }
 
-    (void)printf("test_backend_priority ok forced_scalar=%s forced_avx2=%s simd_auto=%s\n",
+    (void)printf("test_backend_priority ok forced_scalar=%s forced_avx2=%s forced_avx2_asm=%s simd_auto=%s\n",
                  scalar_name,
                  avx2_name,
+                 avx2_asm_name,
                  simd_name);
     return 0;
 #endif
 }
-

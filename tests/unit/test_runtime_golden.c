@@ -100,7 +100,7 @@ static int should_try_backend(const char* backend_name) {
     if (backend_name == (const char*)0) {
         return 0;
     }
-    if (strcmp(backend_name, "avx2") == 0) {
+    if (strcmp(backend_name, "avx2") == 0 || strcmp(backend_name, "avx2_asm") == 0) {
         return (VN_ARCH_X64 || VN_ARCH_X86) ? 1 : 0;
     }
     if (strcmp(backend_name, "neon") == 0) {
@@ -119,7 +119,7 @@ static vn_u32 debug_crc_for_backend(const char* backend_name) {
     if (strcmp(backend_name, "scalar") == 0) {
         return vn_scalar_backend_debug_frame_crc32();
     }
-    if (strcmp(backend_name, "avx2") == 0) {
+    if (strcmp(backend_name, "avx2") == 0 || strcmp(backend_name, "avx2_asm") == 0) {
         return vn_avx2_backend_debug_frame_crc32();
     }
     if (strcmp(backend_name, "neon") == 0) {
@@ -140,7 +140,7 @@ static vn_u32 debug_copy_for_backend(const char* backend_name,
     if (strcmp(backend_name, "scalar") == 0) {
         return vn_scalar_backend_debug_copy_framebuffer(out_pixels, pixel_count);
     }
-    if (strcmp(backend_name, "avx2") == 0) {
+    if (strcmp(backend_name, "avx2") == 0 || strcmp(backend_name, "avx2_asm") == 0) {
         return vn_avx2_backend_debug_copy_framebuffer(out_pixels, pixel_count);
     }
     if (strcmp(backend_name, "neon") == 0) {
@@ -862,6 +862,32 @@ int main(void) {
                 if (check_optional_backend_mode(&k_golden_scenes[i],
                                                 "avx2",
                                                 "avx2_dirty",
+                                                VN_RUNTIME_PERF_DEFAULT_FLAGS | VN_RUNTIME_PERF_DIRTY_TILE,
+                                                0,
+                                                scalar_pixels,
+                                                backend_pixels,
+                                                &compared_count) != 0) {
+                    exit_code = 1;
+                    break;
+                }
+            }
+        }
+        {
+            int compared_before_avx2_asm;
+
+            compared_before_avx2_asm = compared_count;
+            if (check_optional_backend(&k_golden_scenes[i],
+                                       "avx2_asm",
+                                       scalar_pixels,
+                                       backend_pixels,
+                                       &compared_count) != 0) {
+                exit_code = 1;
+                break;
+            }
+            if (compared_count != compared_before_avx2_asm) {
+                if (check_optional_backend_mode(&k_golden_scenes[i],
+                                                "avx2_asm",
+                                                "avx2_asm_dirty",
                                                 VN_RUNTIME_PERF_DEFAULT_FLAGS | VN_RUNTIME_PERF_DIRTY_TILE,
                                                 0,
                                                 scalar_pixels,

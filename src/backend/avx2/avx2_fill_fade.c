@@ -1,8 +1,59 @@
 #include "avx2_internal.h"
 
+static void vn_avx2_fill_u32_base(vn_u32* dst, vn_u32 count, vn_u32 value);
+
+#if VN_AVX2_ASM_FILL_AVAILABLE
+VN_AVX2_TARGET_ATTR
+static void vn_avx2_fill_u32_asm(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    size_t bulk_pixels;
+    size_t remaining_pixels;
+    vn_u32 i;
+    vn_u32* ptr;
+
+    if (dst == (vn_u32*)0 || count == 0u) {
+        return;
+    }
+
+    bulk_pixels = (size_t)(count & ~7u);
+    ptr = dst;
+    if (bulk_pixels != 0u) {
+        remaining_pixels = bulk_pixels;
+        __asm__ __volatile__(
+            "vbroadcastss %[fill], %%ymm0\n\t"
+            "1:\n\t"
+            "vmovdqu %%ymm0, (%[ptr])\n\t"
+            "addq $32, %[ptr]\n\t"
+            "subq $8, %[remaining]\n\t"
+            "jnz 1b\n\t"
+            "vzeroupper\n\t"
+            : [ptr] "+r"(ptr), [remaining] "+r"(remaining_pixels)
+            : [fill] "m"(value)
+            : "cc", "memory", "ymm0");
+    }
+
+    i = (vn_u32)bulk_pixels;
+    while (i < count) {
+        dst[i] = value;
+        i += 1u;
+    }
+}
+#else
+static void vn_avx2_fill_u32_asm(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    vn_avx2_fill_u32_base(dst, count, value);
+}
+#endif
+
+static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+    if (g_avx2_use_asm_fill != VN_FALSE) {
+        vn_avx2_fill_u32_asm(dst, count, value);
+        return;
+    }
+    vn_avx2_fill_u32_base(dst, count, value);
+}
+
 #if VN_AVX2_IMPL_AVAILABLE
 VN_AVX2_TARGET_ATTR
-static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+static void vn_avx2_fill_u32_base(vn_u32* dst, vn_u32 count, vn_u32 value) {
     __m256i vec;
     size_t misaligned_bytes;
     vn_u32 prefix;
@@ -121,7 +172,7 @@ static void vn_avx2_blend_uniform_u32(vn_u32* dst, vn_u32 count, vn_u32 src, vn_
     }
 }
 #else
-static void vn_avx2_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
+static void vn_avx2_fill_u32_base(vn_u32* dst, vn_u32 count, vn_u32 value) {
     vn_u32 i;
 
     if (dst == (vn_u32*)0) {

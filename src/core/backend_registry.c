@@ -42,7 +42,10 @@ const VNRenderBackend* vn_backend_select(vn_u32 prefer_arch_mask) {
     const VNRenderBackend* picked;
 
     picked = (const VNRenderBackend*)0;
-    if ((prefer_arch_mask & VN_ARCH_MASK_AVX2) != 0u) {
+    if ((prefer_arch_mask & VN_ARCH_MASK_AVX2_ASM) != 0u) {
+        picked = vn_find_backend_by_arch(VN_ARCH_AVX2_ASM);
+    }
+    if (picked == (const VNRenderBackend*)0 && (prefer_arch_mask & VN_ARCH_MASK_AVX2) != 0u) {
         picked = vn_find_backend_by_arch(VN_ARCH_AVX2);
     }
     if (picked == (const VNRenderBackend*)0 && (prefer_arch_mask & VN_ARCH_MASK_NEON) != 0u) {

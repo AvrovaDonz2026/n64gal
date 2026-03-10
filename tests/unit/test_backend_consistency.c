@@ -105,7 +105,7 @@ static int render_one(vn_u32 flags, const char* expected_name, vn_u32* out_crc) 
     }
 
     if (strcmp(name, expected_name) == 0) {
-        if (strcmp(expected_name, "avx2") == 0) {
+        if (strcmp(expected_name, "avx2") == 0 || strcmp(expected_name, "avx2_asm") == 0) {
             *out_crc = vn_avx2_backend_debug_frame_crc32();
         } else if (strcmp(expected_name, "rvv") == 0) {
             *out_crc = vn_rvv_backend_debug_frame_crc32();
@@ -181,6 +181,9 @@ int main(void) {
     }
 
     if (compare_backend(VN_RENDERER_FLAG_FORCE_AVX2, "avx2", "no avx2 support", scalar_crc, &compared_count) != 0) {
+        return 1;
+    }
+    if (compare_backend(VN_RENDERER_FLAG_FORCE_AVX2_ASM, "avx2_asm", "no avx2_asm support", scalar_crc, &compared_count) != 0) {
         return 1;
     }
     if (compare_backend(VN_RENDERER_FLAG_FORCE_RVV, "rvv", "no rvv support", scalar_crc, &compared_count) != 0) {

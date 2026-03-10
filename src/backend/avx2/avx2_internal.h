@@ -32,6 +32,12 @@
 #define VN_AVX2_TARGET_ATTR
 #endif
 
+#if defined(VN_AVX2_GNU_IMPL) && VN_ARCH_X64
+#define VN_AVX2_ASM_FILL_AVAILABLE 1
+#else
+#define VN_AVX2_ASM_FILL_AVAILABLE 0
+#endif
+
 extern RendererConfig g_avx2_cfg;
 extern vn_u32* g_avx2_framebuffer;
 extern vn_u32 g_avx2_stride;
@@ -42,6 +48,7 @@ extern vn_u8* g_avx2_v_lut;
 extern vn_u32 g_avx2_u_lut_cap;
 extern vn_u32 g_avx2_v_lut_cap;
 extern int g_avx2_ready;
+extern int g_avx2_use_asm_fill;
 
 vn_u32 vn_avx2_blend_rgb_local(vn_u32 dst, vn_u32 src, vn_u8 alpha);
 

@@ -9,12 +9,15 @@ typedef struct RendererConfig RendererConfig;
 #define VN_ARCH_AVX2   2
 #define VN_ARCH_NEON   3
 #define VN_ARCH_RVV    4
+#define VN_ARCH_AVX2_ASM 5
 
 #define VN_ARCH_MASK_SCALAR (1u << 0)
 #define VN_ARCH_MASK_AVX2   (1u << 1)
 #define VN_ARCH_MASK_NEON   (1u << 2)
-#define VN_ARCH_MASK_RVV    (1u << 3)
-#define VN_ARCH_MASK_ALL    (VN_ARCH_MASK_SCALAR | VN_ARCH_MASK_AVX2 | VN_ARCH_MASK_NEON | VN_ARCH_MASK_RVV)
+#define VN_ARCH_MASK_RVV      (1u << 3)
+#define VN_ARCH_MASK_AVX2_ASM (1u << 4)
+/* Keep MASK_ALL unchanged so avx2_asm stays force-only until its implementation is proven. */
+#define VN_ARCH_MASK_ALL      (VN_ARCH_MASK_SCALAR | VN_ARCH_MASK_AVX2 | VN_ARCH_MASK_NEON | VN_ARCH_MASK_RVV)
 
 #define VN_OP_CLEAR  1
 #define VN_OP_SPRITE 2

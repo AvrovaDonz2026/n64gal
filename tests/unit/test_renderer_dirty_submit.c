@@ -101,7 +101,7 @@ static int active_crc(vn_u32* out_crc) {
         *out_crc = vn_scalar_backend_debug_frame_crc32();
         return 0;
     }
-    if (strcmp(backend_name, "avx2") == 0) {
+    if (strcmp(backend_name, "avx2") == 0 || strcmp(backend_name, "avx2_asm") == 0) {
         *out_crc = vn_avx2_backend_debug_frame_crc32();
         return 0;
     }
@@ -282,6 +282,14 @@ int main(void) {
     }
     if (compare_dirty_backend(VN_RENDERER_FLAG_FORCE_AVX2,
                               "avx2",
+                              frame_a,
+                              frame_b,
+                              &dirty_submit,
+                              &compared_count) != 0) {
+        return 1;
+    }
+    if (compare_dirty_backend(VN_RENDERER_FLAG_FORCE_AVX2_ASM,
+                              "avx2_asm",
                               frame_a,
                               frame_b,
                               &dirty_submit,

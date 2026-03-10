@@ -15,7 +15,8 @@ struct RendererConfig {
 #define VN_RENDERER_FLAG_FORCE_SCALAR (1u << 8)
 #define VN_RENDERER_FLAG_FORCE_AVX2   (1u << 9)
 #define VN_RENDERER_FLAG_FORCE_NEON   (1u << 10)
-#define VN_RENDERER_FLAG_FORCE_RVV    (1u << 11)
+#define VN_RENDERER_FLAG_FORCE_RVV      (1u << 11)
+#define VN_RENDERER_FLAG_FORCE_AVX2_ASM (1u << 12)
 
 int renderer_init(const RendererConfig* cfg);
 void renderer_begin_frame(void);

@@ -10,16 +10,17 @@ vn_u8* g_avx2_v_lut = (vn_u8*)0;
 vn_u32 g_avx2_u_lut_cap = 0u;
 vn_u32 g_avx2_v_lut_cap = 0u;
 int g_avx2_ready = VN_FALSE;
+int g_avx2_use_asm_fill = VN_FALSE;
 
 int vn_avx2_clip_rect_region(vn_i16 x,
-                                    vn_i16 y,
-                                    vn_u16 w,
-                                    vn_u16 h,
-                                    const VNRenderRect* clip_rect,
-                                    vn_u32* out_x0,
-                                    vn_u32* out_y0,
-                                    vn_u32* out_x1,
-                                    vn_u32* out_y1) {
+                             vn_i16 y,
+                             vn_u16 w,
+                             vn_u16 h,
+                             const VNRenderRect* clip_rect,
+                             vn_u32* out_x0,
+                             vn_u32* out_y0,
+                             vn_u32* out_x1,
+                             vn_u32* out_y1) {
     int x0;
     int y0;
     int x1;
@@ -122,10 +123,12 @@ static int vn_avx2_runtime_supported(void) {
 }
 #endif
 
-static int avx2_init(const RendererConfig* cfg) {
+static int avx2_init_common(const RendererConfig* cfg, int use_asm_fill) {
     vn_u32 pixels;
     size_t u_lut_bytes;
     size_t v_lut_bytes;
+
+    g_avx2_use_asm_fill = VN_FALSE;
 
     if (cfg == (const RendererConfig*)0 || cfg->width == 0u || cfg->height == 0u) {
         return VN_E_INVALID_ARG;
@@ -168,8 +171,22 @@ static int avx2_init(const RendererConfig* cfg) {
     g_avx2_pixels = pixels;
     g_avx2_u_lut_cap = (vn_u32)cfg->width;
     g_avx2_v_lut_cap = (vn_u32)cfg->height;
+    if (use_asm_fill != VN_FALSE && VN_AVX2_ASM_FILL_AVAILABLE != 0) {
+        g_avx2_use_asm_fill = VN_TRUE;
+    }
     g_avx2_ready = VN_TRUE;
     return VN_OK;
+}
+
+static int avx2_init(const RendererConfig* cfg) {
+    return avx2_init_common(cfg, VN_FALSE);
+}
+
+static int avx2_asm_init(const RendererConfig* cfg) {
+    if (VN_AVX2_ASM_FILL_AVAILABLE == 0) {
+        return VN_E_UNSUPPORTED;
+    }
+    return avx2_init_common(cfg, VN_TRUE);
 }
 
 static void avx2_shutdown(void) {
@@ -194,6 +211,7 @@ static void avx2_shutdown(void) {
     g_avx2_cfg.height = 0u;
     g_avx2_cfg.flags = 0u;
     g_avx2_ready = VN_FALSE;
+    g_avx2_use_asm_fill = VN_FALSE;
 }
 
 static void avx2_begin_frame(void) {
@@ -211,6 +229,7 @@ static int avx2_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
 
     for (i = 0u; i < op_count; ++i) {
         const VNRenderOp* op;
+
         op = &ops[i];
         if (op->op == VN_OP_CLEAR) {
             vn_avx2_clear_rect(op->alpha, (const VNRenderRect*)0);
@@ -265,6 +284,7 @@ static int avx2_submit_ops_dirty(const VNRenderOp* ops,
         vn_avx2_clear_rect(clear_op->alpha, clip_rect);
         for (i = 1u; i < op_count; ++i) {
             const VNRenderOp* op;
+
             op = &ops[i];
             if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
                 vn_avx2_draw_textured_rect_clipped(op, clip_rect);
@@ -307,6 +327,22 @@ static const VNRenderBackend g_avx2_backend = {
     avx2_query_caps,
     avx2_submit_ops_dirty
 };
+
+static const VNRenderBackend g_avx2_asm_backend = {
+    "avx2_asm",
+    VN_ARCH_AVX2_ASM,
+    avx2_asm_init,
+    avx2_shutdown,
+    avx2_begin_frame,
+    avx2_submit_ops,
+    avx2_end_frame,
+    avx2_query_caps,
+    avx2_submit_ops_dirty
+};
+
+int vn_register_avx2_asm_backend(void) {
+    return vn_backend_register(&g_avx2_asm_backend);
+}
 
 int vn_register_avx2_backend(void) {
     return vn_backend_register(&g_avx2_backend);

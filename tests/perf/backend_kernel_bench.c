@@ -216,6 +216,10 @@ static int vn_backend_flags_from_name(const char* backend_name, vn_u32* out_flag
         *out_flags = VN_RENDERER_FLAG_FORCE_AVX2;
         return VN_TRUE;
     }
+    if (strcmp(backend_name, "avx2_asm") == 0) {
+        *out_flags = VN_RENDERER_FLAG_FORCE_AVX2_ASM;
+        return VN_TRUE;
+    }
     if (strcmp(backend_name, "neon") == 0) {
         *out_flags = VN_RENDERER_FLAG_FORCE_NEON;
         return VN_TRUE;
@@ -447,7 +451,7 @@ int main(int argc, char** argv) {
     rc = vn_parse_args(argc, argv, &cfg);
     if (rc != VN_OK) {
         (void)fprintf(stderr,
-                      "usage: %s [--backend scalar|avx2|neon|rvv|auto] [--resolution 600x800] [--iterations N] [--warmup N] [--csv path]\n",
+                      "usage: %s [--backend scalar|avx2|avx2_asm|neon|rvv|auto] [--resolution 600x800] [--iterations N] [--warmup N] [--csv path]\n",
                       argv[0]);
         return 2;
     }

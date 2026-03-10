@@ -34,6 +34,9 @@ int main(void) {
     if (expect_backend(VN_RENDERER_FLAG_FORCE_AVX2, "avx2") != 0) {
         return 1;
     }
+    if (expect_backend(VN_RENDERER_FLAG_FORCE_AVX2_ASM, "avx2_asm") != 0) {
+        return 1;
+    }
     if (expect_backend(VN_RENDERER_FLAG_FORCE_NEON, "neon") != 0) {
         return 1;
     }

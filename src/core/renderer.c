@@ -5,6 +5,7 @@
 
 int vn_register_scalar_backend(void);
 int vn_register_avx2_backend(void);
+int vn_register_avx2_asm_backend(void);
 int vn_register_neon_backend(void);
 int vn_register_rvv_backend(void);
 
@@ -22,6 +23,11 @@ static int vn_renderer_register_backends(void) {
     rc = vn_register_avx2_backend();
     if (rc != VN_OK) {
         (void)fprintf(stderr, "avx2 register skipped rc=%d\n", rc);
+    }
+
+    rc = vn_register_avx2_asm_backend();
+    if (rc != VN_OK) {
+        (void)fprintf(stderr, "avx2_asm register skipped rc=%d\n", rc);
     }
 
     rc = vn_register_neon_backend();
@@ -54,6 +60,9 @@ static int vn_renderer_try_backend(vn_u32 arch_mask, const RendererConfig* cfg) 
 }
 
 static vn_u32 vn_renderer_arch_mask_from_flags(vn_u32 flags) {
+    if ((flags & VN_RENDERER_FLAG_FORCE_AVX2_ASM) != 0u) {
+        return VN_ARCH_MASK_AVX2_ASM;
+    }
     if ((flags & VN_RENDERER_FLAG_FORCE_AVX2) != 0u) {
         return VN_ARCH_MASK_AVX2;
     }
@@ -100,6 +109,21 @@ int renderer_init(const RendererConfig* cfg) {
     g_cfg = *cfg;
     arch_mask = vn_renderer_arch_mask_from_flags(cfg->flags);
     forced_backend = (arch_mask != VN_ARCH_MASK_ALL && arch_mask != VN_ARCH_MASK_SCALAR) ? VN_TRUE : VN_FALSE;
+
+    if ((arch_mask & VN_ARCH_MASK_AVX2_ASM) != 0u) {
+        rc = vn_renderer_try_backend(VN_ARCH_MASK_AVX2_ASM, &g_cfg);
+        if (rc == VN_OK) {
+            g_initialized = VN_TRUE;
+            return VN_OK;
+        }
+        if (forced_backend != VN_FALSE) {
+            rc = vn_renderer_try_backend(VN_ARCH_MASK_SCALAR, &g_cfg);
+            if (rc == VN_OK) {
+                g_initialized = VN_TRUE;
+            }
+            return rc;
+        }
+    }
 
     if ((arch_mask & VN_ARCH_MASK_AVX2) != 0u) {
         rc = vn_renderer_try_backend(VN_ARCH_MASK_AVX2, &g_cfg);

@@ -894,7 +894,7 @@ static void preview_print_usage(void) {
     (void)printf("  --project-dir PATH\n");
     (void)printf("  --pack PATH\n");
     (void)printf("  --scene NAME\n");
-    (void)printf("  --backend auto|scalar|avx2|neon|rvv\n");
+    (void)printf("  --backend auto|scalar|avx2|avx2_asm|neon|rvv\n");
     (void)printf("  --resolution WIDTHxHEIGHT\n");
     (void)printf("  --frames N --dt-ms N --trace --hold-end\n");
     (void)printf("  --command run_to_end|step_frame[:N]|reload_scene|set_choice:N|inject_input:choice:N\n");
