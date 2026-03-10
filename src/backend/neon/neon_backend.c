@@ -902,30 +902,42 @@ static void vn_neon_blend_row_cache_packed(vn_u32* dst,
     }
 }
 
-static uint32x4_t vn_neon_palette_rb_chunk_u32x4(const vn_u8* u_lut,
-                                                 const vn_u32* palette_rb,
-                                                 vn_u32 base_idx) {
-    uint32x4_t vec;
-
-    vec = vdupq_n_u32((uint32_t)0u);
-    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
-    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
-    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
-    vec = vsetq_lane_u32((uint32_t)palette_rb[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
-    return vec;
-}
-
-static uint32x4_t vn_neon_palette_g_chunk_u32x4(const vn_u8* u_lut,
+static void vn_neon_palette_rb_g_chunk_u32x4(const vn_u8* u_lut,
+                                                const vn_u32* palette_rb,
                                                 const vn_u32* palette_g,
-                                                vn_u32 base_idx) {
-    uint32x4_t vec;
+                                                vn_u32 base_idx,
+                                                uint32x4_t* out_rb,
+                                                uint32x4_t* out_g) {
+    vn_u32 idx0;
+    vn_u32 idx1;
+    vn_u32 idx2;
+    vn_u32 idx3;
+    uint32x4_t rb_vec;
+    uint32x4_t g_vec;
 
-    vec = vdupq_n_u32((uint32_t)0u);
-    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
-    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
-    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
-    vec = vsetq_lane_u32((uint32_t)palette_g[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
-    return vec;
+    if (out_rb == (uint32x4_t*)0 || out_g == (uint32x4_t*)0) {
+        return;
+    }
+
+    idx0 = (vn_u32)u_lut[base_idx + 0u];
+    idx1 = (vn_u32)u_lut[base_idx + 1u];
+    idx2 = (vn_u32)u_lut[base_idx + 2u];
+    idx3 = (vn_u32)u_lut[base_idx + 3u];
+
+    rb_vec = vdupq_n_u32((uint32_t)0u);
+    rb_vec = vsetq_lane_u32((uint32_t)palette_rb[idx0], rb_vec, 0);
+    rb_vec = vsetq_lane_u32((uint32_t)palette_rb[idx1], rb_vec, 1);
+    rb_vec = vsetq_lane_u32((uint32_t)palette_rb[idx2], rb_vec, 2);
+    rb_vec = vsetq_lane_u32((uint32_t)palette_rb[idx3], rb_vec, 3);
+
+    g_vec = vdupq_n_u32((uint32_t)0u);
+    g_vec = vsetq_lane_u32((uint32_t)palette_g[idx0], g_vec, 0);
+    g_vec = vsetq_lane_u32((uint32_t)palette_g[idx1], g_vec, 1);
+    g_vec = vsetq_lane_u32((uint32_t)palette_g[idx2], g_vec, 2);
+    g_vec = vsetq_lane_u32((uint32_t)palette_g[idx3], g_vec, 3);
+
+    *out_rb = rb_vec;
+    *out_g = g_vec;
 }
 
 static void vn_neon_sample_texels_palette_row(vn_u32* dst,
@@ -988,8 +1000,12 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
         uint32x4_t out;
 
         dst_px = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        src_rb = vn_neon_palette_rb_chunk_u32x4(u_lut, palette_rb, i);
-        src_g = vn_neon_palette_g_chunk_u32x4(u_lut, palette_g, i);
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut,
+                                        palette_rb,
+                                        palette_g,
+                                        i,
+                                        &src_rb,
+                                        &src_g);
         out = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px, src_rb, src_g, alpha);
         vst1q_u32((uint32_t*)(void*)(dst + i), out);
         i += 4u;
@@ -1021,8 +1037,12 @@ static void vn_neon_build_palette_rb_g_row_cache(vn_u32* cache_rb,
         uint32x4_t rb_vec;
         uint32x4_t g_vec;
 
-        rb_vec = vn_neon_palette_rb_chunk_u32x4(u_lut, palette_rb, i);
-        g_vec = vn_neon_palette_g_chunk_u32x4(u_lut, palette_g, i);
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut,
+                                        palette_rb,
+                                        palette_g,
+                                        i,
+                                        &rb_vec,
+                                        &g_vec);
         vst1q_u32((uint32_t*)(void*)(cache_rb + i), rb_vec);
         vst1q_u32((uint32_t*)(void*)(cache_g + i), g_vec);
         i += 4u;
