@@ -27,7 +27,7 @@ static vn_u32* g_neon_framebuffer = (vn_u32*)0;
 static vn_u32 g_neon_stride = 0u;
 static vn_u32 g_neon_height = 0u;
 static vn_u32 g_neon_pixels = 0u;
-static vn_u8* g_neon_u_lut = (vn_u8*)0;
+static vn_u32* g_neon_u_lut_u32 = (vn_u32*)0;
 static vn_u8* g_neon_v_lut = (vn_u8*)0;
 static vn_u32* g_neon_palette_row_cache = (vn_u32*)0;
 static vn_u32* g_neon_palette_row_cache_rb = (vn_u32*)0;
@@ -290,20 +290,32 @@ static void vn_neon_fill_rect_uniform(vn_i16 x, vn_i16 y, vn_u16 w, vn_u16 h, vn
     vn_neon_fill_rect_uniform_clipped(x, y, w, h, color, alpha, (const VNRenderRect*)0);
 }
 
-static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_start, vn_u16 extent, vn_u32 tail_pad) {
+static void vn_neon_build_coord_lut(vn_u8* out_lut,
+                                    vn_u32* out_lut_u32,
+                                    vn_u32 count,
+                                    vn_u32 local_start,
+                                    vn_u16 extent,
+                                    vn_u32 tail_pad) {
     vn_u32 i;
     vn_u32 denom;
     vn_u32 value;
 
-    if (out_lut == (vn_u8*)0 || count == 0u) {
+    if ((out_lut == (vn_u8*)0 && out_lut_u32 == (vn_u32*)0) || count == 0u) {
         return;
     }
     if (extent <= 1u) {
         for (i = 0u; i < count; ++i) {
-            out_lut[i] = 0u;
+            if (out_lut != (vn_u8*)0) {
+                out_lut[i] = 0u;
+            }
+            if (out_lut_u32 != (vn_u32*)0) {
+                out_lut_u32[i] = 0u;
+            }
         }
-        for (i = 0u; i < tail_pad; ++i) {
-            out_lut[count + i] = 0u;
+        if (out_lut != (vn_u8*)0) {
+            for (i = 0u; i < tail_pad; ++i) {
+                out_lut[count + i] = 0u;
+            }
         }
         return;
     }
@@ -316,11 +328,18 @@ static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_s
         if (q > 255u) {
             q = 255u;
         }
-        out_lut[i] = (vn_u8)q;
+        if (out_lut != (vn_u8*)0) {
+            out_lut[i] = (vn_u8)q;
+        }
+        if (out_lut_u32 != (vn_u32*)0) {
+            out_lut_u32[i] = q;
+        }
         value += 255u;
     }
-    for (i = 0u; i < tail_pad; ++i) {
-        out_lut[count + i] = 0u;
+    if (out_lut != (vn_u8*)0) {
+        for (i = 0u; i < tail_pad; ++i) {
+            out_lut[count + i] = 0u;
+        }
     }
 }
 
@@ -513,7 +532,7 @@ static void vn_neon_blend_row_cache_packed(vn_u32* dst,
                                            const vn_u32* row_cache_rb,
                                            const vn_u32* row_cache_g,
                                            vn_u8 alpha);
-static uint32x4_t vn_neon_sample_combine_u_lut_chunk_u32x4(const vn_u8* u_lut,
+static uint32x4_t vn_neon_sample_combine_u_lut_chunk_u32x4(const vn_u32* u_lut_u32,
                                                             vn_u32 base_idx,
                                                             const VN_NEONTexturedRowParams* params);
 static uint32x4_t vn_neon_blend_rgb_chunk_u32x4(uint32x4_t dst_px,
@@ -533,7 +552,8 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
     uint32x4_t mask_g;
 #endif
 
-    if (palette == (vn_u32*)0 || params == (const VN_NEONTexturedRowParams*)0) {
+    if ((palette == (vn_u32*)0 && palette_rb == (vn_u32*)0 && palette_g == (vn_u32*)0) ||
+        params == (const VN_NEONTexturedRowParams*)0) {
         return;
     }
 
@@ -546,11 +566,35 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
     u_vec = vsetq_lane_u32((uint32_t)3u, u_vec, 3);
     step_vec = vdupq_n_u32((uint32_t)4u);
     i = 0u;
+    while ((i + 8u) <= 256u) {
+        uint32x4_t src_vec0;
+        uint32x4_t src_vec1;
+
+        src_vec0 = vn_neon_sample_combine_chunk_u32x4(u_vec, params);
+        u_vec = vaddq_u32(u_vec, step_vec);
+        src_vec1 = vn_neon_sample_combine_chunk_u32x4(u_vec, params);
+        if (palette != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette + i), src_vec0);
+            vst1q_u32((uint32_t*)(void*)(palette + i + 4u), src_vec1);
+        }
+        if (palette_rb != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette_rb + i), vandq_u32(src_vec0, mask_rb));
+            vst1q_u32((uint32_t*)(void*)(palette_rb + i + 4u), vandq_u32(src_vec1, mask_rb));
+        }
+        if (palette_g != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette_g + i), vandq_u32(src_vec0, mask_g));
+            vst1q_u32((uint32_t*)(void*)(palette_g + i + 4u), vandq_u32(src_vec1, mask_g));
+        }
+        u_vec = vaddq_u32(u_vec, step_vec);
+        i += 8u;
+    }
     while ((i + 4u) <= 256u) {
         uint32x4_t src_vec;
 
         src_vec = vn_neon_sample_combine_chunk_u32x4(u_vec, params);
-        vst1q_u32((uint32_t*)(void*)(palette + i), src_vec);
+        if (palette != (vn_u32*)0) {
+            vst1q_u32((uint32_t*)(void*)(palette + i), src_vec);
+        }
         if (palette_rb != (vn_u32*)0) {
             vst1q_u32((uint32_t*)(void*)(palette_rb + i), vandq_u32(src_vec, mask_rb));
         }
@@ -567,7 +611,9 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
         vn_u32 src;
 
         src = vn_neon_sample_combine_texel(i, params);
-        palette[i] = src;
+        if (palette != (vn_u32*)0) {
+            palette[i] = src;
+        }
         if (palette_rb != (vn_u32*)0) {
             palette_rb[i] = src & 0x00FF00FFu;
         }
@@ -579,21 +625,31 @@ static void vn_neon_build_textured_row_palette(vn_u32* palette,
 }
 
 static void vn_neon_sample_texels_row(vn_u32* dst,
-                                      const vn_u8* u_lut,
+                                      const vn_u32* u_lut_u32,
                                       vn_u32 count,
                                       const VN_NEONTexturedRowParams* params) {
     vn_u32 i;
 
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || params == (const VN_NEONTexturedRowParams*)0) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || params == (const VN_NEONTexturedRowParams*)0) {
         return;
     }
 
 #if VN_NEON_IMPL_AVAILABLE
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t src_vec0;
+        uint32x4_t src_vec1;
+
+        src_vec0 = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i, params);
+        src_vec1 = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i + 4u, params);
+        vst1q_u32((uint32_t*)(void*)(dst + i), src_vec0);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), src_vec1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t src_vec;
 
-        src_vec = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut, i, params);
+        src_vec = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i, params);
         vst1q_u32((uint32_t*)(void*)(dst + i), src_vec);
         i += 4u;
     }
@@ -601,37 +657,56 @@ static void vn_neon_sample_texels_row(vn_u32* dst,
     i = 0u;
 #endif
     while (i < count) {
-        dst[i] = vn_neon_sample_combine_texel((vn_u32)u_lut[i], params);
+        dst[i] = vn_neon_sample_combine_texel(u_lut_u32[i], params);
         i += 1u;
     }
 }
 
 static void vn_neon_sample_blend_texels_row(vn_u32* dst,
-                                            const vn_u8* u_lut,
+                                            const vn_u32* u_lut_u32,
                                             vn_u32 count,
                                             const VN_NEONTexturedRowParams* params,
                                             vn_u8 alpha) {
     vn_u32 i;
 
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || params == (const VN_NEONTexturedRowParams*)0) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || params == (const VN_NEONTexturedRowParams*)0) {
         return;
     }
     if (alpha == 0u) {
         return;
     }
     if (alpha >= 255u) {
-        vn_neon_sample_texels_row(dst, u_lut, count, params);
+        vn_neon_sample_texels_row(dst, u_lut_u32, count, params);
         return;
     }
 
 #if VN_NEON_IMPL_AVAILABLE
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t dst_vec0;
+        uint32x4_t src_vec0;
+        uint32x4_t out_vec0;
+        uint32x4_t dst_vec1;
+        uint32x4_t src_vec1;
+        uint32x4_t out_vec1;
+
+        dst_vec0 = vld1q_u32((const uint32_t*)(const void*)(dst + i));
+        src_vec0 = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i, params);
+        out_vec0 = vn_neon_blend_rgb_chunk_u32x4(dst_vec0, src_vec0, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i), out_vec0);
+
+        dst_vec1 = vld1q_u32((const uint32_t*)(const void*)(dst + i + 4u));
+        src_vec1 = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i + 4u, params);
+        out_vec1 = vn_neon_blend_rgb_chunk_u32x4(dst_vec1, src_vec1, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), out_vec1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t dst_vec;
         uint32x4_t src_vec;
 
         dst_vec = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        src_vec = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut, i, params);
+        src_vec = vn_neon_sample_combine_u_lut_chunk_u32x4(u_lut_u32, i, params);
         dst_vec = vn_neon_blend_rgb_chunk_u32x4(dst_vec, src_vec, alpha);
         vst1q_u32((uint32_t*)(void*)(dst + i), dst_vec);
         i += 4u;
@@ -642,23 +717,13 @@ static void vn_neon_sample_blend_texels_row(vn_u32* dst,
     while (i < count) {
         vn_u32 src;
 
-        src = vn_neon_sample_combine_texel((vn_u32)u_lut[i], params);
+        src = vn_neon_sample_combine_texel(u_lut_u32[i], params);
         dst[i] = vn_neon_blend_rgb_local(dst[i], src, alpha);
         i += 1u;
     }
 }
 
 #if VN_NEON_IMPL_AVAILABLE
-static uint32x4_t vn_neon_u32x4_from_u_lut(const vn_u8* u_lut,
-                                           vn_u32 base_idx) {
-    uint8x8_t packed;
-    uint16x8_t widened_u16;
-
-    packed = vld1_u8((const uint8_t*)(const void*)(u_lut + base_idx));
-    widened_u16 = vmovl_u8(packed);
-    return vmovl_u16(vget_low_u16(widened_u16));
-}
-
 static uint32x4_t vn_neon_hash32_u32x4(uint32x4_t x) {
     const uint32x4_t mul0 = vdupq_n_u32((uint32_t)0x7FEB352Du);
     const uint32x4_t mul1 = vdupq_n_u32((uint32_t)0x846CA68Bu);
@@ -752,10 +817,10 @@ static uint32x4_t vn_neon_sample_combine_chunk_u32x4(uint32x4_t u_vec,
                                          vreinterpretq_u32_s32(b_vec))));
 }
 
-static uint32x4_t vn_neon_sample_combine_u_lut_chunk_u32x4(const vn_u8* u_lut,
+static uint32x4_t vn_neon_sample_combine_u_lut_chunk_u32x4(const vn_u32* u_lut_u32,
                                                             vn_u32 base_idx,
                                                             const VN_NEONTexturedRowParams* params) {
-    return vn_neon_sample_combine_chunk_u32x4(vn_neon_u32x4_from_u_lut(u_lut, base_idx), params);
+    return vn_neon_sample_combine_chunk_u32x4(vld1q_u32((const uint32_t*)(const void*)(u_lut_u32 + base_idx)), params);
 }
 
 static uint32x4_t vn_neon_blend_rgb_chunk_u32x4(uint32x4_t dst_px,
@@ -808,16 +873,23 @@ static uint32x4_t vn_neon_blend_rgb_chunk_u32x4(uint32x4_t dst_px,
     return vorrq_u32(vorrq_u32(rb, g), alpha_mask);
 }
 
-static uint32x4_t vn_neon_palette_chunk_u32x4(const vn_u8* u_lut,
+static uint32x4_t vn_neon_u_lut_indices_chunk_u32x4(const vn_u32* u_lut_u32,
+                                                    vn_u32 base_idx) {
+    return vld1q_u32((const uint32_t*)(const void*)(u_lut_u32 + base_idx));
+}
+
+static uint32x4_t vn_neon_palette_chunk_u32x4(const vn_u32* u_lut_u32,
                                               const vn_u32* palette,
                                               vn_u32 base_idx) {
+    uint32x4_t idx_vec;
     uint32x4_t vec;
 
+    idx_vec = vn_neon_u_lut_indices_chunk_u32x4(u_lut_u32, base_idx);
     vec = vdupq_n_u32((uint32_t)0u);
-    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 0u]], vec, 0);
-    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 1u]], vec, 1);
-    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 2u]], vec, 2);
-    vec = vsetq_lane_u32((uint32_t)palette[(vn_u32)u_lut[base_idx + 3u]], vec, 3);
+    vec = vsetq_lane_u32((uint32_t)palette[vgetq_lane_u32(idx_vec, 0)], vec, 0);
+    vec = vsetq_lane_u32((uint32_t)palette[vgetq_lane_u32(idx_vec, 1)], vec, 1);
+    vec = vsetq_lane_u32((uint32_t)palette[vgetq_lane_u32(idx_vec, 2)], vec, 2);
+    vec = vsetq_lane_u32((uint32_t)palette[vgetq_lane_u32(idx_vec, 3)], vec, 3);
     return vec;
 }
 
@@ -880,6 +952,29 @@ static void vn_neon_blend_row_cache_packed(vn_u32* dst,
     }
 
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t dst_px0;
+        uint32x4_t src_rb0;
+        uint32x4_t src_g0;
+        uint32x4_t out0;
+        uint32x4_t dst_px1;
+        uint32x4_t src_rb1;
+        uint32x4_t src_g1;
+        uint32x4_t out1;
+
+        dst_px0 = vld1q_u32((const uint32_t*)(const void*)(dst + i));
+        src_rb0 = vld1q_u32((const uint32_t*)(const void*)(row_cache_rb + i));
+        src_g0 = vld1q_u32((const uint32_t*)(const void*)(row_cache_g + i));
+        out0 = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px0, src_rb0, src_g0, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i), out0);
+
+        dst_px1 = vld1q_u32((const uint32_t*)(const void*)(dst + i + 4u));
+        src_rb1 = vld1q_u32((const uint32_t*)(const void*)(row_cache_rb + i + 4u));
+        src_g1 = vld1q_u32((const uint32_t*)(const void*)(row_cache_g + i + 4u));
+        out1 = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px1, src_rb1, src_g1, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), out1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t dst_px;
         uint32x4_t src_rb;
@@ -902,12 +997,13 @@ static void vn_neon_blend_row_cache_packed(vn_u32* dst,
     }
 }
 
-static void vn_neon_palette_rb_g_chunk_u32x4(const vn_u8* u_lut,
+static void vn_neon_palette_rb_g_chunk_u32x4(const vn_u32* u_lut_u32,
                                                 const vn_u32* palette_rb,
                                                 const vn_u32* palette_g,
                                                 vn_u32 base_idx,
                                                 uint32x4_t* out_rb,
                                                 uint32x4_t* out_g) {
+    uint32x4_t idx_vec;
     vn_u32 idx0;
     vn_u32 idx1;
     vn_u32 idx2;
@@ -919,10 +1015,11 @@ static void vn_neon_palette_rb_g_chunk_u32x4(const vn_u8* u_lut,
         return;
     }
 
-    idx0 = (vn_u32)u_lut[base_idx + 0u];
-    idx1 = (vn_u32)u_lut[base_idx + 1u];
-    idx2 = (vn_u32)u_lut[base_idx + 2u];
-    idx3 = (vn_u32)u_lut[base_idx + 3u];
+    idx_vec = vn_neon_u_lut_indices_chunk_u32x4(u_lut_u32, base_idx);
+    idx0 = vgetq_lane_u32(idx_vec, 0);
+    idx1 = vgetq_lane_u32(idx_vec, 1);
+    idx2 = vgetq_lane_u32(idx_vec, 2);
+    idx3 = vgetq_lane_u32(idx_vec, 3);
 
     rb_vec = vdupq_n_u32((uint32_t)0u);
     rb_vec = vsetq_lane_u32((uint32_t)palette_rb[idx0], rb_vec, 0);
@@ -941,31 +1038,41 @@ static void vn_neon_palette_rb_g_chunk_u32x4(const vn_u8* u_lut,
 }
 
 static void vn_neon_sample_texels_palette_row(vn_u32* dst,
-                                              const vn_u8* u_lut,
+                                              const vn_u32* u_lut_u32,
                                               vn_u32 count,
                                               const vn_u32* palette) {
     vn_u32 i;
 
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || palette == (const vn_u32*)0) {
         return;
     }
 
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t src_vec0;
+        uint32x4_t src_vec1;
+
+        src_vec0 = vn_neon_palette_chunk_u32x4(u_lut_u32, palette, i);
+        src_vec1 = vn_neon_palette_chunk_u32x4(u_lut_u32, palette, i + 4u);
+        vst1q_u32((uint32_t*)(void*)(dst + i), src_vec0);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), src_vec1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t src_vec;
 
-        src_vec = vn_neon_palette_chunk_u32x4(u_lut, palette, i);
+        src_vec = vn_neon_palette_chunk_u32x4(u_lut_u32, palette, i);
         vst1q_u32((uint32_t*)(void*)(dst + i), src_vec);
         i += 4u;
     }
     while (i < count) {
-        dst[i] = palette[(vn_u32)u_lut[i]];
+        dst[i] = palette[u_lut_u32[i]];
         i += 1u;
     }
 }
 
 static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
-                                                    const vn_u8* u_lut,
+                                                    const vn_u32* u_lut_u32,
                                                     vn_u32 count,
                                                     const vn_u32* palette,
                                                     const vn_u32* palette_rb,
@@ -975,24 +1082,62 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
 
     (void)palette_rb;
     (void)palette_g;
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || alpha == 0u) {
+        return;
+    }
+    if (palette == (const vn_u32*)0 &&
+        (palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0)) {
         return;
     }
     if (alpha >= 255u) {
-        vn_neon_sample_texels_palette_row(dst, u_lut, count, palette);
+        if (palette == (const vn_u32*)0) {
+            return;
+        }
+        vn_neon_sample_texels_palette_row(dst, u_lut_u32, count, palette);
         return;
     }
     if (palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0) {
         for (i = 0u; i < count; ++i) {
             vn_u32 src;
 
-            src = palette[(vn_u32)u_lut[i]];
+            src = palette[u_lut_u32[i]];
             dst[i] = vn_neon_blend_rgb_local(dst[i], src, alpha);
         }
         return;
     }
 
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t dst_px0;
+        uint32x4_t src_rb0;
+        uint32x4_t src_g0;
+        uint32x4_t out0;
+        uint32x4_t dst_px1;
+        uint32x4_t src_rb1;
+        uint32x4_t src_g1;
+        uint32x4_t out1;
+
+        dst_px0 = vld1q_u32((const uint32_t*)(const void*)(dst + i));
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
+                                        palette_rb,
+                                        palette_g,
+                                        i,
+                                        &src_rb0,
+                                        &src_g0);
+        out0 = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px0, src_rb0, src_g0, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i), out0);
+
+        dst_px1 = vld1q_u32((const uint32_t*)(const void*)(dst + i + 4u));
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
+                                        palette_rb,
+                                        palette_g,
+                                        i + 4u,
+                                        &src_rb1,
+                                        &src_g1);
+        out1 = vn_neon_blend_rgb_palette_packed_chunk_u32x4(dst_px1, src_rb1, src_g1, alpha);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), out1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t dst_px;
         uint32x4_t src_rb;
@@ -1000,7 +1145,7 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
         uint32x4_t out;
 
         dst_px = vld1q_u32((const uint32_t*)(const void*)(dst + i));
-        vn_neon_palette_rb_g_chunk_u32x4(u_lut,
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
                                         palette_rb,
                                         palette_g,
                                         i,
@@ -1013,31 +1158,59 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
     while (i < count) {
         vn_u32 src;
 
-        src = palette[(vn_u32)u_lut[i]];
+        if (palette != (const vn_u32*)0) {
+            src = palette[u_lut_u32[i]];
+        } else {
+            src = palette_rb[u_lut_u32[i]] | palette_g[u_lut_u32[i]] | 0xFF000000u;
+        }
         dst[i] = vn_neon_blend_rgb_local(dst[i], src, alpha);
         i += 1u;
     }
 }
 static void vn_neon_build_palette_rb_g_row_cache(vn_u32* cache_rb,
                                                   vn_u32* cache_g,
-                                                  const vn_u8* u_lut,
+                                                  const vn_u32* u_lut_u32,
                                                   vn_u32 count,
                                                   const vn_u32* palette_rb,
                                                   const vn_u32* palette_g) {
     vn_u32 i;
 
     if (cache_rb == (vn_u32*)0 || cache_g == (vn_u32*)0 ||
-        u_lut == (const vn_u8*)0 ||
+        u_lut_u32 == (const vn_u32*)0 ||
         palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0) {
         return;
     }
 
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t rb_vec0;
+        uint32x4_t g_vec0;
+        uint32x4_t rb_vec1;
+        uint32x4_t g_vec1;
+
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
+                                        palette_rb,
+                                        palette_g,
+                                        i,
+                                        &rb_vec0,
+                                        &g_vec0);
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
+                                        palette_rb,
+                                        palette_g,
+                                        i + 4u,
+                                        &rb_vec1,
+                                        &g_vec1);
+        vst1q_u32((uint32_t*)(void*)(cache_rb + i), rb_vec0);
+        vst1q_u32((uint32_t*)(void*)(cache_g + i), g_vec0);
+        vst1q_u32((uint32_t*)(void*)(cache_rb + i + 4u), rb_vec1);
+        vst1q_u32((uint32_t*)(void*)(cache_g + i + 4u), g_vec1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t rb_vec;
         uint32x4_t g_vec;
 
-        vn_neon_palette_rb_g_chunk_u32x4(u_lut,
+        vn_neon_palette_rb_g_chunk_u32x4(u_lut_u32,
                                         palette_rb,
                                         palette_g,
                                         i,
@@ -1048,33 +1221,30 @@ static void vn_neon_build_palette_rb_g_row_cache(vn_u32* cache_rb,
         i += 4u;
     }
     while (i < count) {
-        vn_u32 idx;
-
-        idx = (vn_u32)u_lut[i];
-        cache_rb[i] = palette_rb[idx];
-        cache_g[i] = palette_g[idx];
+        cache_rb[i] = palette_rb[u_lut_u32[i]];
+        cache_g[i] = palette_g[u_lut_u32[i]];
         i += 1u;
     }
 }
 
 #else
 static void vn_neon_sample_texels_palette_row(vn_u32* dst,
-                                              const vn_u8* u_lut,
+                                              const vn_u32* u_lut_u32,
                                               vn_u32 count,
                                               const vn_u32* palette) {
     vn_u32 i;
 
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || palette == (const vn_u32*)0) {
         return;
     }
 
     for (i = 0u; i < count; ++i) {
-        dst[i] = palette[(vn_u32)u_lut[i]];
+        dst[i] = palette[u_lut_u32[i]];
     }
 }
 
 static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
-                                                    const vn_u8* u_lut,
+                                                    const vn_u32* u_lut_u32,
                                                     vn_u32 count,
                                                     const vn_u32* palette,
                                                     const vn_u32* palette_rb,
@@ -1084,41 +1254,49 @@ static void vn_neon_sample_blend_texels_palette_row(vn_u32* dst,
 
     (void)palette_rb;
     (void)palette_g;
-    if (dst == (vn_u32*)0 || u_lut == (const vn_u8*)0 || palette == (const vn_u32*)0 || alpha == 0u) {
+    if (dst == (vn_u32*)0 || u_lut_u32 == (const vn_u32*)0 || alpha == 0u) {
+        return;
+    }
+    if (palette == (const vn_u32*)0 &&
+        (palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0)) {
         return;
     }
     if (alpha >= 255u) {
-        vn_neon_sample_texels_palette_row(dst, u_lut, count, palette);
+        if (palette == (const vn_u32*)0) {
+            return;
+        }
+        vn_neon_sample_texels_palette_row(dst, u_lut_u32, count, palette);
         return;
     }
 
     for (i = 0u; i < count; ++i) {
         vn_u32 src;
 
-        src = palette[(vn_u32)u_lut[i]];
+        if (palette != (const vn_u32*)0) {
+            src = palette[u_lut_u32[i]];
+        } else {
+            src = palette_rb[u_lut_u32[i]] | palette_g[u_lut_u32[i]] | 0xFF000000u;
+        }
         dst[i] = vn_neon_blend_rgb_local(dst[i], src, alpha);
     }
 }
 static void vn_neon_build_palette_rb_g_row_cache(vn_u32* cache_rb,
                                                   vn_u32* cache_g,
-                                                  const vn_u8* u_lut,
+                                                  const vn_u32* u_lut_u32,
                                                   vn_u32 count,
                                                   const vn_u32* palette_rb,
                                                   const vn_u32* palette_g) {
     vn_u32 i;
 
     if (cache_rb == (vn_u32*)0 || cache_g == (vn_u32*)0 ||
-        u_lut == (const vn_u8*)0 ||
+        u_lut_u32 == (const vn_u32*)0 ||
         palette_rb == (const vn_u32*)0 || palette_g == (const vn_u32*)0) {
         return;
     }
 
     for (i = 0u; i < count; ++i) {
-        vn_u32 idx;
-
-        idx = (vn_u32)u_lut[i];
-        cache_rb[i] = palette_rb[idx];
-        cache_g[i] = palette_g[idx];
+        cache_rb[i] = palette_rb[u_lut_u32[i]];
+        cache_g[i] = palette_g[u_lut_u32[i]];
     }
 }
 
@@ -1160,7 +1338,7 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     if (vis_w == 0u || vis_h == 0u) {
         return;
     }
-    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0 || g_neon_palette_row_cache_rb == (vn_u32*)0 || g_neon_palette_row_cache_g == (vn_u32*)0) {
+    if (g_neon_u_lut_u32 == (vn_u32*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0 || g_neon_palette_row_cache_rb == (vn_u32*)0 || g_neon_palette_row_cache_g == (vn_u32*)0) {
         return;
     }
     if (vis_w > g_neon_u_lut_cap || vis_h > g_neon_v_lut_cap || vis_w > g_neon_palette_row_cache_cap) {
@@ -1175,8 +1353,18 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
     local_x_start = (vn_u32)local_x_start_i;
     local_y_start = (vn_u32)local_y_start_i;
 
-    vn_neon_build_coord_lut(g_neon_u_lut, vis_w, local_x_start, op->w, VN_NEON_U_LUT_PAD);
-    vn_neon_build_coord_lut(g_neon_v_lut, vis_h, local_y_start, op->h, 0u);
+    vn_neon_build_coord_lut((vn_u8*)0,
+                            g_neon_u_lut_u32,
+                            vis_w,
+                            local_x_start,
+                            op->w,
+                            VN_NEON_U_LUT_PAD);
+    vn_neon_build_coord_lut(g_neon_v_lut,
+                            (vn_u32*)0,
+                            vis_h,
+                            local_y_start,
+                            op->h,
+                            0u);
 
     use_row_palette = ((vis_w >= 384u && vis_h >= 64u) ? VN_TRUE : VN_FALSE);
     have_row_palette = VN_FALSE;
@@ -1201,19 +1389,22 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
                                                  op->layer,
                                                  op->flags,
                                                  op->op);
-                vn_neon_build_textured_row_palette(row_palette, row_palette_rb, row_palette_g, &params);
                 if (op->alpha >= 255u) {
+                    vn_neon_build_textured_row_palette(row_palette, row_palette_rb, row_palette_g, &params);
                     vn_neon_sample_texels_palette_row(g_neon_palette_row_cache,
-                                                      g_neon_u_lut,
+                                                      g_neon_u_lut_u32,
                                                       vis_w,
                                                       row_palette);
                 } else if (vis_h > 256u) {
+                    vn_neon_build_textured_row_palette((vn_u32*)0, row_palette_rb, row_palette_g, &params);
                     vn_neon_build_palette_rb_g_row_cache(g_neon_palette_row_cache_rb,
                                                          g_neon_palette_row_cache_g,
-                                                         g_neon_u_lut,
+                                                         g_neon_u_lut_u32,
                                                          vis_w,
                                                          row_palette_rb,
                                                          row_palette_g);
+                } else {
+                    vn_neon_build_textured_row_palette((vn_u32*)0, row_palette_rb, row_palette_g, &params);
                 }
                 cached_v8 = v8;
                 have_row_palette = VN_TRUE;
@@ -1233,9 +1424,9 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
 #endif
             } else {
                 vn_neon_sample_blend_texels_palette_row(row_ptr,
-                                                        g_neon_u_lut,
+                                                        g_neon_u_lut_u32,
                                                         vis_w,
-                                                        row_palette,
+                                                        (const vn_u32*)0,
                                                         row_palette_rb,
                                                         row_palette_g,
                                                         op->alpha);
@@ -1252,12 +1443,12 @@ static void vn_neon_draw_textured_rect_clipped(const VNRenderOp* op,
 
         if (op->alpha >= 255u) {
             vn_neon_sample_texels_row(row_ptr,
-                                      g_neon_u_lut,
+                                      g_neon_u_lut_u32,
                                       vis_w,
                                       &params);
         } else {
             vn_neon_sample_blend_texels_row(row_ptr,
-                                            g_neon_u_lut,
+                                            g_neon_u_lut_u32,
                                             vis_w,
                                             &params,
                                             op->alpha);
@@ -1271,7 +1462,7 @@ static void vn_neon_draw_textured_rect(const VNRenderOp* op) {
 
 static int neon_init(const RendererConfig* cfg) {
     vn_u32 pixels;
-    size_t u_lut_bytes;
+    size_t u_lut_u32_bytes;
     size_t v_lut_bytes;
     size_t palette_row_cache_bytes;
 
@@ -1291,17 +1482,17 @@ static int neon_init(const RendererConfig* cfg) {
     if (g_neon_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
-    u_lut_bytes = ((size_t)cfg->width + (size_t)VN_NEON_U_LUT_PAD) * sizeof(vn_u8);
+    u_lut_u32_bytes = (size_t)cfg->width * sizeof(vn_u32);
     v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
     palette_row_cache_bytes = (size_t)cfg->width * sizeof(vn_u32);
-    g_neon_u_lut = (vn_u8*)malloc(u_lut_bytes);
+    g_neon_u_lut_u32 = (vn_u32*)malloc(u_lut_u32_bytes);
     g_neon_v_lut = (vn_u8*)malloc(v_lut_bytes);
     g_neon_palette_row_cache = (vn_u32*)malloc(palette_row_cache_bytes);
     g_neon_palette_row_cache_rb = (vn_u32*)malloc(palette_row_cache_bytes);
     g_neon_palette_row_cache_g = (vn_u32*)malloc(palette_row_cache_bytes);
-    if (g_neon_u_lut == (vn_u8*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0 || g_neon_palette_row_cache_rb == (vn_u32*)0 || g_neon_palette_row_cache_g == (vn_u32*)0) {
-        if (g_neon_u_lut != (vn_u8*)0) {
-            free(g_neon_u_lut);
+    if (g_neon_u_lut_u32 == (vn_u32*)0 || g_neon_v_lut == (vn_u8*)0 || g_neon_palette_row_cache == (vn_u32*)0 || g_neon_palette_row_cache_rb == (vn_u32*)0 || g_neon_palette_row_cache_g == (vn_u32*)0) {
+        if (g_neon_u_lut_u32 != (vn_u32*)0) {
+            free(g_neon_u_lut_u32);
         }
         if (g_neon_v_lut != (vn_u8*)0) {
             free(g_neon_v_lut);
@@ -1315,7 +1506,7 @@ static int neon_init(const RendererConfig* cfg) {
         if (g_neon_palette_row_cache_g != (vn_u32*)0) {
             free(g_neon_palette_row_cache_g);
         }
-        g_neon_u_lut = (vn_u8*)0;
+        g_neon_u_lut_u32 = (vn_u32*)0;
         g_neon_v_lut = (vn_u8*)0;
         g_neon_palette_row_cache = (vn_u32*)0;
         g_neon_palette_row_cache_rb = (vn_u32*)0;
@@ -1325,7 +1516,7 @@ static int neon_init(const RendererConfig* cfg) {
         return VN_E_NOMEM;
     }
     (void)memset(g_neon_framebuffer, 0, (size_t)pixels * sizeof(vn_u32));
-    (void)memset(g_neon_u_lut, 0, u_lut_bytes);
+    (void)memset(g_neon_u_lut_u32, 0, u_lut_u32_bytes);
 
     g_neon_cfg = *cfg;
     g_neon_stride = (vn_u32)cfg->width;
@@ -1342,8 +1533,8 @@ static void neon_shutdown(void) {
     if (g_neon_framebuffer != (vn_u32*)0) {
         free(g_neon_framebuffer);
     }
-    if (g_neon_u_lut != (vn_u8*)0) {
-        free(g_neon_u_lut);
+    if (g_neon_u_lut_u32 != (vn_u32*)0) {
+        free(g_neon_u_lut_u32);
     }
     if (g_neon_v_lut != (vn_u8*)0) {
         free(g_neon_v_lut);
@@ -1358,7 +1549,7 @@ static void neon_shutdown(void) {
         free(g_neon_palette_row_cache_g);
     }
     g_neon_framebuffer = (vn_u32*)0;
-    g_neon_u_lut = (vn_u8*)0;
+    g_neon_u_lut_u32 = (vn_u32*)0;
     g_neon_v_lut = (vn_u8*)0;
     g_neon_palette_row_cache = (vn_u32*)0;
     g_neon_palette_row_cache_rb = (vn_u32*)0;
