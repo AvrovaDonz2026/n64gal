@@ -12,6 +12,8 @@
 #include <arm_neon.h>
 #endif
 
+#define VN_NEON_U_LUT_PAD 8u
+
 static int vn_neon_runtime_supported(void) {
 #if VN_NEON_IMPL_AVAILABLE
     return VN_TRUE;
@@ -300,6 +302,9 @@ static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_s
         for (i = 0u; i < count; ++i) {
             out_lut[i] = 0u;
         }
+        for (i = 0u; i < VN_NEON_U_LUT_PAD; ++i) {
+            out_lut[count + i] = 0u;
+        }
         return;
     }
 
@@ -313,6 +318,9 @@ static void vn_neon_build_coord_lut(vn_u8* out_lut, vn_u32 count, vn_u32 local_s
         }
         out_lut[i] = (vn_u8)q;
         value += 255u;
+    }
+    for (i = 0u; i < VN_NEON_U_LUT_PAD; ++i) {
+        out_lut[count + i] = 0u;
     }
 }
 
@@ -643,14 +651,12 @@ static void vn_neon_sample_blend_texels_row(vn_u32* dst,
 #if VN_NEON_IMPL_AVAILABLE
 static uint32x4_t vn_neon_u32x4_from_u_lut(const vn_u8* u_lut,
                                            vn_u32 base_idx) {
-    uint32x4_t vec;
+    uint8x8_t packed;
+    uint16x8_t widened_u16;
 
-    vec = vdupq_n_u32((uint32_t)0u);
-    vec = vsetq_lane_u32((uint32_t)u_lut[base_idx + 0u], vec, 0);
-    vec = vsetq_lane_u32((uint32_t)u_lut[base_idx + 1u], vec, 1);
-    vec = vsetq_lane_u32((uint32_t)u_lut[base_idx + 2u], vec, 2);
-    vec = vsetq_lane_u32((uint32_t)u_lut[base_idx + 3u], vec, 3);
-    return vec;
+    packed = vld1_u8((const uint8_t*)(const void*)(u_lut + base_idx));
+    widened_u16 = vmovl_u8(packed);
+    return vmovl_u16(vget_low_u16(widened_u16));
 }
 
 static uint32x4_t vn_neon_hash32_u32x4(uint32x4_t x) {
@@ -1212,7 +1218,7 @@ static int neon_init(const RendererConfig* cfg) {
     if (g_neon_framebuffer == (vn_u32*)0) {
         return VN_E_NOMEM;
     }
-    u_lut_bytes = (size_t)cfg->width * sizeof(vn_u8);
+    u_lut_bytes = ((size_t)cfg->width + (size_t)VN_NEON_U_LUT_PAD) * sizeof(vn_u8);
     v_lut_bytes = (size_t)cfg->height * sizeof(vn_u8);
     palette_row_cache_bytes = (size_t)cfg->width * sizeof(vn_u32);
     g_neon_u_lut = (vn_u8*)malloc(u_lut_bytes);
@@ -1246,6 +1252,7 @@ static int neon_init(const RendererConfig* cfg) {
         return VN_E_NOMEM;
     }
     (void)memset(g_neon_framebuffer, 0, (size_t)pixels * sizeof(vn_u32));
+    (void)memset(g_neon_u_lut, 0, u_lut_bytes);
 
     g_neon_cfg = *cfg;
     g_neon_stride = (vn_u32)cfg->width;
