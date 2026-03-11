@@ -57,7 +57,7 @@
 
 ## 8. 发布后动作
 
-- [ ] 为 `v0.1.0-alpha` 打 tag
-- [ ] 归档对应 CI / perf artifact 链接
-- [ ] 在 `issue.md` 中记录已发版本
-- [ ] 开始整理 `v0.1.0-mvp` 差距清单
+- [x] 为 `v0.1.0-alpha` 打 tag
+- [x] 归档对应 GitHub release 链接
+- [x] 在 `issue.md` 中记录已发版本
+- [x] 开始整理 `v0.1.0-mvp` 差距清单

@@ -11,4 +11,6 @@
 #define VN_E_RENDER_STATE       -7
 #define VN_E_AUDIO_DEVICE       -8
 
+const char* vn_error_name(int error_code);
+
 #endif

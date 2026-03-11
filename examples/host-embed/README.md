@@ -7,6 +7,12 @@
 1. `session_loop.c`
    - 使用 `vn_runtime_session_create/step/is_done/set_choice/inject_input/destroy`
    - 演示宿主循环、分支注入与结果读取
+2. `linux_tty_loop.c`
+   - Linux TTY 包装层示例
+   - 演示如何把非阻塞终端按键映射到 `VNInputEvent`
+3. `windows_console_loop.c`
+   - Windows Console 包装层示例
+   - 演示如何把 `_kbhit/_getch` 输入映射到 `VNInputEvent`
 
 ## 本地编译（C89）
 
@@ -15,8 +21,10 @@
 ```bash
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   examples/host-embed/session_loop.c \
+  src/core/error.c \
   src/core/backend_registry.c \
   src/core/renderer.c \
+  src/core/save.c \
   src/core/vm.c \
   src/core/pack.c \
   src/core/runtime_cli.c \
@@ -63,4 +71,5 @@ ctest --test-dir build -C Release --output-on-failure -R example_host_embed
 ## CI
 
 1. `example_host_embed` 已接入 `CMake + ctest`。
-2. Linux/Windows CMake job 会复用相同示例源码，不再维护分叉版本。
+2. `example_host_embed_linux_tty` 与 `example_host_embed_windows_console` 也已接入构建。
+3. 非目标平台会编译成 `skipped` stub，避免平台专用示例把主矩阵构建打坏。

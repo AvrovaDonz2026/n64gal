@@ -38,6 +38,7 @@ typedef struct {
 typedef struct {
     int kind;
     char name[VN_PREVIEW_NAME_MAX];
+    const char* trace_id;
     vn_u32 value;
     vn_u32 has_result;
     double host_step_ms;
@@ -69,6 +70,7 @@ typedef struct {
     int status_code;
     int error_code;
     const char* error_name;
+    const char* trace_id;
     char error_message[VN_PREVIEW_TEXT_MAX];
     vn_u32 command_count;
     vn_u32 reload_count;
@@ -121,7 +123,6 @@ static void preview_error(VNPreviewReport* report,
                           int error_code,
                           const char* message,
                           int status_code);
-static const char* preview_error_name(int error_code);
 static void preview_resolve_pack_path(VNPreviewRequest* req);
 static void preview_report_add_event(VNPreviewReport* report,
                                      int kind,
@@ -142,6 +143,8 @@ static void preview_json_write_result(FILE* fp, const VNRunResult* result);
 static void preview_json_write_frame(FILE* fp,
                                      const VNPreviewFrameSample* frame);
 static double preview_now_ms(void);
+static const char* preview_trace_id_for_error(int status_code, int error_code);
+static const char* preview_trace_id_for_event(int kind);
 
 int vn_preview_run_cli(int argc, char** argv) {
     VNPreviewRequest req;
@@ -164,7 +167,10 @@ int vn_preview_run_cli(int argc, char** argv) {
     }
 
     if (report.error_name == (const char*)0) {
-        report.error_name = preview_error_name(report.error_code);
+        report.error_name = vn_error_name(report.error_code);
+    }
+    if (report.trace_id == (const char*)0) {
+        report.trace_id = "preview.ok";
     }
 
     if (preview_write_response(&req, &report) != 0 && rc == 0) {
@@ -191,7 +197,8 @@ static void preview_report_init(VNPreviewReport* report) {
     (void)memset(report, 0, sizeof(VNPreviewReport));
     report->status_code = 0;
     report->error_code = VN_OK;
-    report->error_name = preview_error_name(VN_OK);
+    report->error_name = vn_error_name(VN_OK);
+    report->trace_id = "preview.ok";
 }
 
 static int preview_parse_cli(VNPreviewRequest* req,
@@ -215,7 +222,7 @@ static int preview_parse_cli(VNPreviewRequest* req,
             preview_print_usage();
             report->status_code = 0;
             report->error_code = VN_OK;
-            report->error_name = preview_error_name(VN_OK);
+            report->error_name = vn_error_name(VN_OK);
             return VN_PREVIEW_EXIT_HELP;
         }
     }
@@ -259,7 +266,7 @@ static int preview_parse_cli(VNPreviewRequest* req,
             preview_print_usage();
             report->status_code = 0;
             report->error_code = VN_OK;
-            report->error_name = preview_error_name(VN_OK);
+            report->error_name = vn_error_name(VN_OK);
             return VN_PREVIEW_EXIT_HELP;
         } else if (strcmp(arg, "--request") == 0 || strcmp(arg, "--response") == 0) {
             i += 1;
@@ -786,7 +793,7 @@ static int preview_run_request(const VNPreviewRequest* req,
     }
     report->status_code = 0;
     report->error_code = VN_OK;
-    report->error_name = preview_error_name(VN_OK);
+    report->error_name = vn_error_name(VN_OK);
     return 0;
 }
 
@@ -815,6 +822,8 @@ static int preview_write_response(const VNPreviewRequest* req,
     (void)fprintf(fp, "  \"error_code\":%d,\n", report->error_code);
     (void)fprintf(fp, "  \"error_name\":");
     preview_json_write_string(fp, report->error_name);
+    (void)fprintf(fp, ",\n  \"trace_id\":");
+    preview_json_write_string(fp, report->trace_id);
     (void)fprintf(fp, ",\n  \"error_message\":");
     preview_json_write_string(fp, report->error_message);
     (void)fprintf(fp, ",\n  \"host_os\":");
@@ -870,6 +879,8 @@ static int preview_write_response(const VNPreviewRequest* req,
         event = &report->events[i];
         (void)fprintf(fp, "    {\"kind\":");
         preview_json_write_string(fp, event->name);
+        (void)fprintf(fp, ",\"trace_id\":");
+        preview_json_write_string(fp, event->trace_id);
         (void)fprintf(fp, ",\"type\":%d,\"value\":%u", event->kind, (unsigned int)event->value);
         if (event->kind == VN_PREVIEW_EVENT_FRAME) {
             (void)fprintf(fp, ",\"host_step_ms\":%.3f,\"result\":", event->host_step_ms);
@@ -1136,40 +1147,48 @@ static void preview_error(VNPreviewReport* report,
     }
     report->status_code = status_code;
     report->error_code = error_code;
-    report->error_name = preview_error_name(error_code);
+    report->error_name = vn_error_name(error_code);
+    report->trace_id = preview_trace_id_for_error(status_code, error_code);
     preview_str_copy(report->error_message, sizeof(report->error_message), message);
     preview_report_add_event(report, VN_PREVIEW_EVENT_ERROR, report->error_name, (vn_u32)(unsigned int)(error_code & 0x7FFFFFFF), 0.0, (const VNRunResult*)0);
 }
 
-static const char* preview_error_name(int error_code) {
-    if (error_code == VN_OK) {
-        return "VN_OK";
-    }
-    if (error_code == VN_E_INVALID_ARG) {
-        return "VN_E_INVALID_ARG";
-    }
-    if (error_code == VN_E_IO) {
-        return "VN_E_IO";
-    }
-    if (error_code == VN_E_FORMAT) {
-        return "VN_E_FORMAT";
-    }
-    if (error_code == VN_E_UNSUPPORTED) {
-        return "VN_E_UNSUPPORTED";
-    }
-    if (error_code == VN_E_NOMEM) {
-        return "VN_E_NOMEM";
-    }
-    if (error_code == VN_E_SCRIPT_BOUNDS) {
-        return "VN_E_SCRIPT_BOUNDS";
+static const char* preview_trace_id_for_error(int status_code, int error_code) {
+    if (status_code == 2) {
+        if (error_code == VN_E_IO) {
+            return "preview.request.io";
+        }
+        if (error_code == VN_E_FORMAT) {
+            return "preview.request.format";
+        }
+        if (error_code == VN_E_UNSUPPORTED) {
+            return "preview.request.unsupported";
+        }
+        return "preview.request.invalid";
     }
     if (error_code == VN_E_RENDER_STATE) {
-        return "VN_E_RENDER_STATE";
+        return "preview.runtime.render";
     }
-    if (error_code == VN_E_AUDIO_DEVICE) {
-        return "VN_E_AUDIO_DEVICE";
+    if (error_code == VN_E_SCRIPT_BOUNDS) {
+        return "preview.runtime.script";
     }
-    return "VN_E_UNKNOWN";
+    return "preview.runtime.failed";
+}
+
+static const char* preview_trace_id_for_event(int kind) {
+    if (kind == VN_PREVIEW_EVENT_COMMAND) {
+        return "preview.event.command";
+    }
+    if (kind == VN_PREVIEW_EVENT_FRAME) {
+        return "preview.event.frame";
+    }
+    if (kind == VN_PREVIEW_EVENT_RELOAD) {
+        return "preview.event.reload";
+    }
+    if (kind == VN_PREVIEW_EVENT_ERROR) {
+        return "preview.event.error";
+    }
+    return "preview.event.unknown";
 }
 
 static void preview_resolve_pack_path(VNPreviewRequest* req) {
@@ -1220,6 +1239,7 @@ static void preview_report_add_event(VNPreviewReport* report,
     (void)memset(event, 0, sizeof(VNPreviewEvent));
     event->kind = kind;
     preview_str_copy(event->name, sizeof(event->name), name);
+    event->trace_id = preview_trace_id_for_event(kind);
     event->value = value;
     event->host_step_ms = host_step_ms;
     if (result != (const VNRunResult*)0) {

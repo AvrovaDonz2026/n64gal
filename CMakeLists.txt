@@ -19,8 +19,10 @@ if(MSVC)
 endif()
 
 add_library(vn_core
+    src/core/error.c
     src/core/backend_registry.c
     src/core/renderer.c
+    src/core/save.c
     src/core/vm.c
     src/core/pack.c
     src/core/platform.c
@@ -62,6 +64,16 @@ add_executable(vn_previewd
 )
 target_link_libraries(vn_previewd PRIVATE vn_preview)
 
+add_executable(vnsave_migrate
+    tools/migrate/vnsave_migrate.c
+)
+target_link_libraries(vnsave_migrate PRIVATE vn_core)
+
+add_executable(vnsave_probe
+    tools/probe/vnsave_probe.c
+)
+target_link_libraries(vnsave_probe PRIVATE vn_core)
+
 add_executable(vn_backend_kernel_bench
     tests/perf/backend_kernel_bench.c
 )
@@ -70,6 +82,10 @@ target_link_libraries(vn_backend_kernel_bench PRIVATE vn_core)
 add_executable(test_backend_registry tests/unit/test_backend_registry.c)
 target_link_libraries(test_backend_registry PRIVATE vn_core)
 add_test(NAME unit_backend_registry COMMAND test_backend_registry)
+
+add_executable(test_error_codes tests/unit/test_error_codes.c)
+target_link_libraries(test_error_codes PRIVATE vn_core)
+add_test(NAME unit_error_codes COMMAND test_error_codes)
 
 add_executable(test_render_ops tests/unit/test_render_ops.c)
 target_link_libraries(test_render_ops PRIVATE vn_core)
@@ -86,6 +102,26 @@ add_test(NAME unit_dynamic_resolution COMMAND test_dynamic_resolution)
 add_executable(test_vnpak tests/unit/test_vnpak.c)
 target_link_libraries(test_vnpak PRIVATE vn_core)
 add_test(NAME unit_vnpak COMMAND test_vnpak)
+
+add_executable(test_vnsave tests/unit/test_vnsave.c)
+target_link_libraries(test_vnsave PRIVATE vn_core)
+add_test(NAME unit_vnsave COMMAND test_vnsave)
+
+add_executable(test_vnsave_migrate
+    tests/unit/test_vnsave_migrate.c
+    tools/migrate/vnsave_migrate.c
+)
+target_compile_definitions(test_vnsave_migrate PRIVATE VN_SAVE_MIGRATE_NO_MAIN)
+target_link_libraries(test_vnsave_migrate PRIVATE vn_core)
+add_test(NAME unit_vnsave_migrate COMMAND test_vnsave_migrate)
+
+add_executable(test_vnsave_probe_tool
+    tests/unit/test_vnsave_probe_tool.c
+    tools/probe/vnsave_probe.c
+)
+target_compile_definitions(test_vnsave_probe_tool PRIVATE VN_SAVE_PROBE_NO_MAIN)
+target_link_libraries(test_vnsave_probe_tool PRIVATE vn_core)
+add_test(NAME unit_vnsave_probe_tool COMMAND test_vnsave_probe_tool)
 
 add_executable(test_renderer_fallback tests/unit/test_renderer_fallback.c)
 target_link_libraries(test_renderer_fallback PRIVATE vn_core)
@@ -127,6 +163,10 @@ add_executable(test_runtime_input tests/unit/test_runtime_input.c)
 target_link_libraries(test_runtime_input PRIVATE vn_core)
 add_test(NAME unit_runtime_input COMMAND test_runtime_input)
 
+add_executable(test_runtime_cli_errors tests/unit/test_runtime_cli_errors.c)
+target_link_libraries(test_runtime_cli_errors PRIVATE vn_core)
+add_test(NAME unit_runtime_cli_errors COMMAND test_runtime_cli_errors)
+
 add_executable(test_runtime_golden tests/unit/test_runtime_golden.c)
 target_link_libraries(test_runtime_golden PRIVATE vn_core)
 add_test(NAME unit_runtime_golden COMMAND test_runtime_golden)
@@ -145,15 +185,31 @@ add_executable(example_host_embed
 target_link_libraries(example_host_embed PRIVATE vn_core)
 add_test(NAME example_host_embed COMMAND example_host_embed)
 
+add_executable(example_host_embed_linux_tty
+    examples/host-embed/linux_tty_loop.c
+)
+target_link_libraries(example_host_embed_linux_tty PRIVATE vn_core)
+add_test(NAME example_host_embed_linux_tty COMMAND example_host_embed_linux_tty)
+
+add_executable(example_host_embed_windows_console
+    examples/host-embed/windows_console_loop.c
+)
+target_link_libraries(example_host_embed_windows_console PRIVATE vn_core)
+add_test(NAME example_host_embed_windows_console COMMAND example_host_embed_windows_console)
+
 if(VN_BUILD_PLAYER)
     set_tests_properties(smoke_scalar smoke_auto PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()
 set_tests_properties(
     unit_backend_registry
+    unit_error_codes
     unit_render_ops
     unit_dirty_tiles
     unit_dynamic_resolution
     unit_vnpak
+    unit_vnsave
+    unit_vnsave_migrate
+    unit_vnsave_probe_tool
     unit_renderer_fallback
     unit_renderer_dirty_submit
     unit_backend_consistency
@@ -164,9 +220,12 @@ set_tests_properties(
     unit_runtime_dynamic_resolution
     unit_runtime_session
     unit_runtime_input
+    unit_runtime_cli_errors
     unit_runtime_golden
     unit_platform_paths
     integration_preview_protocol
     example_host_embed
+    example_host_embed_linux_tty
+    example_host_embed_windows_console
     PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )

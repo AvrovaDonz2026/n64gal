@@ -7,6 +7,16 @@
 3. 在 Linux/Windows 上保持相同的请求、响应和退出码语义。
 4. 先冻结 `CLI + 文件协议`，后续再升级本地 IPC，而不打破 `v1` 字段语义。
 
+## Stability Level
+
+`preview protocol` 当前是最接近正式版约束的公开 surface 之一，但仍需按以下边界理解：
+
+1. 当前对外协议版本固定为 `v1`。
+2. `v1.0.0` 目标是稳定 `v1` 的基础字段和错误语义。
+3. 在 `v0.x` 阶段，允许继续追加字段，但不应破坏当前 `v1` 的已文档化含义。
+4. 未知协议版本、未知 key、格式错误请求都必须显式报错，不能静默降级。
+5. 若未来出现破坏性变化，应升级到新协议版本，而不是偷偷重写 `v1` 行为。
+
 ## Entry Points
 
 当前 `v1` 提供两个等价入口：
@@ -75,6 +85,11 @@
 1. `0`：请求成功，JSON `status="ok"`
 2. `1`：运行失败，JSON `status="error"`
 3. `2`：参数或请求文件格式错误，JSON `status="error"`
+
+兼容规则补充：
+
+1. 当前只承诺 release 文档明确写出的协议版本。
+2. `preview_protocol != v1` 必须被显式拒绝。
 
 ## Request File Format
 
@@ -169,6 +184,7 @@ response=tests/integration/preview_protocol_response.tmp.json
 | `status` | `ok` 或 `error` |
 | `error_code` | `VN_*` 错误码或运行错误码 |
 | `error_name` | 文本错误名 |
+| `trace_id` | 稳定错误/成功归类 ID |
 | `error_message` | 稳定的人类可读错误描述 |
 | `host_os` | `linux` / `windows` / ... |
 | `host_arch` | `x64` / `arm64` / `riscv64` / ... |
@@ -207,6 +223,12 @@ response=tests/integration/preview_protocol_response.tmp.json
 3. `session_done`
 4. `events_truncated`
 
+当前 `trace_id` 规则：
+
+1. 成功请求：`preview.ok`
+2. 请求/解析失败：`preview.request.*`
+3. 运行时失败：`preview.runtime.*`
+
 ### `perf_summary`
 
 当前字段：
@@ -228,6 +250,13 @@ response=tests/integration/preview_protocol_response.tmp.json
 
 1. `host_step_ms`
 2. `result`
+
+每个 `events[]` 项当前也会附带 `trace_id`，用于区分：
+
+1. `preview.event.command`
+2. `preview.event.frame`
+3. `preview.event.reload`
+4. `preview.event.error`
 
 `result` 当前回显以下 `VNRunResult` 字段：
 

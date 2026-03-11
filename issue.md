@@ -140,15 +140,16 @@
 | `M0-core-scalar` | W1-W2 | 前后端分离骨架 + scalar 基线 + Session API/pack/perf 基础链 | 已完成，转维护态 |
 | `M1-amd64-avx2` | W3-W6 | amd64 AVX2 首发性能 + 平台抽象收口（Linux/Windows） | 基本完成，剩 `ISSUE-007/008` 收口项 |
 | `M2-arm64-neon` | W7-W10 | arm64 NEON 平台化 + 一致性测试 + 跨 OS CI | 基本完成，剩 `ISSUE-010/014` 尾项 |
-| `M3-riscv64-rvv` | W11-W14 | riscv64 RVV 扩展 + qemu 阻塞链 + 原生 nightly/perf | 当前主线，先收口 `qemu/golden/perf`；`native` 因硬件缺失暂缓 |
+| `M3-riscv64-rvv` | W11-W14 | riscv64 RVV 扩展 + qemu 阻塞链 + 原生 nightly/perf | `post-1.0` 轨道；继续做 `qemu/golden/perf`，但不再阻塞 `1.0.0` |
 | `M4-engine-ecosystem` | W15-W20 | 模板、工具链、宿主 SDK、预览协议、迁移器与生态治理 | 已前置部分文档/工具，禁止抢占 M3 阻塞资源 |
 
 ### 1.1 阶段切换规则
 
 1. `M0` 已完成，除兼容性修复和文档补档外，不再新增基础骨架类需求。
 2. `M1/M2` 当前按“维护尾项”处理，允许继续收口 golden 阈值、性能门限和 fallback 证据，但优先级低于 `M3` 发版阻塞。
-3. `M3` 仍是当前主线里程碑，但在缺少原生设备时，先把可控部分收口到 `cross-build -> qemu-scalar -> qemu-rvv -> qemu perf artifact + golden/perf 门限`；`native-nightly` 作为外部依赖保留。
-4. `M4` 允许继续做不打断主线的文档/协议/工具前置，但不得挤占 `qemu` 证据链收口、golden/perf 门限和平台稳定性修复的资源。
+3. `M3-riscv64-rvv` 继续推进，但已从 `1.0.0` 阻塞项降为 `post-1.0` 轨道；在缺少原生设备时，先把可控部分收口到 `cross-build -> qemu-scalar -> qemu-rvv -> qemu perf artifact + golden/perf 门限`。
+4. 当前 `1.0.0` 的发布范围先固定为 `x64/arm64 + Linux/Windows`，`riscv64/RVV` 不进入首个正式版承诺。
+5. `M4` 允许继续做不打断主线的文档/协议/工具前置，但不得挤占 `x64/arm64` 稳定性、发布文档和兼容边界收口的资源。
 
 ### 1.2 平台兼容矩阵（必须覆盖）
 
@@ -159,6 +160,8 @@
 | Linux arm64 | `neon` -> `scalar` | 已完成（arm64 Linux CI 全绿） |
 | Windows arm64 | `neon` -> `scalar` | 已完成（Windows arm64 CI 全绿） |
 | Linux riscv64 | `rvv` -> `scalar` | 进行中（`cross/qemu-scalar/qemu-rvv/qemu perf artifact` 已打通，待 `native-nightly` 与原生 perf 证据） |
+
+补充说明：首个 `v1.0.0` 正式版当前只承诺前四个平台；`Linux riscv64` 继续开发，但按 `post-1.0` 处理。
 
 ## 2. 标签建议
 
@@ -186,13 +189,14 @@ ISSUE-001 -> ISSUE-002 -> ISSUE-003 -> ISSUE-007 -> ISSUE-008 -> ISSUE-012
       |          |
       -> ISSUE-006
 
-ISSUE-007 + ISSUE-008 -> ISSUE-009 -> ISSUE-010 -> ISSUE-011 -> ISSUE-012
+ISSUE-007 + ISSUE-008 -> ISSUE-009 -> ISSUE-010 -> ISSUE-012
       |
       -> ISSUE-013 -> ISSUE-014 -> ISSUE-012
 
 ISSUE-012 -> ISSUE-021 -> ISSUE-022 -> ISSUE-023
 ISSUE-001 + ISSUE-016 + ISSUE-017 -> ISSUE-024
-ISSUE-011 + ISSUE-014 -> ISSUE-020 -> ISSUE-012
+ISSUE-010 -> ISSUE-011
+ISSUE-011 + ISSUE-014 -> ISSUE-020
 ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 ```
 
@@ -211,7 +215,7 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 | ISSUE-009 | `neon` 后端实现与 arm64 默认启用 | M2 | P1 | 4d |
 | ISSUE-010 | 后端一致性测试与 CI 矩阵 | M2 | P1 | 3d |
 | ISSUE-011 | `rvv` 后端实现与回退链 | M3 | P2 | 5d |
-| ISSUE-012 | 发布收口（文档/报告/迁移指南） | M3 | P1 | 2d |
+| ISSUE-012 | 发布收口（文档/报告/迁移指南） | M2 | P1 | 2d |
 | ISSUE-013 | Linux/Windows 平台抽象层与系统适配 | M1 | P0 | 3d |
 | ISSUE-014 | x64/arm64 + Linux/Windows + riscv64 Linux CI 矩阵 | M2 | P0 | 4d |
 | ISSUE-015 | `vnsave v1` 存档迁移器 | M4 | P2 | 3d |
@@ -861,7 +865,7 @@ ctest --test-dir build --output-on-failure -R backend_consistency
 - Labels: `type:feature`, `type:perf`, `arch:rvv`, `priority:P2`
 - Milestone: `M3-riscv64-rvv`
 - Depends on: `ISSUE-010`
-- Blocking: `ISSUE-012`
+- Blocking: `ISSUE-020`
 
 ### 目标
 
@@ -930,13 +934,13 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 ## ISSUE-012 发布收口（文档/报告/迁移指南）
 
 - Labels: `type:docs`, `type:infra`, `priority:P1`
-- Milestone: `M3-riscv64-rvv`
-- Depends on: `ISSUE-008`, `ISSUE-009`, `ISSUE-011`
+- Milestone: `M2-arm64-neon`
+- Depends on: `ISSUE-008`, `ISSUE-009`, `ISSUE-010`, `ISSUE-014`
 - Blocking: 发布
 
 ### 目标
 
-先完成首个对外预发布版本 `v0.1.0-alpha` 的文档和证据链；`v0.1.0-mvp` 作为后续更完整的里程碑继续保留。
+已完成首个对外预发布版本 `v0.1.0-alpha` 的文档与发布动作；下一步转向 `v0.1.0-mvp` 所需的剩余文档、证据链和发布清单。`v1.0.0` 当前明确先不包含 `RVV/riscv64 native` 承诺。
 
 ### 交付物
 
@@ -947,6 +951,11 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 - `docs/release-checklist-v0.1.0-alpha.md`
 - `docs/release-evidence-v0.1.0-alpha.md`
 - `docs/release-package-v0.1.0-alpha.md`
+- `docs/release-gap-v0.1.0-mvp.md`
+- `docs/release-roadmap-1.0.0.md`
+- `docs/release-checklist-v1.0.0.md`
+- `docs/compat-matrix.md`
+- `docs/vnsave-version-policy.md`
 - `docs/migration.md`
 - `docs/backend-porting.md`
 - 发布产物（可执行 + `demo.vnpak` + 许可证）
@@ -959,6 +968,12 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 - [x] 输出后端移植指南
 - [x] 建立 `v0.1.0-alpha` 发布清单文档
 - [x] 建立 `v0.1.0-alpha` 发布产物清单与缺口说明
+- [x] 发布 `v0.1.0-alpha` GitHub prerelease（tag + release + `demo.vnpak` asset）
+- [x] 在 `issue.md` 中记录已发 alpha 版本
+- [x] 建立 `v0.1.0-mvp` 差距清单
+- [x] 建立 `v1.0.0` 正式版 checklist
+- [x] 建立 release 兼容矩阵模板
+- [x] 固定 `vnsave` 的 `pre-1.0 / v1.0.0 / post-1.0` 版本策略
 - [ ] 完成发布清单检查
 
 ### 验收命令
@@ -974,6 +989,12 @@ ctest --test-dir build --output-on-failure
 - [ ] C89 门禁与单测 100% 通过
 - [ ] Demo 连续 15 分钟无崩溃
 - [ ] 发布清单完整
+
+### 当前状态
+
+1. `v0.1.0-alpha` 已发布：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha`
+2. 当前后续目标切换为：`v0.1.0-mvp`
+3. `v1.0.0` 当前范围：先不包含 `RVV/riscv64 native`
 
 ### 回退策略
 
@@ -1112,16 +1133,21 @@ OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./sc
 
 ### 交付物
 
+- `docs/vnsave-version-policy.md`
+- `include/vn_save.h`
+- `src/core/save.c`
+- `docs/api/save.md`
 - `tools/migrate/`（或等效 `vnsave` 迁移入口）
 - `docs/migration.md`
 - `tests/fixtures/vnsave/*`
 
 ### 任务清单
 
-- [ ] 明确 `vnsave v1` 文件头与版本探测规则
-- [ ] 提供 `vnsave v0 -> v1` 迁移命令
-- [ ] 为损坏/过旧存档提供结构化错误输出
-- [ ] 增加至少 1 组 golden 迁移样例
+- [x] 明确 `pre-1.0` / `v1.0.0` / `post-1.0` 的 `vnsave` 版本策略
+- [x] 明确 `vnsave v1` 文件头与版本探测规则
+- [x] 提供 `vnsave v0 -> v1` 迁移命令
+- [x] 为损坏/过旧存档提供结构化错误输出
+- [x] 增加至少 1 组 golden 迁移样例
 
 ### 验收命令
 
@@ -1131,9 +1157,9 @@ OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./sc
 
 ### DoD
 
-- [ ] 历史存档升级路径可复现
-- [ ] 迁移失败可定位到版本/字段层级
-- [ ] release 文档附带迁移说明
+- [x] 历史存档升级路径可复现（当前最小 `v0 -> v1` 样例）
+- [x] 迁移失败可定位到版本/字段层级
+- [x] release 文档附带迁移说明
 
 ### 回退策略
 
@@ -1209,8 +1235,8 @@ ctest --test-dir build --output-on-failure -R runtime_input
 - [x] `docs/api/*` 文档集已建立
 - [x] 文档入口已说明 runtime/backend/pack 三类 API 边界
 - [x] Session API、backend 选择链、pack 版本约束已入文档
-- [ ] 建立 API 变更日志或兼容记录模板
-- [ ] 把“代码变更必须同步文档”写入提交/评审约束
+- [x] 建立 API 变更日志或兼容记录模板（`docs/api/compat-log.md`）
+- [x] 把“代码变更必须同步文档”写入仓库检查（`scripts/check_api_docs_sync.sh` + `run_cc_suite.sh`）
 
 ### 验收命令
 
@@ -1244,15 +1270,16 @@ grep -RIn "vn_runtime_session_create\|vn_runtime_session_inject_input\|vn_backen
 ### 交付物
 
 - `include/vn_error.h`（或等效）
+- `src/core/error.c`
 - `docs/errors.md`
 - trace id / structured log 约定
 
 ### 任务清单
 
-- [ ] 收口公共错误码枚举与字符串映射
-- [ ] 为预览协议、运行时、工具链定义统一 trace id
-- [ ] 为 CI / perf / preview 输出统一机器可读错误字段
-- [ ] 增加错误链路单测
+- [x] 收口公共错误码枚举与字符串映射（`vn_error_name(int)`）
+- [x] 为预览协议、运行时、工具链定义统一 trace id
+- [x] 为 CI / perf / preview 输出统一机器可读错误字段
+- [x] 增加错误链路单测
 
 ### 验收命令
 
@@ -1262,9 +1289,9 @@ ctest --test-dir build --output-on-failure -R preview_protocol
 
 ### DoD
 
-- [ ] 常见失败路径可定位到稳定错误码
-- [ ] 日志可被宿主和 CI 机器解析
-- [ ] trace id 能跨 runtime / preview / toolchain 传递
+- [x] 常见失败路径可定位到稳定错误码
+- [x] 日志可被宿主和 CI 机器解析
+- [x] trace id 能跨 runtime / preview / toolchain 传递
 
 ### 回退策略
 
@@ -1320,7 +1347,7 @@ cmake --build build-wasm
 - Labels: `type:infra`, `type:test`, `type:perf`, `arch:rvv`, `priority:P1`
 - Milestone: `M3-riscv64-rvv`
 - Depends on: `ISSUE-011`, `ISSUE-014`
-- Blocking: `ISSUE-012`
+- Blocking: `post-1.0` 原生 riscv64 发布承诺
 
 ### 目标
 
@@ -1424,10 +1451,11 @@ cmake --build build-wasm
 
 ### 任务清单
 
-- [ ] `validate`：pack/script/save/version 结构校验
-- [ ] `migrate`：旧版 `vnpak/vnsave/script schema` 升级命令
-- [ ] `probe`：golden/perf/trace 汇总出口
-- [ ] 统一 CLI 帮助、退出码和机器可读输出格式
+- [x] `validate`：已落首个 manifest 结构校验（`tools/validate/validate_manifest.py`）
+- [x] `migrate`：已落首个 `vnsave v0 -> v1` 迁移命令（`tools/migrate/vnsave_migrate`）
+- [x] `probe`：已落 `vnsave` / runtime trace / preview 响应探测入口（`tools/probe/vnsave_probe` / `tools/probe/trace_summary.py` / `tools/probe/preview_summary.py`）
+- [x] 统一 CLI 帮助、退出码和机器可读输出格式（当前已覆盖 `validate_manifest.py` / `vnsave_migrate`）
+- [x] 提供统一入口（`tools/toolchain.py`）聚合 `validate/migrate/probe`
 
 ### 验收命令
 
@@ -1438,8 +1466,8 @@ cmake --build build-wasm
 
 ### DoD
 
-- [ ] Creator Toolchain 各命令帮助文本完整
-- [ ] 至少 1 条迁移路径可跑通
+- [x] Creator Toolchain 各命令帮助文本完整
+- [x] 至少 1 条迁移路径可跑通
 - [x] 至少 1 条 golden/perf 报告链产出 markdown artifact
 
 ### 回退策略
@@ -1533,7 +1561,7 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 - [x] 输出版本协商矩阵与兼容规则
 - [x] 最小宿主嵌入示例（`examples/host-embed/session_loop.c`）
 - [x] `example_host_embed` 已接入 `CMake + ctest + run_cc_suite.sh`
-- [ ] Linux/Windows 各补 1 个平台专用宿主包装层示例（窗口/输入/文件对接）
+- [x] Linux/Windows 各补 1 个平台专用宿主包装层示例（`linux_tty_loop.c` / `windows_console_loop.c`）
 
 ### 验收命令
 
@@ -1561,7 +1589,7 @@ ctest --test-dir build --output-on-failure -R example_host_embed
 
 - [x] 宿主无需了解 ISA 私有后端实现
 - [x] SDK 文档包含最小接入与错误处理示例
-- [ ] 版本协商表与 release 文档同步
+- [x] 版本协商表与 release 文档同步
 
 ### 回退策略
 
@@ -1588,10 +1616,10 @@ ctest --test-dir build --output-on-failure -R example_host_embed
 
 ### 任务清单
 
-- [ ] 定义扩展 `manifest` 字段与版本范围
-- [ ] 明确“文件级扩展优先、运行时插件后置”的策略
-- [ ] 建立 release 兼容矩阵模板
-- [ ] 建立生态变更审查规则（格式变更/版本变更/迁移器要求）
+- [x] 定义扩展 `manifest` 字段与版本范围
+- [x] 明确“文件级扩展优先、运行时插件后置”的策略
+- [x] 建立 release 兼容矩阵模板
+- [x] 建立生态变更审查规则（格式变更/版本变更/迁移器要求）
 
 ### 验收命令
 

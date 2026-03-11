@@ -22,10 +22,14 @@
 
 1. `vnsave`
    - 尚未完成 `vnsave v1` 迁移器
+   - 当前仅固定了版本策略，尚未进入正式格式承诺
 2. 生态模板 / Creator Toolchain
    - 仍在 `M4-engine-ecosystem`
 3. `1.0.0` 级别格式冻结
    - 当前不存在
+4. `vn_save.h`
+   - 当前已提供 probe + 最小 `v0 -> v1` 离线迁移接口
+   - 仍不等于完整 save/load 承诺
 
 ## 3. `vnpak` 迁移边界
 
@@ -48,13 +52,16 @@
 当前仓库还没有把对外存档迁移链收口完成：
 
 1. `ISSUE-015` 仍未完成
-2. 暂无正式 `vnsave v1` 工具
-3. 宿主不应假设 `v0.1.0-alpha` 已承诺历史存档兼容
+2. 当前已有最小 `v0 -> v1` 迁移命令，但尚未形成完整多版本迁移链
+3. 首个正式 `vnsave v1` 承诺不早于 `v1.0.0`
+4. 宿主不应假设 `v0.1.0-alpha` 已承诺历史存档兼容
+5. 当前虽然已有 `vn_save.h` 的 probe 与最小 `v0 -> v1` 迁移接口，但它仍只解决“识别/拒绝/最小迁移”，不等于完整 save/load
 
 因此，对外 release 应明确写：
 
 1. `vnsave` 迁移不在 `v0.1.0-alpha` 范围内
 2. 若宿主已经自定义保存格式，应继续按宿主侧策略管理
+3. `v0.x` 产生的内部/实验存档不视为正式兼容输入
 
 ## 5. Preview / Runtime 配置兼容
 
@@ -83,14 +90,16 @@
 
 ## 7. 后续里程碑
 
-在进入更正式版本前，至少还要完成：
+在进入 `v1.0.0` 前，至少要把以下边界收口清楚：
 
-1. `ISSUE-015`
-   - `vnsave v1` 迁移器
-2. `ISSUE-025`
+1. `docs/vnsave-version-policy.md`
+   - `pre-1.0` / `v1.0.0` / `post-1.0` 规则固定
+2. `ISSUE-015`
+   - 若 `v1.0.0` 对外开放 `vnsave`，则完成 `vnsave v1` 文件头与探测规则
+3. `ISSUE-025`
    - release 兼容矩阵
-3. `ISSUE-022`
-   - Creator Toolchain 中的 `migrate`
+
+`v0 -> v1` 迁移器与 Creator Toolchain 的 `migrate` 聚合可以继续推进，但当前不再和首个 `v1.0.0` 边界混为一谈。
 
 ## 8. 当前建议
 
@@ -99,3 +108,10 @@
 1. 明确写“当前无完整存档迁移承诺”
 2. 资源包兼容只声明到 `vnpak`
 3. 迁移责任边界写清楚，不要模糊承诺
+
+对 `v1.0.0`：
+
+1. 首次引入正式 `vnsave v1`
+2. 至少把版本编号、探测规则与错误行为写清楚
+3. 详细策略见 [`docs/vnsave-version-policy.md`](./vnsave-version-policy.md)
+4. 最小 probe API 见 [`docs/api/save.md`](./api/save.md)

@@ -21,15 +21,19 @@ static int file_contains(const char* path, const char* needle) {
 int main(void) {
     const char* request_path;
     const char* response_path;
+    const char* bad_request_path;
     FILE* fp;
     char* argv_req[5];
     char* argv_cli[10];
+    char* argv_bad[5];
     int rc;
 
     request_path = "tests/integration/preview_protocol_request.tmp";
     response_path = "tests/integration/preview_protocol_response.tmp.json";
+    bad_request_path = "tests/integration/preview_protocol_bad_request.tmp";
     (void)remove(request_path);
     (void)remove(response_path);
+    (void)remove(bad_request_path);
 
     fp = fopen(request_path, "w");
     if (fp == (FILE*)0) {
@@ -67,6 +71,12 @@ int main(void) {
     }
     if (!file_contains(response_path, "\"status\":\"ok\"")) {
         (void)fprintf(stderr, "missing ok status\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"trace_id\":\"preview.ok\"")) {
+        (void)fprintf(stderr, "missing preview ok trace_id\n");
         (void)remove(request_path);
         (void)remove(response_path);
         return 1;
@@ -138,6 +148,12 @@ int main(void) {
         (void)remove(response_path);
         return 1;
     }
+    if (!file_contains(response_path, "\"trace_id\":\"preview.event.command\"")) {
+        (void)fprintf(stderr, "missing preview command event trace_id\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
     if (!file_contains(response_path, "\"session_done\":1")) {
         (void)fprintf(stderr, "missing done state\n");
         (void)remove(request_path);
@@ -145,8 +161,49 @@ int main(void) {
         return 1;
     }
 
+    fp = fopen(bad_request_path, "w");
+    if (fp == (FILE*)0) {
+        (void)fprintf(stderr, "open bad request file failed\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        return 1;
+    }
+    (void)fprintf(fp, "preview_protocol=v2\n");
+    (void)fprintf(fp, "scene_name=S0\n");
+    (void)fclose(fp);
+
+    argv_bad[0] = (char*)"vn_previewd";
+    argv_bad[1] = (char*)"--request";
+    argv_bad[2] = (char*)bad_request_path;
+    argv_bad[3] = (char*)"--response";
+    argv_bad[4] = (char*)response_path;
+
+    rc = vn_preview_run_cli(5, argv_bad);
+    if (rc == 0) {
+        (void)fprintf(stderr, "bad request should fail\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        (void)remove(bad_request_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"trace_id\":\"preview.request.unsupported\"")) {
+        (void)fprintf(stderr, "missing preview request unsupported trace_id\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        (void)remove(bad_request_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"error_name\":\"VN_E_UNSUPPORTED\"")) {
+        (void)fprintf(stderr, "missing unsupported error name\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        (void)remove(bad_request_path);
+        return 1;
+    }
+
     (void)remove(request_path);
     (void)remove(response_path);
+    (void)remove(bad_request_path);
     (void)printf("test_preview_protocol ok\n");
     return 0;
 }

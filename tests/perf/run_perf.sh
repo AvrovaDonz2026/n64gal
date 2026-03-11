@@ -177,6 +177,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
   COMPILE_CMD+=(
     -Iinclude
     src/main.c
+    src/core/error.c
     src/core/backend_registry.c
     src/core/renderer.c
     src/core/vm.c

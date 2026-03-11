@@ -1,0 +1,26 @@
+{
+  "preview_protocol": "v1",
+  "status": "error",
+  "error_code": -4,
+  "error_name": "VN_E_UNSUPPORTED",
+  "trace_id": "preview.request.unsupported",
+  "request": {
+    "scene_name": "S0",
+    "backend_name": "auto",
+    "width": 600,
+    "height": 800
+  },
+  "summary": {
+    "reload_count": 0,
+    "frame_samples": 0,
+    "session_done": 0,
+    "events_truncated": 0
+  },
+  "perf_summary": {
+    "samples": 0,
+    "total_step_ms": 0.0,
+    "avg_step_ms": 0.0,
+    "max_step_ms": 0.0
+  },
+  "final_state": null
+}

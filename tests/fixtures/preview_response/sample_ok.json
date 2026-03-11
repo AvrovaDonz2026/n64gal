@@ -1,0 +1,30 @@
+{
+  "preview_protocol": "v1",
+  "status": "ok",
+  "error_code": 0,
+  "error_name": "VN_OK",
+  "trace_id": "preview.ok",
+  "request": {
+    "scene_name": "S2",
+    "backend_name": "auto",
+    "width": 600,
+    "height": 800
+  },
+  "summary": {
+    "reload_count": 0,
+    "frame_samples": 2,
+    "session_done": 1,
+    "events_truncated": 0
+  },
+  "perf_summary": {
+    "samples": 2,
+    "total_step_ms": 3.0,
+    "avg_step_ms": 1.5,
+    "max_step_ms": 2.0
+  },
+  "final_state": {
+    "backend_name": "avx2",
+    "text_id": 101,
+    "op_count": 4
+  }
+}

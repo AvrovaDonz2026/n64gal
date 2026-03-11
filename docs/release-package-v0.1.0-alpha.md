@@ -28,16 +28,16 @@
 
 ## 4. 当前缺口
 
-当前最明确的文档/产物缺口已经从 `LICENSE` 变成“发布动作本身”：
+当前最明确的缺口已经不再是 alpha 发布动作本身，而是后续版本收口：
 
-1. 打 tag
-2. 归档对应 CI / perf artifact 链接
-3. 确认 release checklist 全部勾完
+1. 固定 `v0.1.0-mvp` 差距表
+2. 固定 `v1.0.0` checklist
+3. 补齐正式版前的版本策略与兼容边界
 
 ## 5. 推荐动作
 
-发布前按这个顺序执行：
+alpha 已发布后按这个顺序执行：
 
-1. 补 `LICENSE`
-2. 再检查 `README` / release note / evidence / checklist 是否与当前代码一致
-3. 再打 `v0.1.0-alpha` tag
+1. 检查 `README` / `issue` / release 文档是否仍与当前代码一致
+2. 固定 `v0.1.0-mvp` 差距表
+3. 固定 `v1.0.0` checklist 与 `post-1.0` 边界

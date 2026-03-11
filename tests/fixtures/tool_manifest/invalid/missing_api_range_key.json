@@ -1,0 +1,19 @@
+{
+  "manifest_version": 1,
+  "name": "broken-migrate",
+  "kind": "migrator",
+  "version": "0.1.0",
+  "api_range": {
+    "runtime_api": "v1-draft",
+    "script_bytecode": "v1",
+    "vnpak": "v1-v2",
+    "vnsave": "v0-v1",
+    "preview_protocol": "v1"
+  },
+  "capabilities": [
+    "read.vnsave",
+    "migrate.vnsave"
+  ],
+  "entry": "broken",
+  "stability": "preview"
+}

@@ -187,18 +187,21 @@
 
 | Surface | Current Status | Negotiation Rule |
 |---|---|---|
-| `runtime api` | `v1` | 仅追加字段/函数，旧宿主不应依赖未文档化结构 |
-| `backend abi` | `v1` | 宿主不直接链接私有 backend；由 runtime 内部选择 |
+| `runtime api` | `public v1-draft (pre-1.0)` | `v0.x` 阶段仍允许收口字段/函数；宿主只应依赖已文档化公开接口 |
+| `backend abi` | `runtime-internal v1-draft` | 宿主不直接链接私有 backend；`v0.x` 期间不应把内部选择链视为冻结 ABI |
 | `script bytecode` | `v1` | 运行时只保证读取已声明兼容版本 |
 | `vnpak` | `v2` 当前默认，兼容读取 `v1` | 生成端默认写 `v2`，读取端兼容 `v1/v2` |
-| `vnsave` | `planned` | 未正式对外，未来发布必须附迁移规则 |
+| `vnsave` | `pre-1.0 unstable` | 只支持 release 文档明确声明的版本；未知、新版、损坏或 `pre-1.0` 存档必须结构化拒绝 |
 | `preview protocol` | `v1` | `vn_previewd` / `vn_preview_run_cli` 固定 `CLI + 文件 -> JSON` 语义，后续仅追加字段 |
 
 规则：
 
 1. 宿主只应绑定公开头文件语义，不应把源码目录结构视为 ABI。
-2. `runtime api` 与 `backend abi` 的破坏性变更必须伴随版本升级和迁移说明。
-3. `script/vnpak/vnsave` 的版本策略必须写进 release 文档和 issue 证据链。
+2. `runtime api` 与 `backend abi` 在 `v0.x` 期间仍允许收口，但任何破坏性变更都必须伴随版本说明和迁移说明。
+3. `script/vnpak/vnsave` 的版本策略必须写进 release 文档和 issue 证据链；其中 `vnsave` 当前以 [`docs/vnsave-version-policy.md`](./vnsave-version-policy.md) 为准。
+4. 错误码名称应统一通过 [`docs/errors.md`](./errors.md) 与 `vn_error_name(int)` 解释，不应自行复制字符串表。
+5. 若宿主要预检存档，只应使用 `vn_save.h` 的 probe 结果，不应自行解析未文档化 header。
+6. 若宿主消费 CLI / preview / migrate 输出，应优先读取稳定的 `trace_id + error_code + error_name` 字段，而不是依赖自然语言 message。
 
 ## Linux And Windows Integration Notes
 
@@ -214,6 +217,13 @@
 
 - `examples/host-embed/session_loop.c`
 - `examples/host-embed/README.md`
+
+平台专用包装层示例见：
+
+1. Linux TTY:
+   - `examples/host-embed/linux_tty_loop.c`
+2. Windows Console:
+   - `examples/host-embed/windows_console_loop.c`
 
 当前该示例已接入：
 

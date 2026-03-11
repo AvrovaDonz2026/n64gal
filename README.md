@@ -11,7 +11,9 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 
 ## 项目状态（2026-03-11）
 
-当前对外版本目标：`v0.1.0-alpha`
+- 当前对外版本状态：`v0.1.0-alpha` 已发布
+- 当前后续目标：`v0.1.0-mvp`
+- 当前 `v1.0.0` 范围决策：**先不包含 RVV / riscv64 native 承诺**
 
 1. 已完成：
    - `scalar` 后端最小闭环（默认 `600x800`，场景 `S0-S3`，并新增更重的 `S10` perf sample）。
@@ -27,17 +29,19 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，`v0.1.0-mvp` 当前差距见 [`docs/release-gap-v0.1.0-mvp.md`](./docs/release-gap-v0.1.0-mvp.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)，`1.0.0` 范围决策见 [`docs/release-roadmap-1.0.0.md`](./docs/release-roadmap-1.0.0.md)，正式版 checklist 见 [`docs/release-checklist-v1.0.0.md`](./docs/release-checklist-v1.0.0.md)，兼容矩阵见 [`docs/compat-matrix.md`](./docs/compat-matrix.md)，生态治理见 [`docs/extension-manifest.md`](./docs/extension-manifest.md) 与 [`docs/ecosystem-governance.md`](./docs/ecosystem-governance.md)，公共错误面见 [`docs/errors.md`](./docs/errors.md)，`vnsave` 版本策略见 [`docs/vnsave-version-policy.md`](./docs/vnsave-version-policy.md)。当前 GitHub prerelease：[`v0.1.0-alpha`](https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha)。
 
 ## 目标平台矩阵
 
-当前项目将平台支持目标明确为：
+当前项目将长期平台支持目标明确为：
 
 1. `x64 + Linux`
 2. `x64 + Windows`
 3. `arm64 + Linux`
 4. `arm64 + Windows`
 5. `riscv64 + Linux`
+
+首个 `v1.0.0` 正式版当前只承诺前四项；`riscv64 + Linux` 继续保留在长期路线图中，但按 `post-1.0` 处理。
 
 后端优先级策略：
 
@@ -70,6 +74,9 @@ src/backend/    各后端实现（scalar/avx2/...）
 src/tools/      无 GUI 工具入口（如 `vn_previewd`）
 tools/scriptc/  场景脚本编译器
 tools/packer/   vnpak 打包工具
+tools/migrate/  vnsave 迁移工具
+tools/probe/    probe/探测工具
+tools/validate/ 扩展 manifest 校验工具
 tools/previewd/ 预览协议说明与示例
 tests/unit/     单元测试
 tests/integration/ 预览协议等集成测试
@@ -126,8 +133,10 @@ cmake --build build
 ```bash
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/main.c \
+  src/core/error.c \
   src/core/backend_registry.c \
   src/core/renderer.c \
+  src/core/save.c \
   src/core/vm.c \
   src/core/pack.c \
   src/core/platform.c \
@@ -148,8 +157,10 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/tools/previewd_main.c \
   src/tools/preview_cli.c \
+  src/core/error.c \
   src/core/backend_registry.c \
   src/core/renderer.c \
+  src/core/save.c \
   src/core/vm.c \
   src/core/pack.c \
   src/core/platform.c \
@@ -182,6 +193,63 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 8. `--trace`
 9. `--keyboard`（Linux TTY / Windows console 调试模式，按 `--dt-ms` 节奏推进）
 10. `--quiet`
+
+## 迁移工具（当前最小 save 迁移）
+
+当前已提供最小 `vnsave` 离线迁移入口：
+
+```bash
+./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+```
+
+当前范围：
+
+1. 仅支持 repo 内定义的 legacy `v0` 样例迁到 `v1`
+2. 未知、过新、损坏或已是 `v1` 的输入都会被结构化拒绝
+3. 详细规则见 [docs/api/save.md](./docs/api/save.md) 与 [docs/vnsave-version-policy.md](./docs/vnsave-version-policy.md)
+
+## 校验工具（当前最小 manifest validate）
+
+```bash
+python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/vnsave_migrate.json
+```
+
+当前范围：
+
+1. 校验扩展 manifest 的最小字段、版本范围和能力位
+2. 成功/失败都会输出 machine-readable `trace_id`
+3. 详细规则见 [docs/extension-manifest.md](./docs/extension-manifest.md) 与 [docs/toolchain.md](./docs/toolchain.md)
+
+## 探测工具（当前最小 vnsave probe）
+
+```bash
+./tools/probe/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
+```
+
+当前范围：
+
+1. 读取 `vnsave` header 并输出结构化探测结果
+2. 成功/失败都输出 machine-readable `trace_id`
+3. 详细规则见 [docs/api/save.md](./docs/api/save.md) 与 [docs/toolchain.md](./docs/toolchain.md)
+
+## 统一 Toolchain 入口
+
+```bash
+python3 tools/toolchain.py --help
+python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
+python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
+python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
+python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
+python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+```
+
+当前统一入口已经覆盖：
+
+1. `validate-manifest`
+2. `probe-vnsave`
+3. `probe-trace-summary`
+4. `probe-preview`
+5. `migrate-vnsave`
 
 键盘模式按键：
 

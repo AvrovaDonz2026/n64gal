@@ -5,11 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_ci_riscv64}"
-mkdir -p "$BUILD_DIR"
+TMP_BUILD_DIR="$BUILD_DIR/tmp"
+mkdir -p "$BUILD_DIR" "$TMP_BUILD_DIR"
+export TMPDIR="$TMP_BUILD_DIR"
 
 COMMON_SRC=(
+  src/core/error.c
   src/core/backend_registry.c
   src/core/renderer.c
+  src/core/save.c
   src/core/vm.c
   src/core/pack.c
   src/core/platform.c
@@ -39,10 +43,14 @@ RVV_FLAGS=(
 )
 TESTS=(
   test_backend_registry
+  test_error_codes
   test_render_ops
   test_dirty_tiles
   test_dynamic_resolution
   test_vnpak
+  test_vnsave
+  test_vnsave_migrate
+  test_vnsave_probe_tool
   test_renderer_fallback
   test_renderer_dirty_submit
   test_backend_consistency
@@ -50,6 +58,7 @@ TESTS=(
   test_runtime_api
   test_runtime_dynamic_resolution
   test_runtime_session
+  test_runtime_cli_errors
   test_runtime_golden
 )
 
@@ -62,5 +71,17 @@ riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_renderer_
 
 for test_name in "${TESTS[@]}"; do
   echo "[riscv64-cross] compiling $test_name"
-  riscv64-linux-gnu-gcc "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/${test_name}_riscv64"
+  if [[ "$test_name" == "test_vnsave_migrate" ]]; then
+    riscv64-linux-gnu-gcc "${CFLAGS[@]}" -DVN_SAVE_MIGRATE_NO_MAIN "tests/unit/${test_name}.c" tools/migrate/vnsave_migrate.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/${test_name}_riscv64"
+  elif [[ "$test_name" == "test_vnsave_probe_tool" ]]; then
+    riscv64-linux-gnu-gcc "${CFLAGS[@]}" -DVN_SAVE_PROBE_NO_MAIN "tests/unit/${test_name}.c" tools/probe/vnsave_probe.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/${test_name}_riscv64"
+  else
+    riscv64-linux-gnu-gcc "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/${test_name}_riscv64"
+  fi
 done
+
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" tools/migrate/vnsave_migrate.c src/core/error.c src/core/save.c src/core/platform.c -o "$BUILD_DIR/vnsave_migrate_riscv64"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" tools/probe/vnsave_probe.c src/core/error.c src/core/save.c src/core/platform.c -o "$BUILD_DIR/vnsave_probe_riscv64"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed_riscv64"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" examples/host-embed/linux_tty_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed_linux_tty_riscv64"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" examples/host-embed/windows_console_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed_windows_console_riscv64"

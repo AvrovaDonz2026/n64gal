@@ -1366,6 +1366,46 @@ static int parse_choice_seq(const char* text, ChoiceFeed* out_feed) {
     return VN_OK;
 }
 
+static int runtime_cli_report_error(const char* trace_id,
+                                    int error_code,
+                                    const char* message,
+                                    const char* arg_name,
+                                    const char* arg_value,
+                                    int exit_code) {
+    (void)fprintf(stderr,
+                  "trace_id=%s error_code=%d error_name=%s message=%s",
+                  trace_id,
+                  error_code,
+                  vn_error_name(error_code),
+                  message);
+    if (arg_name != (const char*)0) {
+        (void)fprintf(stderr, " arg=%s", arg_name);
+    }
+    if (arg_value != (const char*)0) {
+        (void)fprintf(stderr, " value=%s", arg_value);
+    }
+    (void)fprintf(stderr, "\n");
+    return exit_code;
+}
+
+static int runtime_cli_report_missing_value(const char* arg_name) {
+    return runtime_cli_report_error("runtime.cli.arg.missing",
+                                    VN_E_INVALID_ARG,
+                                    "missing value",
+                                    arg_name,
+                                    (const char*)0,
+                                    2);
+}
+
+static int runtime_cli_report_invalid_value(const char* arg_name, const char* arg_value) {
+    return runtime_cli_report_error("runtime.cli.arg.invalid",
+                                    VN_E_INVALID_ARG,
+                                    "invalid value",
+                                    arg_name,
+                                    arg_value,
+                                    2);
+}
+
 static int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32* out_size) {
     vn_u32 res_id;
     const ResourceEntry* entry;
@@ -1875,7 +1915,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         session->summary_emitted == VN_FALSE &&
         session->exit_code == 0 &&
         session->emit_logs != 0u) {
-        (void)printf("vn_runtime ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u "
+        (void)printf("vn_runtime ok trace_id=runtime.run.ok backend=%s resolution=%ux%u scene=%s frames=%u dt=%u resources=%u text=%u wait=%u end=%u "
                      "fade=%u fade_remain=%u bgm=%u se=%u choice=%u choice_sel=%u choice_text=%u err=%u ops=%u keyboard=%u perf_flags=0x%X ",
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
@@ -1996,8 +2036,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
 
         if (strcmp(arg, "--backend") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --backend\n");
-                return 2;
+                return runtime_cli_report_missing_value("--backend");
             }
             i += 1;
             run_cfg.backend_name = argv[i];
@@ -2005,25 +2044,21 @@ int vn_runtime_run_cli(int argc, char** argv) {
             run_cfg.backend_name = arg + 10;
         } else if (strcmp(arg, "--resolution") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --resolution\n");
-                return 2;
+                return runtime_cli_report_missing_value("--resolution");
             }
             i += 1;
             rc = parse_resolution(argv[i], &run_cfg.width, &run_cfg.height);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid resolution: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--resolution", argv[i]);
             }
         } else if (strncmp(arg, "--resolution=", 13) == 0) {
             rc = parse_resolution(arg + 13, &run_cfg.width, &run_cfg.height);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid resolution: %s\n", arg + 13);
-                return 2;
+                return runtime_cli_report_invalid_value("--resolution", arg + 13);
             }
         } else if (strcmp(arg, "--scene") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --scene\n");
-                return 2;
+                return runtime_cli_report_missing_value("--scene");
             }
             i += 1;
             run_cfg.scene_name = argv[i];
@@ -2031,8 +2066,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
             run_cfg.scene_name = arg + 8;
         } else if (strcmp(arg, "--pack") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --pack\n");
-                return 2;
+                return runtime_cli_report_missing_value("--pack");
             }
             i += 1;
             run_cfg.pack_path = argv[i];
@@ -2040,73 +2074,61 @@ int vn_runtime_run_cli(int argc, char** argv) {
             run_cfg.pack_path = arg + 7;
         } else if (strcmp(arg, "--choice-index") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --choice-index\n");
-                return 2;
+                return runtime_cli_report_missing_value("--choice-index");
             }
             i += 1;
             rc = parse_u32_range(argv[i], 0l, 255l, &rc_u32);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --choice-index: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--choice-index", argv[i]);
             }
             run_cfg.choice_index = (vn_u8)(rc_u32 & 0xFFu);
         } else if (strncmp(arg, "--choice-index=", 15) == 0) {
             rc = parse_u32_range(arg + 15, 0l, 255l, &rc_u32);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --choice-index: %s\n", arg + 15);
-                return 2;
+                return runtime_cli_report_invalid_value("--choice-index", arg + 15);
             }
             run_cfg.choice_index = (vn_u8)(rc_u32 & 0xFFu);
         } else if (strcmp(arg, "--choice-seq") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --choice-seq\n");
-                return 2;
+                return runtime_cli_report_missing_value("--choice-seq");
             }
             i += 1;
             rc = parse_choice_seq(argv[i], &choice_feed);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --choice-seq: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--choice-seq", argv[i]);
             }
         } else if (strncmp(arg, "--choice-seq=", 13) == 0) {
             rc = parse_choice_seq(arg + 13, &choice_feed);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --choice-seq: %s\n", arg + 13);
-                return 2;
+                return runtime_cli_report_invalid_value("--choice-seq", arg + 13);
             }
         } else if (strcmp(arg, "--frames") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --frames\n");
-                return 2;
+                return runtime_cli_report_missing_value("--frames");
             }
             i += 1;
             rc = parse_u32_range(argv[i], 1l, 1000000l, &run_cfg.frames);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --frames: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--frames", argv[i]);
             }
         } else if (strncmp(arg, "--frames=", 9) == 0) {
             rc = parse_u32_range(arg + 9, 1l, 1000000l, &run_cfg.frames);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --frames: %s\n", arg + 9);
-                return 2;
+                return runtime_cli_report_invalid_value("--frames", arg + 9);
             }
         } else if (strcmp(arg, "--dt-ms") == 0) {
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --dt-ms\n");
-                return 2;
+                return runtime_cli_report_missing_value("--dt-ms");
             }
             i += 1;
             rc = parse_u32_range(argv[i], 0l, 1000l, &run_cfg.dt_ms);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --dt-ms: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--dt-ms", argv[i]);
             }
         } else if (strncmp(arg, "--dt-ms=", 8) == 0) {
             rc = parse_u32_range(arg + 8, 0l, 1000l, &run_cfg.dt_ms);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --dt-ms: %s\n", arg + 8);
-                return 2;
+                return runtime_cli_report_invalid_value("--dt-ms", arg + 8);
             }
         } else if (strcmp(arg, "--keyboard") == 0) {
             run_cfg.keyboard = 1u;
@@ -2117,85 +2139,73 @@ int vn_runtime_run_cli(int argc, char** argv) {
         } else if (strcmp(arg, "--perf-op-cache") == 0) {
             int enabled;
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --perf-op-cache\n");
-                return 2;
+                return runtime_cli_report_missing_value("--perf-op-cache");
             }
             i += 1;
             rc = parse_toggle_value(argv[i], &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-op-cache: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-op-cache", argv[i]);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
         } else if (strncmp(arg, "--perf-op-cache=", 16) == 0) {
             int enabled;
             rc = parse_toggle_value(arg + 16, &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-op-cache: %s\n", arg + 16);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-op-cache", arg + 16);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
         } else if (strcmp(arg, "--perf-dirty-tile") == 0) {
             int enabled;
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --perf-dirty-tile\n");
-                return 2;
+                return runtime_cli_report_missing_value("--perf-dirty-tile");
             }
             i += 1;
             rc = parse_toggle_value(argv[i], &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-dirty-tile: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-dirty-tile", argv[i]);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
         } else if (strncmp(arg, "--perf-dirty-tile=", 18) == 0) {
             int enabled;
             rc = parse_toggle_value(arg + 18, &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-dirty-tile: %s\n", arg + 18);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-dirty-tile", arg + 18);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
         } else if (strcmp(arg, "--perf-dynamic-resolution") == 0) {
             int enabled;
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --perf-dynamic-resolution\n");
-                return 2;
+                return runtime_cli_report_missing_value("--perf-dynamic-resolution");
             }
             i += 1;
             rc = parse_toggle_value(argv[i], &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-dynamic-resolution: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-dynamic-resolution", argv[i]);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION, enabled);
         } else if (strncmp(arg, "--perf-dynamic-resolution=", 26) == 0) {
             int enabled;
             rc = parse_toggle_value(arg + 26, &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-dynamic-resolution: %s\n", arg + 26);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-dynamic-resolution", arg + 26);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION, enabled);
         } else if (strcmp(arg, "--perf-frame-reuse") == 0) {
             int enabled;
             if ((i + 1) >= argc) {
-                (void)fprintf(stderr, "missing value for --perf-frame-reuse\n");
-                return 2;
+                return runtime_cli_report_missing_value("--perf-frame-reuse");
             }
             i += 1;
             rc = parse_toggle_value(argv[i], &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-frame-reuse: %s\n", argv[i]);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-frame-reuse", argv[i]);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_FRAME_REUSE, enabled);
         } else if (strncmp(arg, "--perf-frame-reuse=", 19) == 0) {
             int enabled;
             rc = parse_toggle_value(arg + 19, &enabled);
             if (rc != VN_OK) {
-                (void)fprintf(stderr, "invalid --perf-frame-reuse: %s\n", arg + 19);
-                return 2;
+                return runtime_cli_report_invalid_value("--perf-frame-reuse", arg + 19);
             }
             runtime_perf_flag_set(&run_cfg.perf_flags, VN_RUNTIME_PERF_FRAME_REUSE, enabled);
         } else if (strcmp(arg, "--quiet") == 0) {
@@ -2212,13 +2222,22 @@ int vn_runtime_run_cli(int argc, char** argv) {
 
     rc = parse_scene_id(run_cfg.scene_name, &scene_id);
     if (rc != VN_OK) {
-        (void)fprintf(stderr, "invalid scene: %s\n", run_cfg.scene_name);
-        return 2;
+        return runtime_cli_report_error("runtime.cli.scene.invalid",
+                                        VN_E_INVALID_ARG,
+                                        "invalid scene",
+                                        "scene",
+                                        run_cfg.scene_name,
+                                        2);
     }
 
     rc = vn_runtime_run(&run_cfg, (VNRunResult*)0);
     if (rc != 0) {
-        return 1;
+        return runtime_cli_report_error("runtime.run.failed",
+                                        rc,
+                                        "vn_runtime_run failed",
+                                        "scene",
+                                        run_cfg.scene_name,
+                                        1);
     }
     return 0;
 }

@@ -15,8 +15,17 @@
 5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
 6. 当前 `test_runtime_api` 与 `test_preview_protocol` 已显式覆盖更重的 `S10` 场景，保证 `scene_name -> pack script -> runtime/preview result` 这条链路有回归保护。
 
+## 2.1 当前版本承诺级别
 
-## 2.1 当前性能扩展状态
+`vn_runtime.h` 当前应按“`public v1-draft (pre-1.0)`”理解：
+
+1. 它已经是公开头文件，宿主可以基于文档化接口接入。
+2. 但在 `v0.x` 阶段，字段和函数仍允许继续收口，不应被视为完全冻结 ABI。
+3. `v1.0.0` 的目标是固定最小公开运行面，而不是追认所有历史字段都永不变化。
+4. 宿主不应依赖未文档化结构布局、私有状态或源码目录结构。
+5. 若 `v0.x` 期间发生破坏性调整，必须在 release note、`README` 与兼容矩阵中明确写出。
+
+## 2.2 当前性能扩展状态
 
 1. 当前 runtime 已公开 `frame reuse + op cache + dirty tile + dynamic resolution` 四条 perf 开关。
 2. `Dirty-Tile` 的设计背景、阶段拆分与实现约束仍单独整理在 [`dirty-tile-draft.md`](./dirty-tile-draft.md)。
@@ -124,6 +133,7 @@
 
 1. 常规模式下不承诺真实时间节流。
 2. 当 `cfg->keyboard != 0` 且 `cfg->dt_ms > 0` 时，`vn_runtime_run()` 会在帧与帧之间调用平台层 sleep，以便 CLI 调试模式可交互。
+3. `backend_name`、perf 扩展开关和结果统计字段属于当前公开面的一部分，但 `v0.x` 阶段仍需以 release note 明确兼容边界。
 
 返回值：
 
@@ -185,6 +195,13 @@
 ### `int vn_runtime_run_cli(int argc, char** argv)`
 
 CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 `vn_runtime_run`。
+
+当前 machine-readable 约定：
+
+1. 参数错误会输出稳定的 `trace_id=runtime.cli.*`
+2. 运行失败会输出 `trace_id=runtime.run.failed`
+3. 成功 summary 继续以 `vn_runtime ok ` 开头，并额外附带 `trace_id=runtime.run.ok`
+4. 详细错误解释继续复用 `error_code + error_name + message`
 
 扩展参数：
 

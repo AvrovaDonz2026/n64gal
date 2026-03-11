@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BUILD_DIR = ROOT / "build_toolchain"
+TMP_BUILD_DIR = BUILD_DIR / "tmp"
+CFLAGS = [
+    "-std=c89",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-pedantic-errors",
+    "-Iinclude",
+]
+
+
+def print_usage(program: str) -> int:
+    print(
+        "\n".join(
+            [
+                f"usage: {program} <command> [args]",
+                "",
+                "commands:",
+                "  validate-manifest <manifest.json>",
+                "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
+                "  probe-vnsave --in <save.vnsave>",
+                "  probe-trace-summary <runtime_trace.log>",
+                "  probe-preview [vn_previewd args]",
+                "",
+                f"trace_id=tool.toolchain.help command={program}",
+            ]
+        ),
+        file=sys.stderr,
+    )
+    return 2
+
+
+def repo_rel(path: Path) -> str:
+    return str(path.relative_to(ROOT))
+
+
+def needs_rebuild(output: Path, sources) -> bool:
+    if not output.exists():
+        return True
+    out_mtime = output.stat().st_mtime
+    for src in sources:
+        if src.stat().st_mtime > out_mtime:
+            return True
+    return False
+
+
+def ensure_c_tool(output_name: str, source_paths) -> Path:
+    cc = os.environ.get("CC", "cc")
+    output = BUILD_DIR / output_name
+    sources = [ROOT / rel for rel in source_paths]
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    TMP_BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    if needs_rebuild(output, sources):
+        cmd = [cc] + CFLAGS + source_paths + ["-o", repo_rel(output)]
+        env = os.environ.copy()
+        env["TMPDIR"] = str(TMP_BUILD_DIR)
+        proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=env)
+        if proc.stdout:
+            sys.stdout.write(proc.stdout)
+        if proc.stderr:
+            sys.stderr.write(proc.stderr)
+        if proc.returncode != 0:
+            raise RuntimeError("compile failed")
+    return output
+
+
+def run_forward(cmd) -> int:
+    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    return proc.returncode
+
+
+def command_validate_manifest(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.validate.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected manifest path", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_manifest.py", argv[0]])
+
+
+def command_migrate_vnsave(argv) -> int:
+    tool = ensure_c_tool(
+        "vnsave_migrate",
+        [
+            "tools/migrate/vnsave_migrate.c",
+            "src/core/error.c",
+            "src/core/save.c",
+            "src/core/platform.c",
+        ],
+    )
+    return run_forward([repo_rel(tool)] + argv)
+
+
+def command_probe_vnsave(argv) -> int:
+    tool = ensure_c_tool(
+        "vnsave_probe",
+        [
+            "tools/probe/vnsave_probe.c",
+            "src/core/error.c",
+            "src/core/save.c",
+            "src/core/platform.c",
+        ],
+    )
+    return run_forward([repo_rel(tool)] + argv)
+
+
+def command_probe_trace_summary(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.probe_trace.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected trace log path", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/probe/trace_summary.py", argv[0]])
+
+
+def command_probe_preview(argv) -> int:
+    previewd = ensure_c_tool(
+        "vn_previewd",
+        [
+            "src/tools/previewd_main.c",
+            "src/tools/preview_cli.c",
+            "src/core/error.c",
+            "src/core/backend_registry.c",
+            "src/core/renderer.c",
+            "src/core/save.c",
+            "src/core/vm.c",
+            "src/core/pack.c",
+            "src/core/platform.c",
+            "src/core/runtime_cli.c",
+            "src/core/dynamic_resolution.c",
+            "src/frontend/render_ops.c",
+            "src/frontend/dirty_tiles.c",
+            "src/backend/common/pixel_pipeline.c",
+            "src/backend/avx2/avx2_backend.c",
+            "src/backend/avx2/avx2_fill_fade.c",
+            "src/backend/avx2/avx2_textured.c",
+            "src/backend/neon/neon_backend.c",
+            "src/backend/rvv/rvv_backend.c",
+            "src/backend/scalar/scalar_backend.c",
+        ],
+    )
+
+    response_path = None
+    for idx, arg in enumerate(argv):
+        if arg == "--response" and (idx + 1) < len(argv):
+            response_path = argv[idx + 1]
+            break
+        if arg.startswith("--response="):
+            response_path = arg.split("=", 1)[1]
+            break
+
+    cleanup_response = False
+    if response_path is None:
+        TMP_BUILD_DIR.mkdir(parents=True, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(prefix="preview_probe_", suffix=".json", dir=str(TMP_BUILD_DIR))
+        os.close(fd)
+        response_path = os.path.relpath(temp_path, ROOT)
+        argv = list(argv) + ["--response", response_path]
+        cleanup_response = True
+
+    rc = run_forward([repo_rel(previewd)] + argv)
+    summary_rc = 1
+    if os.path.exists(ROOT / response_path):
+        summary_rc = run_forward([sys.executable, "tools/probe/preview_summary.py", response_path])
+
+    if cleanup_response and os.path.exists(ROOT / response_path):
+        os.remove(ROOT / response_path)
+
+    if rc != 0:
+        return rc
+    return summary_rc
+
+
+def main(argv) -> int:
+    if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
+        return print_usage(argv[0])
+
+    command = argv[1]
+    args = argv[2:]
+    try:
+        if command == "validate-manifest":
+            return command_validate_manifest(args)
+        if command == "migrate-vnsave":
+            return command_migrate_vnsave(args)
+        if command == "probe-vnsave":
+            return command_probe_vnsave(args)
+        if command == "probe-trace-summary":
+            return command_probe_trace_summary(args)
+        if command == "probe-preview":
+            return command_probe_preview(args)
+    except RuntimeError:
+        print("trace_id=tool.toolchain.compile.failed error_code=-2 error_name=VN_E_IO message=failed to build tool helper", file=sys.stderr)
+        return 1
+
+    print(
+        f"trace_id=tool.toolchain.invalid error_code=-1 error_name=VN_E_INVALID_ARG command={command} message=unknown command",
+        file=sys.stderr,
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

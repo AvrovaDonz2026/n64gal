@@ -4,6 +4,15 @@
 
 统一前后端契约，确保跨架构迁移时 Frontend 代码不变。
 
+## 1.1 当前版本承诺级别
+
+`vn_backend.h` 当前更接近 runtime 内部契约，而不是第三方可自由依赖的稳定插件 ABI：
+
+1. Frontend 与 runtime 共享它，后端实现依赖它。
+2. 宿主不应直接把私有 backend 选择链或 `VNRenderBackend` 布局视为外部稳定 ABI。
+3. `v1.0.0` 目标是固定“统一后端契约存在且行为可验证”，不是开放第三方二进制插件 ABI。
+4. `avx2_asm`、`rvv` 等实验/长期路线不应被误解为与 `scalar/avx2/neon` 同级别的默认发布承诺。
+
 ## 2. 核心类型
 
 ### `VNRenderOp`

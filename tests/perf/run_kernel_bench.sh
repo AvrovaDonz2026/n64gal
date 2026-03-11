@@ -83,6 +83,7 @@ fi
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
   COMMON_SRC=(
+    src/core/error.c
     src/core/backend_registry.c
     src/core/renderer.c
     src/core/platform.c

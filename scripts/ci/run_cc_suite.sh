@@ -8,7 +8,9 @@ BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_ci_cc}"
 LOG_DIR="$BUILD_DIR/ci_logs"
 GOLDEN_ARTIFACT_DIR="$BUILD_DIR/golden_artifacts"
 SUMMARY_MD="$BUILD_DIR/ci_suite_summary.md"
-mkdir -p "$BUILD_DIR" "$LOG_DIR" "$GOLDEN_ARTIFACT_DIR"
+TMP_BUILD_DIR="$BUILD_DIR/tmp"
+mkdir -p "$BUILD_DIR" "$LOG_DIR" "$GOLDEN_ARTIFACT_DIR" "$TMP_BUILD_DIR"
+export TMPDIR="$TMP_BUILD_DIR"
 CC_BIN="${CC:-cc}"
 
 run_capture() {
@@ -50,6 +52,7 @@ write_summary() {
     echo
     echo "- Status: \`$status\`"
     echo "- Build dir: \`$BUILD_DIR\`"
+    echo "- Temp dir: \`$TMPDIR\`"
     echo "- Log dir: \`$LOG_DIR\`"
     echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
     echo "- Fallback log: \`$LOG_DIR/test_renderer_fallback.log\`"
@@ -67,12 +70,19 @@ write_summary() {
 trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary failed; fi; exit $rc' EXIT
 
 run_capture "$LOG_DIR/check_c89.log" ./scripts/check_c89.sh
+run_capture "$LOG_DIR/check_api_docs_sync.log" ./scripts/check_api_docs_sync.sh
+run_capture "$LOG_DIR/test_manifest_validate.log" python3 tests/integration/test_manifest_validate.py
+run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
+run_capture "$LOG_DIR/test_trace_summary.log" python3 tests/integration/test_trace_summary.py
+run_capture "$LOG_DIR/test_preview_summary.log" python3 tests/integration/test_preview_summary.py
 run_capture "$LOG_DIR/build_demo_scripts.log" ./tools/scriptc/build_demo_scripts.sh
 run_capture "$LOG_DIR/make_demo_pack.log" ./tools/packer/make_demo_pack.sh
 
 COMMON_SRC=(
+  src/core/error.c
   src/core/backend_registry.c
   src/core/renderer.c
+  src/core/save.c
   src/core/vm.c
   src/core/pack.c
   src/core/platform.c
@@ -101,10 +111,14 @@ CFLAGS=(
 )
 TESTS=(
   test_backend_registry
+  test_error_codes
   test_render_ops
   test_dirty_tiles
   test_dynamic_resolution
   test_vnpak
+  test_vnsave
+  test_vnsave_migrate
+  test_vnsave_probe_tool
   test_renderer_fallback
   test_renderer_dirty_submit
   test_backend_consistency
@@ -115,19 +129,30 @@ TESTS=(
   test_runtime_dynamic_resolution
   test_runtime_session
   test_runtime_input
+  test_runtime_cli_errors
   test_runtime_golden
   test_platform_paths
 )
 
 for test_name in "${TESTS[@]}"; do
-  "$CC_BIN" "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
+  if [[ "$test_name" == "test_vnsave_migrate" ]]; then
+    "$CC_BIN" "${CFLAGS[@]}" -DVN_SAVE_MIGRATE_NO_MAIN "tests/unit/${test_name}.c" tools/migrate/vnsave_migrate.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
+  elif [[ "$test_name" == "test_vnsave_probe_tool" ]]; then
+    "$CC_BIN" "${CFLAGS[@]}" -DVN_SAVE_PROBE_NO_MAIN "tests/unit/${test_name}.c" tools/probe/vnsave_probe.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
+  else
+    "$CC_BIN" "${CFLAGS[@]}" "tests/unit/${test_name}.c" "${COMMON_SRC[@]}" -o "$BUILD_DIR/$test_name"
+  fi
 done
 
 "$CC_BIN" "${CFLAGS[@]}" tests/integration/test_preview_protocol.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_preview_protocol"
 "$CC_BIN" "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_player"
 "$CC_BIN" "${CFLAGS[@]}" src/tools/previewd_main.c "${PREVIEW_SRC[@]}" "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_previewd"
+"$CC_BIN" "${CFLAGS[@]}" tools/migrate/vnsave_migrate.c src/core/error.c src/core/save.c src/core/platform.c -Iinclude -o "$BUILD_DIR/vnsave_migrate"
+"$CC_BIN" "${CFLAGS[@]}" tools/probe/vnsave_probe.c src/core/error.c src/core/save.c src/core/platform.c -Iinclude -o "$BUILD_DIR/vnsave_probe"
 "$CC_BIN" "${CFLAGS[@]}" tests/perf/backend_kernel_bench.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/vn_backend_kernel_bench"
 "$CC_BIN" "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed"
+"$CC_BIN" "${CFLAGS[@]}" examples/host-embed/linux_tty_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed_linux_tty"
+"$CC_BIN" "${CFLAGS[@]}" examples/host-embed/windows_console_loop.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/example_host_embed_windows_console"
 
 for test_name in "${TESTS[@]}"; do
   if [[ "$test_name" == "test_runtime_golden" ]]; then
@@ -138,5 +163,9 @@ for test_name in "${TESTS[@]}"; do
 done
 
 run_capture "$LOG_DIR/test_preview_protocol.log" "$BUILD_DIR/test_preview_protocol"
+run_capture "$LOG_DIR/vnsave_migrate.log" "$BUILD_DIR/vnsave_migrate" --in tests/fixtures/vnsave/v0/sample.vnsave --out "$BUILD_DIR/v0_to_v1.vnsave"
+run_capture "$LOG_DIR/vnsave_probe.log" "$BUILD_DIR/vnsave_probe" --in tests/fixtures/vnsave/v1/sample.vnsave
 run_capture "$LOG_DIR/test_backend_kernel_bench.log" "$BUILD_DIR/vn_backend_kernel_bench" --backend scalar --iterations 4 --warmup 1
 run_capture "$LOG_DIR/example_host_embed.log" "$BUILD_DIR/example_host_embed"
+run_capture "$LOG_DIR/example_host_embed_linux_tty.log" "$BUILD_DIR/example_host_embed_linux_tty"
+run_capture "$LOG_DIR/example_host_embed_windows_console.log" "$BUILD_DIR/example_host_embed_windows_console"
