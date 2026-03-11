@@ -9,7 +9,9 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 
 当前代码以“库优先”方式组织：核心能力通过 `vn_runtime.h` 暴露，预览协议入口通过 `vn_preview.h` 暴露，`vn_player` 仅作为可选 CLI 包装。
 
-## 项目状态（2026-03-07）
+## 项目状态（2026-03-11）
+
+当前对外版本目标：`v0.1.0-alpha`
 
 1. 已完成：
    - `scalar` 后端最小闭环（默认 `600x800`，场景 `S0-S3`，并新增更重的 `S10` perf sample）。
@@ -25,7 +27,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md) 与 [docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。 关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)。
 
 ## 目标平台矩阵
 

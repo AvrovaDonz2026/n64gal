@@ -936,20 +936,29 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ### 目标
 
-完成 `v0.1.0-mvp` 发布前全部文档和证据链。
+先完成首个对外预发布版本 `v0.1.0-alpha` 的文档和证据链；`v0.1.0-mvp` 作为后续更完整的里程碑继续保留。
 
 ### 交付物
 
 - `README`
+- `CHANGELOG.md`
 - `docs/perf-report.md`
+- `docs/release-v0.1.0-alpha.md`
+- `docs/release-checklist-v0.1.0-alpha.md`
+- `docs/release-evidence-v0.1.0-alpha.md`
+- `docs/release-package-v0.1.0-alpha.md`
 - `docs/migration.md`
 - `docs/backend-porting.md`
 - 发布产物（可执行 + `demo.vnpak` + 许可证）
 
 ### 任务清单
 
-- [ ] 汇总性能报告与测试附件
-- [ ] 输出后端移植指南
+- [x] 汇总性能报告与测试附件（alpha 级索引）
+- [x] 固定 `v0.1.0-alpha` release note 与当前范围说明
+- [x] 固定 `v0.1.0-alpha` changelog 摘要
+- [x] 输出后端移植指南
+- [x] 建立 `v0.1.0-alpha` 发布清单文档
+- [x] 建立 `v0.1.0-alpha` 发布产物清单与缺口说明
 - [ ] 完成发布清单检查
 
 ### 验收命令

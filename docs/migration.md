@@ -1,0 +1,101 @@
+# Migration Notes
+
+## 1. 目标
+
+这份文档描述 `v0.1.0-alpha` 阶段已经存在、以及尚未承诺的迁移范围。
+
+当前重点不是提供完整迁移工具，而是先把“哪些东西已经有版本语义、哪些还没有”写清楚，避免宿主和内容侧误以为 `1.0.0` 级别兼容承诺已经存在。
+
+## 2. 当前结论
+
+### 已有版本语义
+
+1. `vnpak`
+   - 当前已有 `v1` / `v2`
+   - 运行时支持兼容读取
+2. `preview protocol`
+   - 当前固定为 `v1`
+3. 对外发布标签
+   - 当前对外准备的是 `v0.1.0-alpha`
+
+### 还没有完整迁移承诺
+
+1. `vnsave`
+   - 尚未完成 `vnsave v1` 迁移器
+2. 生态模板 / Creator Toolchain
+   - 仍在 `M4-engine-ecosystem`
+3. `1.0.0` 级别格式冻结
+   - 当前不存在
+
+## 3. `vnpak` 迁移边界
+
+当前资源包格式状态：
+
+1. `v1`
+   - 无 per-resource CRC
+2. `v2`
+   - 追加 per-resource CRC32
+   - 当前打包器默认输出 `v2`
+
+对 `v0.1.0-alpha` 的要求是：
+
+1. 运行时必须继续支持读取 `v1` / `v2`
+2. 新产物默认写 `v2`
+3. 不要求提供独立 `v1 -> v2` 迁移工具
+
+## 4. `vnsave` 状态
+
+当前仓库还没有把对外存档迁移链收口完成：
+
+1. `ISSUE-015` 仍未完成
+2. 暂无正式 `vnsave v1` 工具
+3. 宿主不应假设 `v0.1.0-alpha` 已承诺历史存档兼容
+
+因此，对外 release 应明确写：
+
+1. `vnsave` 迁移不在 `v0.1.0-alpha` 范围内
+2. 若宿主已经自定义保存格式，应继续按宿主侧策略管理
+
+## 5. Preview / Runtime 配置兼容
+
+当前可以认为稳定到 alpha 级别的部分：
+
+1. `VNRunConfig` 基本字段
+2. `VNRunResult` 的当前已公开字段
+3. `preview protocol v1`
+4. `--backend=auto|scalar|avx2|avx2_asm|neon|rvv`
+
+但仍不应承诺：
+
+1. 字段永不变化
+2. 预览协议永不扩展
+3. 生态工具链参数不再变化
+
+## 6. `v0.1.0-alpha` 对外迁移说明建议
+
+对外 release note 应至少明确：
+
+1. 这是首个 alpha，不是稳定 ABI 版本
+2. `vnpak` 继续兼容 `v1/v2`
+3. `vnsave` 迁移不在本版本范围
+4. `preview protocol` 当前版本为 `v1`
+5. `avx2_asm` 仍是 force-only 实验入口
+
+## 7. 后续里程碑
+
+在进入更正式版本前，至少还要完成：
+
+1. `ISSUE-015`
+   - `vnsave v1` 迁移器
+2. `ISSUE-025`
+   - release 兼容矩阵
+3. `ISSUE-022`
+   - Creator Toolchain 中的 `migrate`
+
+## 8. 当前建议
+
+对 `v0.1.0-alpha`：
+
+1. 明确写“当前无完整存档迁移承诺”
+2. 资源包兼容只声明到 `vnpak`
+3. 迁移责任边界写清楚，不要模糊承诺
