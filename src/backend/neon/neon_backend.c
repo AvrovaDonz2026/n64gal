@@ -120,6 +120,11 @@ static void vn_neon_fill_u32(vn_u32* dst, vn_u32 count, vn_u32 value) {
 
     vec = vdupq_n_u32((uint32_t)value);
     i = 0u;
+    while ((i + 8u) <= count) {
+        vst1q_u32((uint32_t*)(void*)(dst + i), vec);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), vec);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         vst1q_u32((uint32_t*)(void*)(dst + i), vec);
         i += 4u;
@@ -165,6 +170,67 @@ static void vn_neon_blend_u32_uniform(vn_u32* dst, vn_u32 count, vn_u32 color, v
     src_g = vandq_u32(vdupq_n_u32((uint32_t)color), mask_g);
 
     i = 0u;
+    while ((i + 8u) <= count) {
+        uint32x4_t dst_px0;
+        uint32x4_t dst_rb0;
+        uint32x4_t dst_g0;
+        uint32x4_t rb0;
+        uint32x4_t g0;
+        uint32x4_t out0;
+        uint32x4_t dst_px1;
+        uint32x4_t dst_rb1;
+        uint32x4_t dst_g1;
+        uint32x4_t rb1;
+        uint32x4_t g1;
+        uint32x4_t out1;
+
+        dst_px0 = vld1q_u32((const uint32_t*)(const void*)(dst + i));
+        dst_rb0 = vandq_u32(dst_px0, mask_rb);
+        dst_g0 = vandq_u32(dst_px0, mask_g);
+
+        rb0 = vaddq_u32(vmulq_n_u32(src_rb, alpha_u32),
+                        vmulq_n_u32(dst_rb0, inv_u32));
+        rb0 = vaddq_u32(rb0, bias_rb);
+        rb0 = vaddq_u32(rb0,
+                        vaddq_u32(one_rb,
+                                  vandq_u32(vshrq_n_u32(rb0, 8), mask_rb)));
+        rb0 = vandq_u32(vshrq_n_u32(rb0, 8), mask_rb);
+
+        g0 = vaddq_u32(vmulq_n_u32(src_g, alpha_u32),
+                       vmulq_n_u32(dst_g0, inv_u32));
+        g0 = vaddq_u32(g0, bias_g);
+        g0 = vaddq_u32(g0,
+                       vaddq_u32(one_g,
+                                 vandq_u32(vshrq_n_u32(g0, 8), mask_g)));
+        g0 = vandq_u32(vshrq_n_u32(g0, 8), mask_g);
+
+        out0 = vorrq_u32(vorrq_u32(rb0, g0), alpha_mask);
+        vst1q_u32((uint32_t*)(void*)(dst + i), out0);
+
+        dst_px1 = vld1q_u32((const uint32_t*)(const void*)(dst + i + 4u));
+        dst_rb1 = vandq_u32(dst_px1, mask_rb);
+        dst_g1 = vandq_u32(dst_px1, mask_g);
+
+        rb1 = vaddq_u32(vmulq_n_u32(src_rb, alpha_u32),
+                        vmulq_n_u32(dst_rb1, inv_u32));
+        rb1 = vaddq_u32(rb1, bias_rb);
+        rb1 = vaddq_u32(rb1,
+                        vaddq_u32(one_rb,
+                                  vandq_u32(vshrq_n_u32(rb1, 8), mask_rb)));
+        rb1 = vandq_u32(vshrq_n_u32(rb1, 8), mask_rb);
+
+        g1 = vaddq_u32(vmulq_n_u32(src_g, alpha_u32),
+                       vmulq_n_u32(dst_g1, inv_u32));
+        g1 = vaddq_u32(g1, bias_g);
+        g1 = vaddq_u32(g1,
+                       vaddq_u32(one_g,
+                                 vandq_u32(vshrq_n_u32(g1, 8), mask_g)));
+        g1 = vandq_u32(vshrq_n_u32(g1, 8), mask_g);
+
+        out1 = vorrq_u32(vorrq_u32(rb1, g1), alpha_mask);
+        vst1q_u32((uint32_t*)(void*)(dst + i + 4u), out1);
+        i += 8u;
+    }
     while ((i + 4u) <= count) {
         uint32x4_t dst_px;
         uint32x4_t dst_rb;
