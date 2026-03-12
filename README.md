@@ -237,19 +237,27 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 ```bash
 python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
+python3 tools/toolchain.py validate-release-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
+python3 tools/toolchain.py probe-perf-summary tests/fixtures/perf_summary/sample_perf_summary.csv
+python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample_perf_compare.csv
+python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
 
 当前统一入口已经覆盖：
 
 1. `validate-manifest`
-2. `probe-vnsave`
-3. `probe-trace-summary`
-4. `probe-preview`
-5. `migrate-vnsave`
+2. `validate-release-contracts`
+3. `probe-vnsave`
+4. `probe-trace-summary`
+5. `probe-preview`
+6. `probe-perf-summary`
+7. `probe-perf-compare`
+8. `probe-kernel-compare`
+9. `migrate-vnsave`
 
 键盘模式按键：
 

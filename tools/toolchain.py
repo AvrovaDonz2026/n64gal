@@ -27,10 +27,14 @@ def print_usage(program: str) -> int:
                 "",
                 "commands:",
                 "  validate-manifest <manifest.json>",
+                "  validate-release-contracts",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
                 "  probe-preview [vn_previewd args]",
+                "  probe-perf-summary <perf_summary.csv>",
+                "  probe-perf-compare <perf_compare.csv>",
+                "  probe-kernel-compare <kernel_compare.csv>",
                 "",
                 f"trace_id=tool.toolchain.help command={program}",
             ]
@@ -88,6 +92,13 @@ def command_validate_manifest(argv) -> int:
         print("trace_id=tool.toolchain.validate.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected manifest path", file=sys.stderr)
         return 2
     return run_forward([sys.executable, "tools/validate/validate_manifest.py", argv[0]])
+
+
+def command_validate_release_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_release_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_release_contracts.py"])
 
 
 def command_migrate_vnsave(argv) -> int:
@@ -181,6 +192,27 @@ def command_probe_preview(argv) -> int:
     return summary_rc
 
 
+def command_probe_perf_summary(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.probe_perf.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected perf summary path", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/probe/perf_summary.py", argv[0]])
+
+
+def command_probe_perf_compare(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.probe_perf_compare.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected perf compare path", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/probe/perf_compare_summary.py", argv[0]])
+
+
+def command_probe_kernel_compare(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.probe_kernel_compare.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected kernel compare path", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/probe/kernel_compare_summary.py", argv[0]])
+
+
 def main(argv) -> int:
     if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
         return print_usage(argv[0])
@@ -190,6 +222,8 @@ def main(argv) -> int:
     try:
         if command == "validate-manifest":
             return command_validate_manifest(args)
+        if command == "validate-release-contracts":
+            return command_validate_release_contracts(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":
@@ -198,6 +232,12 @@ def main(argv) -> int:
             return command_probe_trace_summary(args)
         if command == "probe-preview":
             return command_probe_preview(args)
+        if command == "probe-perf-summary":
+            return command_probe_perf_summary(args)
+        if command == "probe-perf-compare":
+            return command_probe_perf_compare(args)
+        if command == "probe-kernel-compare":
+            return command_probe_kernel_compare(args)
     except RuntimeError:
         print("trace_id=tool.toolchain.compile.failed error_code=-2 error_name=VN_E_IO message=failed to build tool helper", file=sys.stderr)
         return 1

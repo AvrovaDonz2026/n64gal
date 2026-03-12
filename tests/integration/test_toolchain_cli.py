@@ -28,6 +28,11 @@ def main():
         print(f"validate-manifest failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-release-contracts"])
+    if rc != 0 or "trace_id=tool.validate.release_contracts.ok" not in out:
+        print(f"validate-release-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
         print(f"probe-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -43,6 +48,21 @@ def main():
         print(f"probe-preview failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["probe-perf-summary", "tests/fixtures/perf_summary/sample_perf_summary.csv"])
+    if rc != 0 or "trace_id=tool.probe.perf_summary.ok" not in out:
+        print(f"probe-perf-summary failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["probe-perf-compare", "tests/fixtures/perf_compare/sample_perf_compare.csv"])
+    if rc != 0 or "trace_id=tool.probe.perf_compare.ok" not in out:
+        print(f"probe-perf-compare failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["probe-kernel-compare", "tests/fixtures/kernel_compare/sample_kernel_compare.csv"])
+    if rc != 0 or "trace_id=tool.probe.kernel_compare.ok" not in out:
+        print(f"probe-kernel-compare failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["migrate-vnsave", "--in", "tests/fixtures/vnsave/v0/sample.vnsave", "--out", out_path])
     if rc != 0 or "trace_id=tool.vnsave_migrate.ok" not in out:
         print(f"migrate-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -56,7 +76,8 @@ def main():
         print("unknown command handling mismatch", file=sys.stderr)
         return 1
 
-    os.remove(out_path)
+    if os.path.exists(out_path):
+        os.remove(out_path)
     print("test_toolchain_cli ok")
     return 0
 

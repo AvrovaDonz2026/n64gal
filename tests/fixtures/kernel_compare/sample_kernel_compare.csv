@@ -1,0 +1,4 @@
+kernel,baseline_label,candidate_label,baseline_samples,candidate_samples,baseline_avg_ms,candidate_avg_ms,avg_speedup,avg_gain_pct,baseline_p95_ms,candidate_p95_ms,p95_speedup,p95_gain_pct,baseline_mpix_per_s,candidate_mpix_per_s,throughput_gain_pct
+clear_full,scalar,avx2,4,4,2.000000,1.000000,2.000,50.00,2.400000,1.200000,2.000,50.00,100.000000,200.000000,100.00
+fade_full_alpha160,scalar,avx2,4,4,6.000000,3.000000,2.000,50.00,6.600000,3.300000,2.000,50.00,80.000000,160.000000,100.00
+sprite_full_opaque,scalar,avx2,4,4,12.000000,6.000000,2.000,50.00,12.600000,6.300000,2.000,50.00,40.000000,80.000000,100.00

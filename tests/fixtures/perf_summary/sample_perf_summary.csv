@@ -1,0 +1,4 @@
+scene,samples,p95_frame_ms,avg_frame_ms,max_rss_mb,warmup_sec,duration_sec,backend,dt_ms,resolution,passes,perf_frame_reuse,perf_op_cache,perf_dirty_tile,perf_dynamic_resolution,requested_backend,actual_backend,host_cpu
+S1,120,1.250,1.100,5.500,1,2,avx2,16,600x800,1,on,on,off,off,avx2,avx2,SampleCPU
+S3,120,1.500,1.200,5.600,1,2,avx2,16,600x800,1,on,on,off,off,avx2,avx2,SampleCPU
+S10,120,2.750,2.100,5.700,1,2,avx2,16,600x800,1,on,on,off,off,avx2,avx2,SampleCPU
