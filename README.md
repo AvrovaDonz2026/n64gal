@@ -238,11 +238,13 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
+python3 tools/toolchain.py validate-toolchain-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
 python3 tools/toolchain.py probe-perf-summary tests/fixtures/perf_summary/sample_perf_summary.csv
 python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample_perf_compare.csv
+python3 tools/toolchain.py probe-kernel-bench tests/fixtures/kernel_bench/sample_kernel_bench.csv
 python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
@@ -251,13 +253,15 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 
 1. `validate-manifest`
 2. `validate-release-contracts`
-3. `probe-vnsave`
-4. `probe-trace-summary`
-5. `probe-preview`
-6. `probe-perf-summary`
-7. `probe-perf-compare`
-8. `probe-kernel-compare`
-9. `migrate-vnsave`
+3. `validate-toolchain-contracts`
+4. `probe-vnsave`
+5. `probe-trace-summary`
+6. `probe-preview`
+7. `probe-perf-summary`
+8. `probe-perf-compare`
+9. `probe-kernel-bench`
+10. `probe-kernel-compare`
+11. `migrate-vnsave`
 
 键盘模式按键：
 

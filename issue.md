@@ -1453,8 +1453,9 @@ cmake --build build-wasm
 
 - [x] `validate`：已落首个 manifest 结构校验（`tools/validate/validate_manifest.py`）
 - [x] `validate`：已落 release contract 一致性校验（`tools/validate/validate_release_contracts.py`）
+- [x] `validate`：已落 toolchain 命令面一致性校验（`tools/validate/validate_toolchain_contracts.py`）
 - [x] `migrate`：已落首个 `vnsave v0 -> v1` 迁移命令（`tools/migrate/vnsave_migrate`）
-- [x] `probe`：已落 `vnsave` / runtime trace / preview / perf summary / perf compare / kernel compare 探测入口（`tools/probe/vnsave_probe` / `tools/probe/trace_summary.py` / `tools/probe/preview_summary.py` / `tools/probe/perf_summary.py` / `tools/probe/perf_compare_summary.py` / `tools/probe/kernel_compare_summary.py`）
+- [x] `probe`：已落 `vnsave` / runtime trace / preview / perf summary / perf compare / kernel bench / kernel compare 探测入口（`tools/probe/vnsave_probe` / `tools/probe/trace_summary.py` / `tools/probe/preview_summary.py` / `tools/probe/perf_summary.py` / `tools/probe/perf_compare_summary.py` / `tools/probe/kernel_bench_summary.py` / `tools/probe/kernel_compare_summary.py`）
 - [x] 统一 CLI 帮助、退出码和机器可读输出格式（当前已覆盖 `validate_manifest.py` / `vnsave_migrate`）
 - [x] 提供统一入口（`tools/toolchain.py`）聚合 `validate/migrate/probe`
 

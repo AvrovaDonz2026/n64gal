@@ -33,6 +33,11 @@ def main():
         print(f"validate-release-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-toolchain-contracts"])
+    if rc != 0 or "trace_id=tool.validate.toolchain_contracts.ok" not in out:
+        print(f"validate-toolchain-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
         print(f"probe-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -56,6 +61,11 @@ def main():
     rc, out, err = run_case(["probe-perf-compare", "tests/fixtures/perf_compare/sample_perf_compare.csv"])
     if rc != 0 or "trace_id=tool.probe.perf_compare.ok" not in out:
         print(f"probe-perf-compare failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["probe-kernel-bench", "tests/fixtures/kernel_bench/sample_kernel_bench.csv"])
+    if rc != 0 or "trace_id=tool.probe.kernel_bench.ok" not in out:
+        print(f"probe-kernel-bench failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["probe-kernel-compare", "tests/fixtures/kernel_compare/sample_kernel_compare.csv"])

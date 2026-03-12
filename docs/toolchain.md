@@ -18,11 +18,13 @@
 python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
+python3 tools/toolchain.py validate-toolchain-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
 python3 tools/toolchain.py probe-perf-summary tests/fixtures/perf_summary/sample_perf_summary.csv
 python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample_perf_compare.csv
+python3 tools/toolchain.py probe-kernel-bench tests/fixtures/kernel_bench/sample_kernel_bench.csv
 python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
@@ -39,12 +41,14 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 
 1. `tools/validate/validate_manifest.py`
 2. `tools/validate/validate_release_contracts.py`
+3. `tools/validate/validate_toolchain_contracts.py`
 
 示例：
 
 ```bash
 python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/validate/validate_release_contracts.py
+python3 tools/validate/validate_toolchain_contracts.py
 ```
 
 输出约定：
@@ -77,7 +81,8 @@ python3 tools/validate/validate_release_contracts.py
 3. `tools/probe/preview_summary.py`
 4. `tools/probe/perf_summary.py`
 5. `tools/probe/perf_compare_summary.py`
-6. `tools/probe/kernel_compare_summary.py`
+6. `tools/probe/kernel_bench_summary.py`
+7. `tools/probe/kernel_compare_summary.py`
 
 示例：
 
@@ -122,5 +127,5 @@ python3 tools/validate/validate_release_contracts.py
 1. 有统一入口
 2. 有最小 `validate`
 3. 有最小 `migrate`
-4. 有最小 `probe`（save + runtime trace + preview + perf summary + perf compare + kernel compare）
+4. 有最小 `probe`（save + runtime trace + preview + perf summary + perf compare + kernel bench + kernel compare）
 5. 有统一 machine-readable 输出约定
