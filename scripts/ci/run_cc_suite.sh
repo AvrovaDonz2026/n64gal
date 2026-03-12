@@ -74,6 +74,8 @@ run_capture "$LOG_DIR/check_api_docs_sync.log" ./scripts/check_api_docs_sync.sh
 run_capture "$LOG_DIR/test_manifest_validate.log" python3 tests/integration/test_manifest_validate.py
 run_capture "$LOG_DIR/test_release_contracts_validate.log" python3 tests/integration/test_release_contracts_validate.py
 run_capture "$LOG_DIR/test_toolchain_contracts_validate.log" python3 tests/integration/test_toolchain_contracts_validate.py
+run_capture "$LOG_DIR/test_host_sdk_contracts_validate.log" python3 tests/integration/test_host_sdk_contracts_validate.py
+run_capture "$LOG_DIR/test_preview_contracts_validate.log" python3 tests/integration/test_preview_contracts_validate.py
 run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_trace_summary.log" python3 tests/integration/test_trace_summary.py
 run_capture "$LOG_DIR/test_preview_summary.log" python3 tests/integration/test_preview_summary.py

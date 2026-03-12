@@ -239,6 +239,8 @@ python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
 python3 tools/toolchain.py validate-toolchain-contracts
+python3 tools/toolchain.py validate-host-sdk-contracts
+python3 tools/toolchain.py validate-preview-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
@@ -254,14 +256,16 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 1. `validate-manifest`
 2. `validate-release-contracts`
 3. `validate-toolchain-contracts`
-4. `probe-vnsave`
-5. `probe-trace-summary`
-6. `probe-preview`
-7. `probe-perf-summary`
-8. `probe-perf-compare`
-9. `probe-kernel-bench`
-10. `probe-kernel-compare`
-11. `migrate-vnsave`
+4. `validate-host-sdk-contracts`
+5. `validate-preview-contracts`
+6. `probe-vnsave`
+7. `probe-trace-summary`
+8. `probe-preview`
+9. `probe-perf-summary`
+10. `probe-perf-compare`
+11. `probe-kernel-bench`
+12. `probe-kernel-compare`
+13. `migrate-vnsave`
 
 键盘模式按键：
 

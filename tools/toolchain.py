@@ -29,6 +29,8 @@ def print_usage(program: str) -> int:
                 "  validate-manifest <manifest.json>",
                 "  validate-release-contracts",
                 "  validate-toolchain-contracts",
+                "  validate-host-sdk-contracts",
+                "  validate-preview-contracts",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -108,6 +110,20 @@ def command_validate_toolchain_contracts(argv) -> int:
         print("trace_id=tool.toolchain.validate_toolchain_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
         return 2
     return run_forward([sys.executable, "tools/validate/validate_toolchain_contracts.py"])
+
+
+def command_validate_host_sdk_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_host_sdk_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_host_sdk_contracts.py"])
+
+
+def command_validate_preview_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_preview_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_preview_contracts.py"])
 
 
 def command_migrate_vnsave(argv) -> int:
@@ -242,6 +258,10 @@ def main(argv) -> int:
             return command_validate_release_contracts(args)
         if command == "validate-toolchain-contracts":
             return command_validate_toolchain_contracts(args)
+        if command == "validate-host-sdk-contracts":
+            return command_validate_host_sdk_contracts(args)
+        if command == "validate-preview-contracts":
+            return command_validate_preview_contracts(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":

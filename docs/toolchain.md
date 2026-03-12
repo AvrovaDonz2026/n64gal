@@ -19,6 +19,8 @@ python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
 python3 tools/toolchain.py validate-toolchain-contracts
+python3 tools/toolchain.py validate-host-sdk-contracts
+python3 tools/toolchain.py validate-preview-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
@@ -42,6 +44,8 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 1. `tools/validate/validate_manifest.py`
 2. `tools/validate/validate_release_contracts.py`
 3. `tools/validate/validate_toolchain_contracts.py`
+4. `tools/validate/validate_host_sdk_contracts.py`
+5. `tools/validate/validate_preview_contracts.py`
 
 示例：
 
@@ -49,6 +53,8 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/validate/validate_release_contracts.py
 python3 tools/validate/validate_toolchain_contracts.py
+python3 tools/validate/validate_host_sdk_contracts.py
+python3 tools/validate/validate_preview_contracts.py
 ```
 
 输出约定：

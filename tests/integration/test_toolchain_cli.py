@@ -38,6 +38,16 @@ def main():
         print(f"validate-toolchain-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-host-sdk-contracts"])
+    if rc != 0 or "trace_id=tool.validate.host_sdk_contracts.ok" not in out:
+        print(f"validate-host-sdk-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-preview-contracts"])
+    if rc != 0 or "trace_id=tool.validate.preview_contracts.ok" not in out:
+        print(f"validate-preview-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
         print(f"probe-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)
