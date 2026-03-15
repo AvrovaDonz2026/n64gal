@@ -251,6 +251,7 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 
 ```bash
 python3 tools/toolchain.py --help
+python3 tools/toolchain.py validate-all
 python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
@@ -282,33 +283,34 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 
 当前统一入口已经覆盖：
 
-1. `validate-release-docs`
-2. `validate-manifest`
-3. `validate-release-contracts`
-4. `validate-toolchain-contracts`
-5. `validate-backend-contracts`
-6. `validate-api-index-contracts`
-7. `validate-compat-matrix`
-8. `validate-ecosystem-contracts`
-9. `validate-error-contracts`
-10. `validate-host-sdk-contracts`
-11. `validate-migration-contracts`
-12. `validate-pack-contracts`
-13. `validate-platform-contracts`
-14. `validate-preview-contracts`
-15. `validate-perf-contracts`
-16. `validate-porting-contracts`
-17. `validate-runtime-contracts`
-18. `validate-save-contracts`
-19. `validate-template-contracts`
-20. `probe-vnsave`
-21. `probe-trace-summary`
-22. `probe-preview`
-23. `probe-perf-summary`
-24. `probe-perf-compare`
-25. `probe-kernel-bench`
-26. `probe-kernel-compare`
-27. `migrate-vnsave`
+1. `validate-all`
+2. `validate-release-docs`
+3. `validate-manifest`
+4. `validate-release-contracts`
+5. `validate-toolchain-contracts`
+6. `validate-backend-contracts`
+7. `validate-api-index-contracts`
+8. `validate-compat-matrix`
+9. `validate-ecosystem-contracts`
+10. `validate-error-contracts`
+11. `validate-host-sdk-contracts`
+12. `validate-migration-contracts`
+13. `validate-pack-contracts`
+14. `validate-platform-contracts`
+15. `validate-preview-contracts`
+16. `validate-perf-contracts`
+17. `validate-porting-contracts`
+18. `validate-runtime-contracts`
+19. `validate-save-contracts`
+20. `validate-template-contracts`
+21. `probe-vnsave`
+22. `probe-trace-summary`
+23. `probe-preview`
+24. `probe-perf-summary`
+25. `probe-perf-compare`
+26. `probe-kernel-bench`
+27. `probe-kernel-compare`
+28. `migrate-vnsave`
 
 键盘模式按键：
 

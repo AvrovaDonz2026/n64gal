@@ -16,6 +16,7 @@
 
 ```bash
 python3 tools/toolchain.py --help
+python3 tools/toolchain.py validate-all
 python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
@@ -50,6 +51,7 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 1. 给 `validate/migrate/probe` 三类子命令提供统一入口
 2. 提供统一帮助文本
 3. 保持现有 machine-readable 输出继续透传
+4. `validate-all` 可作为当前 `1.0.0` release gate 的单命令入口
 
 ### validate
 

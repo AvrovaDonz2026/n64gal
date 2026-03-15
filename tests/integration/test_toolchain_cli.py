@@ -22,8 +22,13 @@ def main():
         pass
 
     rc, out, err = run_case(["--help"])
-    if rc != 2 or "validate-manifest" not in err or "probe-vnsave" not in err:
+    if rc != 2 or "validate-all" not in err or "validate-manifest" not in err or "probe-vnsave" not in err:
         print("toolchain help output mismatch", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-all"])
+    if rc != 0 or "trace_id=tool.toolchain.validate_all.ok" not in out:
+        print(f"validate-all failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["validate-release-docs"])

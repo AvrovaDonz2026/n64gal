@@ -1456,6 +1456,7 @@ cmake --build build-wasm
 - [x] `validate`：已落首个 manifest 结构校验（`tools/validate/validate_manifest.py`）
 - [x] `validate`：已落 release contract 一致性校验（`tools/validate/validate_release_contracts.py`）
 - [x] `validate`：已落 toolchain 命令面一致性校验（`tools/validate/validate_toolchain_contracts.py`）
+- [x] 已落 `validate-all` 单命令总入口（`python3 tools/toolchain.py validate-all`）
 - [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
 - [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
 - [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）

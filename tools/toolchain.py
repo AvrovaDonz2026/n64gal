@@ -9,6 +9,27 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ROOT / "build_toolchain"
 TMP_BUILD_DIR = BUILD_DIR / "tmp"
+VALIDATE_ALL_COMMANDS = (
+    ("validate-release-docs", [sys.executable, "tools/validate/validate_release_docs.py"]),
+    ("validate-manifest", [sys.executable, "tools/validate/validate_manifest.py", "tests/fixtures/tool_manifest/valid/vnsave_migrate.json"]),
+    ("validate-release-contracts", [sys.executable, "tools/validate/validate_release_contracts.py"]),
+    ("validate-toolchain-contracts", [sys.executable, "tools/validate/validate_toolchain_contracts.py"]),
+    ("validate-backend-contracts", [sys.executable, "tools/validate/validate_backend_contracts.py"]),
+    ("validate-api-index-contracts", [sys.executable, "tools/validate/validate_api_index_contracts.py"]),
+    ("validate-compat-matrix", [sys.executable, "tools/validate/validate_compat_matrix.py"]),
+    ("validate-ecosystem-contracts", [sys.executable, "tools/validate/validate_ecosystem_contracts.py"]),
+    ("validate-error-contracts", [sys.executable, "tools/validate/validate_error_contracts.py"]),
+    ("validate-host-sdk-contracts", [sys.executable, "tools/validate/validate_host_sdk_contracts.py"]),
+    ("validate-migration-contracts", [sys.executable, "tools/validate/validate_migration_contracts.py"]),
+    ("validate-pack-contracts", [sys.executable, "tools/validate/validate_pack_contracts.py"]),
+    ("validate-platform-contracts", [sys.executable, "tools/validate/validate_platform_contracts.py"]),
+    ("validate-preview-contracts", [sys.executable, "tools/validate/validate_preview_contracts.py"]),
+    ("validate-perf-contracts", [sys.executable, "tools/validate/validate_perf_contracts.py"]),
+    ("validate-porting-contracts", [sys.executable, "tools/validate/validate_porting_contracts.py"]),
+    ("validate-runtime-contracts", [sys.executable, "tools/validate/validate_runtime_contracts.py"]),
+    ("validate-save-contracts", [sys.executable, "tools/validate/validate_save_contracts.py"]),
+    ("validate-template-contracts", [sys.executable, "tools/validate/validate_template_contracts.py"]),
+)
 CFLAGS = [
     "-std=c89",
     "-Wall",
@@ -26,6 +47,7 @@ def print_usage(program: str) -> int:
                 f"usage: {program} <command> [args]",
                 "",
                 "commands:",
+                "  validate-all",
                 "  validate-release-docs",
                 "  validate-manifest <manifest.json>",
                 "  validate-release-contracts",
@@ -117,6 +139,39 @@ def command_validate_release_docs(argv) -> int:
         print("trace_id=tool.toolchain.validate_release_docs.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
         return 2
     return run_forward([sys.executable, "tools/validate/validate_release_docs.py"])
+
+
+def command_validate_all(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_all.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+
+    for name, cmd in VALIDATE_ALL_COMMANDS:
+        rc = run_forward(cmd)
+        if rc != 0:
+            print(
+                " ".join(
+                    [
+                        "trace_id=tool.toolchain.validate_all.failed",
+                        f"validator={name}",
+                        "error_code=-3",
+                        "error_name=VN_E_FORMAT",
+                        "message=validator failed",
+                    ]
+                ),
+                file=sys.stderr,
+            )
+            return 1
+
+    print(
+        " ".join(
+            [
+                "trace_id=tool.toolchain.validate_all.ok",
+                f"validator_count={len(VALIDATE_ALL_COMMANDS)}",
+            ]
+        )
+    )
+    return 0
 
 
 def command_validate_release_contracts(argv) -> int:
@@ -364,6 +419,8 @@ def main(argv) -> int:
     command = argv[1]
     args = argv[2:]
     try:
+        if command == "validate-all":
+            return command_validate_all(args)
         if command == "validate-release-docs":
             return command_validate_release_docs(args)
         if command == "validate-manifest":
