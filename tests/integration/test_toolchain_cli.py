@@ -140,6 +140,11 @@ def main():
         print("release-gate did not write summary", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.soak.ok" not in out:
+        print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
         print(f"probe-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)

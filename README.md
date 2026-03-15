@@ -281,6 +281,8 @@ python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sa
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
+bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 ```
 
 当前统一入口已经覆盖：
@@ -315,6 +317,8 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
 28. `migrate-vnsave`
 29. `release gate script`
 30. `release-gate`
+31. `demo soak script`
+32. `release-soak`
 
 键盘模式按键：
 

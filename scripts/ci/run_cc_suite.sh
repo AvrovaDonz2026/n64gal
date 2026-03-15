@@ -93,6 +93,7 @@ run_capture "$LOG_DIR/test_template_contracts_validate.log" python3 tests/integr
 run_capture "$LOG_DIR/test_templates_layout.log" python3 tests/integration/test_templates_layout.py
 run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_release_gate_script.log" python3 tests/integration/test_release_gate_script.py
+run_capture "$LOG_DIR/test_release_soak_script.log" python3 tests/integration/test_release_soak_script.py
 run_capture "$LOG_DIR/test_trace_summary.log" python3 tests/integration/test_trace_summary.py
 run_capture "$LOG_DIR/test_preview_summary.log" python3 tests/integration/test_preview_summary.py
 run_capture "$LOG_DIR/test_perf_summary.log" python3 tests/integration/test_perf_summary.py

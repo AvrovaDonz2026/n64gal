@@ -46,6 +46,8 @@ python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sa
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
+bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 ```
 
 当前作用：
@@ -56,6 +58,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
 4. `validate-all` 可作为当前 `1.0.0` release gate 的单命令入口
 5. `scripts/release/run_release_gate.sh` 可生成 release gate 摘要并串行执行本地发布前门禁
 6. `tools/toolchain.py release-gate` 是对 release gate 脚本的统一入口包装
+7. `scripts/release/run_demo_soak.sh` / `tools/toolchain.py release-soak` 可产出 demo soak 摘要，用于满足正式版 soak 留痕要求
 
 ### validate
 

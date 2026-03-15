@@ -1459,6 +1459,7 @@ cmake --build build-wasm
 - [x] 已落 `validate-all` 单命令总入口（`python3 tools/toolchain.py validate-all`）
 - [x] 已落 release gate 脚本（`scripts/release/run_release_gate.sh`）
 - [x] 已落 `release-gate` 统一入口（`python3 tools/toolchain.py release-gate`）
+- [x] 已落 demo soak 脚本与统一入口（`scripts/release/run_demo_soak.sh` / `python3 tools/toolchain.py release-soak`）
 - [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
 - [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
 - [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）
