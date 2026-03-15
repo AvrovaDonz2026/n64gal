@@ -17,6 +17,7 @@
 ```bash
 python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-all
+python3 tools/toolchain.py validate-release-audit --allow-dirty
 python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
@@ -46,8 +47,16 @@ python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sa
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
+python3 tools/toolchain.py release-host-sdk-smoke --summary-out build_release_host_sdk/host_sdk_smoke_summary.md
+python3 tools/toolchain.py release-preview-evidence --summary-out build_release_preview/preview_evidence_summary.md
 bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
+python3 tools/toolchain.py release-report --out-dir build_release_report
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
 
 当前作用：
@@ -59,34 +68,45 @@ python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2
 5. `scripts/release/run_release_gate.sh` 可生成 release gate 摘要并串行执行本地发布前门禁
 6. `tools/toolchain.py release-gate` 是对 release gate 脚本的统一入口包装
 7. `scripts/release/run_demo_soak.sh` / `tools/toolchain.py release-soak` 可产出 demo soak 摘要，用于满足正式版 soak 留痕要求
+8. `release-gate --with-soak` 可把 contract gate 与 soak 留痕合并成一条正式版前命令，并把 soak 摘要内嵌进 release gate summary
+9. `release-soak --runner-bin <path>` 可直接复用 release-like / 预编译 `vn_player`，避免每次都现场编译
+10. `release-gate --with-soak --soak-runner-bin <path>` 可在单条正式版前命令里直接复用 release-like 二进制
+11. `release-bundle` 可把 gate/soak/ci summary 与关键 release docs 汇总成单一目录和 markdown index
+12. `release-host-sdk-smoke` 可给宿主 SDK 示例产出发布级 smoke 摘要
+13. `release-report` 可把 bundle/gate/soak/ci summary 汇总成单一发布报告
+14. `release-gate --with-bundle` 可把 contract gate、soak 和 bundle 合并成一条正式版前命令
+15. `release-preview-evidence` 可给 preview protocol 固定 request/response 路径产出发布级证据摘要
+12. `release-gate --with-bundle` 可把 gate / soak / bundle 合并成一条正式版前命令
 
 ### validate
 
 当前已落地：
 
-1. `tools/validate/validate_release_docs.py`
-2. `tools/validate/validate_manifest.py`
-3. `tools/validate/validate_release_contracts.py`
-4. `tools/validate/validate_toolchain_contracts.py`
-5. `tools/validate/validate_backend_contracts.py`
-6. `tools/validate/validate_api_index_contracts.py`
-7. `tools/validate/validate_compat_matrix.py`
-8. `tools/validate/validate_ecosystem_contracts.py`
-9. `tools/validate/validate_error_contracts.py`
-10. `tools/validate/validate_host_sdk_contracts.py`
-11. `tools/validate/validate_migration_contracts.py`
-12. `tools/validate/validate_pack_contracts.py`
-13. `tools/validate/validate_platform_contracts.py`
-14. `tools/validate/validate_preview_contracts.py`
-15. `tools/validate/validate_perf_contracts.py`
-16. `tools/validate/validate_porting_contracts.py`
-17. `tools/validate/validate_runtime_contracts.py`
-18. `tools/validate/validate_save_contracts.py`
-19. `tools/validate/validate_template_contracts.py`
+1. `tools/validate/validate_release_audit.py`
+2. `tools/validate/validate_release_docs.py`
+3. `tools/validate/validate_manifest.py`
+4. `tools/validate/validate_release_contracts.py`
+5. `tools/validate/validate_toolchain_contracts.py`
+6. `tools/validate/validate_backend_contracts.py`
+7. `tools/validate/validate_api_index_contracts.py`
+8. `tools/validate/validate_compat_matrix.py`
+9. `tools/validate/validate_ecosystem_contracts.py`
+10. `tools/validate/validate_error_contracts.py`
+11. `tools/validate/validate_host_sdk_contracts.py`
+12. `tools/validate/validate_migration_contracts.py`
+13. `tools/validate/validate_pack_contracts.py`
+14. `tools/validate/validate_platform_contracts.py`
+15. `tools/validate/validate_preview_contracts.py`
+16. `tools/validate/validate_perf_contracts.py`
+17. `tools/validate/validate_porting_contracts.py`
+18. `tools/validate/validate_runtime_contracts.py`
+19. `tools/validate/validate_save_contracts.py`
+20. `tools/validate/validate_template_contracts.py`
 
 示例：
 
 ```bash
+python3 tools/validate/validate_release_audit.py --allow-dirty
 python3 tools/validate/validate_release_docs.py
 python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/validate/validate_release_contracts.py

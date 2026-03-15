@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+
+VN_E_INVALID_ARG = -1
+VN_E_IO = -2
+VN_E_FORMAT = -3
+
+
+def error(trace_id, error_code, field, message):
+    error_name = {
+        VN_E_INVALID_ARG: "VN_E_INVALID_ARG",
+        VN_E_IO: "VN_E_IO",
+        VN_E_FORMAT: "VN_E_FORMAT",
+    }.get(error_code, "VN_E_UNKNOWN")
+    parts = [f"trace_id={trace_id}", f"error_code={error_code}", f"error_name={error_name}"]
+    if field:
+        parts.append(f"field={field}")
+    parts.append(f"message={message}")
+    print(" ".join(parts), file=sys.stderr)
+    return 1
+
+
+def read_text(root: Path, rel: str):
+    path = root / rel
+    if not path.exists():
+        raise FileNotFoundError(rel)
+    return path.read_text(encoding="utf-8")
+
+
+def require_contains(text: str, needle: str, field: str):
+    if needle not in text:
+        raise ValueError(field)
+
+
+def worktree_dirty(root: Path) -> int:
+    status = (root / ".git")
+    if not status.exists():
+        return 0
+    import subprocess
+    proc = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError("git status failed")
+    return 1 if proc.stdout.strip() else 0
+
+
+def main(argv):
+    root = Path(".")
+    allow_dirty = 0
+    skip_git = 0
+    release_gate_summary = ""
+    soak_summary = ""
+    i = 1
+
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("-h", "--help"):
+            print("usage: validate_release_audit.py [--allow-dirty|--require-clean] [--skip-git] [--release-gate-summary <path>] [--soak-summary <path>] [root]", file=sys.stderr)
+            return 2
+        if arg == "--allow-dirty":
+            allow_dirty = 1
+            i += 1
+            continue
+        if arg == "--require-clean":
+            allow_dirty = 0
+            i += 1
+            continue
+        if arg == "--skip-git":
+            skip_git = 1
+            i += 1
+            continue
+        if arg == "--release-gate-summary":
+            i += 1
+            if i >= len(argv):
+                return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "release_gate_summary", "missing value")
+            release_gate_summary = argv[i]
+            i += 1
+            continue
+        if arg == "--soak-summary":
+            i += 1
+            if i >= len(argv):
+                return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "soak_summary", "missing value")
+            soak_summary = argv[i]
+            i += 1
+            continue
+        if arg.startswith("-"):
+            return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "argv", "unexpected flag")
+        root = Path(arg)
+        i += 1
+
+    if not root.exists():
+        return error("tool.validate.release_audit.io", VN_E_IO, "root", "root directory not found")
+
+    try:
+        readme = read_text(root, "README.md")
+        issue = read_text(root, "issue.md")
+        changelog = read_text(root, "CHANGELOG.md")
+        release_note = read_text(root, "docs/release-v0.1.0-alpha.md")
+        release_evidence = read_text(root, "docs/release-evidence-v0.1.0-alpha.md")
+        release_package = read_text(root, "docs/release-package-v0.1.0-alpha.md")
+        checklist = read_text(root, "docs/release-checklist-v1.0.0.md")
+    except FileNotFoundError as exc:
+        return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release audit file missing")
+    except OSError:
+        return error("tool.validate.release_audit.io", VN_E_IO, "root", "failed reading release audit files")
+
+    try:
+        if not (root / "assets" / "demo" / "demo.vnpak").exists():
+            raise FileNotFoundError("assets/demo/demo.vnpak")
+        require_contains(readme, "v0.1.0-alpha", "readme.version")
+        require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
+        require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
+        require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
+        require_contains(release_evidence, "`demo.vnpak`", "release_evidence.asset")
+        require_contains(release_package, "`assets/demo/demo.vnpak`", "release_package.asset")
+        require_contains(checklist, "`python3 tools/toolchain.py validate-all`", "checklist.validate_all")
+        require_contains(checklist, "`python3 tools/toolchain.py release-gate`", "checklist.release_gate")
+
+        if skip_git == 0 and allow_dirty == 0 and worktree_dirty(root) != 0:
+            return error("tool.validate.release_audit.format", VN_E_FORMAT, "worktree", "worktree must be clean")
+
+        if release_gate_summary:
+            if not (root / release_gate_summary).exists():
+                raise FileNotFoundError(release_gate_summary)
+        if soak_summary:
+            if not (root / soak_summary).exists():
+                raise FileNotFoundError(soak_summary)
+    except FileNotFoundError as exc:
+        return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release artifact missing")
+    except ValueError as exc:
+        return error("tool.validate.release_audit.format", VN_E_FORMAT, str(exc), "release audit drift detected")
+    except RuntimeError:
+        return error("tool.validate.release_audit.io", VN_E_IO, "git", "failed to inspect git status")
+
+    print(
+        " ".join(
+            [
+                "trace_id=tool.validate.release_audit.ok",
+                f"root={root}",
+                f"allow_dirty={allow_dirty}",
+                f"skip_git={skip_git}",
+                f"release_gate_summary={release_gate_summary if release_gate_summary else 'n/a'}",
+                f"soak_summary={soak_summary if soak_summary else 'n/a'}",
+            ]
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

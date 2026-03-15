@@ -24,9 +24,15 @@
 ## 3. 测试与 CI
 
 - [ ] `bash scripts/release/run_release_gate.sh`
+- [ ] `python3 tools/toolchain.py validate-release-audit --require-clean`
 - [ ] `python3 tools/toolchain.py validate-all`
 - [ ] `python3 tools/toolchain.py release-gate`
+- [ ] `python3 tools/toolchain.py release-host-sdk-smoke`
+- [ ] `python3 tools/toolchain.py release-preview-evidence`
 - [ ] `python3 tools/toolchain.py release-soak`
+- [ ] `python3 tools/toolchain.py release-gate --with-soak`
+- [ ] `python3 tools/toolchain.py release-bundle --out-dir <dir>`
+- [ ] `python3 tools/toolchain.py release-report --out-dir <dir>`
 - [ ] `./scripts/check_c89.sh`
 - [ ] `./scripts/ci/run_cc_suite.sh`
 - [ ] GitHub `ci-matrix` 主矩阵长期稳定

@@ -12,6 +12,8 @@ BACKEND="auto"
 PACK_PATH="assets/demo/demo.vnpak"
 RESOLUTION="600x800"
 SUMMARY_OUT=""
+SUMMARY_JSON_OUT=""
+RUNNER_BIN=""
 SKIP_BUILD=0
 SKIP_PACK=0
 
@@ -27,7 +29,9 @@ options:
   --backend <name>
   --pack <path>
   --resolution <WxH>
+  --runner-bin <path>
   --summary-out <path>
+  --summary-json-out <path>
   --skip-build
   --skip-pack
 EOF
@@ -83,6 +87,18 @@ while [[ $# -gt 0 ]]; do
       SUMMARY_OUT="$1"
       shift
       ;;
+    --summary-json-out)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      SUMMARY_JSON_OUT="$1"
+      shift
+      ;;
+    --runner-bin)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RUNNER_BIN="$1"
+      shift
+      ;;
     --skip-build)
       SKIP_BUILD=1
       shift
@@ -108,6 +124,12 @@ TMP_BUILD_DIR="$BUILD_DIR/tmp"
 PLAYER_BIN="$BUILD_DIR/vn_player"
 if [[ -z "$SUMMARY_OUT" ]]; then
   SUMMARY_OUT="$BUILD_DIR/demo_soak_summary.md"
+fi
+if [[ -z "$SUMMARY_JSON_OUT" ]]; then
+  SUMMARY_JSON_OUT="$BUILD_DIR/demo_soak_summary.json"
+fi
+if [[ -n "$RUNNER_BIN" ]]; then
+  PLAYER_BIN="$RUNNER_BIN"
 fi
 mkdir -p "$BUILD_DIR" "$LOG_DIR" "$TMP_BUILD_DIR"
 export TMPDIR="$TMP_BUILD_DIR"
@@ -157,6 +179,7 @@ write_summary() {
   local status="$1"
   local frames_value="$2"
   local scene_lines="$3"
+  local scenes_json="$4"
   {
     echo "# Demo Soak Summary"
     echo
@@ -169,6 +192,7 @@ write_summary() {
     echo "- DT ms: \`$DT_MS\`"
     echo "- Scenes: \`$SCENES\`"
     echo "- Frames per scene: \`$frames_value\`"
+    echo "- Runner bin: \`$PLAYER_BIN\`"
     echo "- Build dir: \`$BUILD_DIR\`"
     echo "- Log dir: \`$LOG_DIR\`"
     echo
@@ -176,6 +200,21 @@ write_summary() {
     echo
     printf "%s" "$scene_lines"
   } >"$SUMMARY_OUT"
+  {
+    printf '{\n'
+    printf '  "status": "%s",\n' "$status"
+    printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
+    printf '  "branch": "%s",\n' "$(git branch --show-current)"
+    printf '  "backend": "%s",\n' "$BACKEND"
+    printf '  "pack": "%s",\n' "$PACK_PATH"
+    printf '  "resolution": "%s",\n' "$RESOLUTION"
+    printf '  "dt_ms": %s,\n' "$DT_MS"
+    printf '  "frames_per_scene": %s,\n' "$frames_value"
+    printf '  "runner_bin": "%s",\n' "$PLAYER_BIN"
+    printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
+    printf '  "scenes": [%s]\n' "$scenes_json"
+    printf '}\n'
+  } >"$SUMMARY_JSON_OUT"
 }
 
 if [[ $SKIP_PACK -eq 0 ]]; then
@@ -183,7 +222,7 @@ if [[ $SKIP_PACK -eq 0 ]]; then
   run_log_step "make-demo-pack" ./tools/packer/make_demo_pack.sh
 fi
 
-if [[ $SKIP_BUILD -eq 0 ]]; then
+if [[ -z "$RUNNER_BIN" && $SKIP_BUILD -eq 0 ]]; then
   run_log_step "build-vn-player" "$CC_BIN" "${CFLAGS[@]}" src/main.c "${COMMON_SRC[@]}" -o "$PLAYER_BIN"
 fi
 
@@ -202,6 +241,7 @@ fi
 
 IFS=',' read -r -a SCENE_LIST <<<"$SCENES"
 SCENE_SUMMARY=""
+SCENE_JSON=""
 STATUS="success"
 
 for scene in "${SCENE_LIST[@]}"; do
@@ -219,7 +259,7 @@ for scene in "${SCENE_LIST[@]}"; do
       --hold-end >"$log_path" 2>&1; then
     STATUS="failed"
     SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: failed, see \`$log_path\`\n"
-    write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY"
+    write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY" "$SCENE_JSON"
     cat "$log_path"
     echo "trace_id=release.soak.scene.failed scene=$scene error_code=-3 error_name=VN_E_FORMAT message=scene soak failed" >&2
     exit 1
@@ -229,12 +269,16 @@ for scene in "${SCENE_LIST[@]}"; do
   if [[ -z "$summary_line" ]]; then
     STATUS="failed"
     SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: missing runtime summary, see \`$log_path\`\n"
-    write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY"
+    write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY" "$SCENE_JSON"
     echo "trace_id=release.soak.scene.summary_missing scene=$scene error_code=-3 error_name=VN_E_FORMAT message=scene summary missing" >&2
     exit 1
   fi
   SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: \`$summary_line\`\n"
+  if [[ -n "$SCENE_JSON" ]]; then
+    SCENE_JSON="${SCENE_JSON}, "
+  fi
+  SCENE_JSON="${SCENE_JSON}\"${scene}\""
 done
 
-write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY"
-echo "trace_id=release.soak.ok summary=$SUMMARY_OUT scenes=$SCENES frames_per_scene=$FRAMES_PER_SCENE backend=$BACKEND"
+write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY" "$SCENE_JSON"
+echo "trace_id=release.soak.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT scenes=$SCENES frames_per_scene=$FRAMES_PER_SCENE backend=$BACKEND"

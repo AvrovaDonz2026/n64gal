@@ -37,6 +37,11 @@ def main():
         print(f"validate-all failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-release-audit", "--allow-dirty"])
+    if rc != 0 or "trace_id=tool.validate.release_audit.ok" not in out:
+        print(f"validate-release-audit failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["validate-release-docs"])
     if rc != 0 or "trace_id=tool.validate.release_docs.ok" not in out:
         print(f"validate-release-docs failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -140,9 +145,50 @@ def main():
         print("release-gate did not write summary", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.host_sdk.ok" not in out:
+        print(f"release-host-sdk-smoke failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-preview-evidence", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.preview.ok" not in out:
+        print(f"release-preview-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case([
+        "release-gate",
+        "--allow-dirty",
+        "--skip-cc-suite",
+        "--with-soak",
+        "--soak-skip-build",
+        "--soak-skip-pack",
+        "--soak-runner-bin", "build_release_soak/vn_player",
+        "--soak-frames-per-scene", "2",
+        "--soak-scenes", "S0",
+        "--summary-out", summary_path,
+    ])
+    if rc != 0 or "trace_id=release.gate.ok" not in out:
+        print(f"release-gate runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
     if rc != 0 or "trace_id=release.soak.ok" not in out:
         print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-soak", "--skip-pack", "--skip-build", "--runner-bin", "build_release_soak/vn_player", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.soak.ok" not in out:
+        print(f"release-soak runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-bundle", "--out-dir", "tests/integration/toolchain_release_bundle_tmp", "--gate-summary", summary_path, "--soak-summary", summary_path, "--ci-summary", summary_path])
+    if rc != 0 or "trace_id=release.bundle.ok" not in out:
+        print(f"release-bundle failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-report", "--out-dir", "tests/integration/toolchain_release_report_tmp", "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md", "--gate-summary", summary_path, "--soak-summary", summary_path, "--ci-suite-summary", summary_path])
+    if rc != 0 or "trace_id=release.report.ok" not in out:
+        print(f"release-report failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
@@ -203,6 +249,12 @@ def main():
             os.remove(summary_path)
     except FileNotFoundError:
         pass
+    if os.path.isdir("tests/integration/toolchain_release_bundle_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_bundle_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_report_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_report_tmp")
     print("test_toolchain_cli ok")
     return 0
 

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ROOT / "build_toolchain"
 TMP_BUILD_DIR = BUILD_DIR / "tmp"
 VALIDATE_ALL_COMMANDS = (
+    ("validate-release-audit", [sys.executable, "tools/validate/validate_release_audit.py", "--allow-dirty"]),
     ("validate-release-docs", [sys.executable, "tools/validate/validate_release_docs.py"]),
     ("validate-manifest", [sys.executable, "tools/validate/validate_manifest.py", "tests/fixtures/tool_manifest/valid/vnsave_migrate.json"]),
     ("validate-release-contracts", [sys.executable, "tools/validate/validate_release_contracts.py"]),
@@ -48,6 +49,7 @@ def print_usage(program: str) -> int:
                 "",
                 "commands:",
                 "  validate-all",
+                "  validate-release-audit [--allow-dirty] [--require-clean] [--skip-git]",
                 "  validate-release-docs",
                 "  validate-manifest <manifest.json>",
                 "  validate-release-contracts",
@@ -68,7 +70,11 @@ def print_usage(program: str) -> int:
                 "  validate-save-contracts",
                 "  validate-template-contracts",
                 "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>]",
+                "  release-host-sdk-smoke [--summary-out <path>] [--skip-build]",
+                "  release-preview-evidence [--summary-out <path>] [--skip-build]",
                 "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>]",
+                "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>]",
+                "  release-report [--out-dir <path>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -141,6 +147,10 @@ def command_validate_release_docs(argv) -> int:
         print("trace_id=tool.toolchain.validate_release_docs.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
         return 2
     return run_forward([sys.executable, "tools/validate/validate_release_docs.py"])
+
+
+def command_validate_release_audit(argv) -> int:
+    return run_forward([sys.executable, "tools/validate/validate_release_audit.py"] + list(argv))
 
 
 def command_validate_all(argv) -> int:
@@ -299,8 +309,24 @@ def command_release_gate(argv) -> int:
     return run_forward(["bash", "scripts/release/run_release_gate.sh"] + list(argv))
 
 
+def command_release_host_sdk_smoke(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_host_sdk_smoke.sh"] + list(argv))
+
+
+def command_release_preview_evidence(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_preview_evidence.sh"] + list(argv))
+
+
 def command_release_soak(argv) -> int:
     return run_forward(["bash", "scripts/release/run_demo_soak.sh"] + list(argv))
+
+
+def command_release_bundle(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_bundle.sh"] + list(argv))
+
+
+def command_release_report(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_report.sh"] + list(argv))
 
 
 def command_migrate_vnsave(argv) -> int:
@@ -431,6 +457,8 @@ def main(argv) -> int:
     try:
         if command == "validate-all":
             return command_validate_all(args)
+        if command == "validate-release-audit":
+            return command_validate_release_audit(args)
         if command == "validate-release-docs":
             return command_validate_release_docs(args)
         if command == "validate-manifest":
@@ -471,8 +499,16 @@ def main(argv) -> int:
             return command_validate_template_contracts(args)
         if command == "release-gate":
             return command_release_gate(args)
+        if command == "release-host-sdk-smoke":
+            return command_release_host_sdk_smoke(args)
+        if command == "release-preview-evidence":
+            return command_release_preview_evidence(args)
         if command == "release-soak":
             return command_release_soak(args)
+        if command == "release-bundle":
+            return command_release_bundle(args)
+        if command == "release-report":
+            return command_release_report(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":

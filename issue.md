@@ -1462,9 +1462,15 @@ cmake --build build-wasm
 - [x] `validate`：已落 release contract 一致性校验（`tools/validate/validate_release_contracts.py`）
 - [x] `validate`：已落 toolchain 命令面一致性校验（`tools/validate/validate_toolchain_contracts.py`）
 - [x] 已落 `validate-all` 单命令总入口（`python3 tools/toolchain.py validate-all`）
+- [x] 已落 `validate-release-audit` 发布状态校验（`python3 tools/toolchain.py validate-release-audit`）
 - [x] 已落 release gate 脚本（`scripts/release/run_release_gate.sh`）
 - [x] 已落 `release-gate` 统一入口（`python3 tools/toolchain.py release-gate`）
 - [x] 已落 demo soak 脚本与统一入口（`scripts/release/run_demo_soak.sh` / `python3 tools/toolchain.py release-soak`）
+- [x] 已落 `release-gate --with-soak` 组合入口，用于把正式版 contract gate 与 soak 留痕合并成一条命令
+- [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`）
+- [x] 已落 host SDK 发布级 smoke 摘要入口（`scripts/release/run_host_sdk_smoke.sh` / `python3 tools/toolchain.py release-host-sdk-smoke`）
+- [x] 已落 `release-report` 发布报告入口（`scripts/release/run_release_report.sh` / `python3 tools/toolchain.py release-report`）
+- [x] 已落 preview 发布级证据入口（`scripts/release/run_preview_evidence.sh` / `python3 tools/toolchain.py release-preview-evidence`）
 - [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
 - [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
 - [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）

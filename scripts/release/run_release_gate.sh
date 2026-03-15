@@ -6,12 +6,20 @@ cd "$ROOT_DIR"
 
 ALLOW_DIRTY=0
 SKIP_CC_SUITE=0
+WITH_SOAK=0
+WITH_BUNDLE=0
 SUMMARY_OUT=""
+SUMMARY_JSON_OUT=""
 LOG_DIR=""
+SOAK_ARGS=()
+SOAK_SUMMARY_OUT=""
+SOAK_SUMMARY_JSON_OUT=""
+BUNDLE_ARGS=()
+BUNDLE_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--summary-out <path>]
+usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--with-soak] [--with-bundle] [--summary-out <path>] [--summary-json-out <path>] [--soak-...] [--bundle-...]
 EOF
 }
 
@@ -25,6 +33,14 @@ while [[ $# -gt 0 ]]; do
       SKIP_CC_SUITE=1
       shift
       ;;
+    --with-soak)
+      WITH_SOAK=1
+      shift
+      ;;
+    --with-bundle)
+      WITH_BUNDLE=1
+      shift
+      ;;
     --summary-out)
       shift
       if [[ $# -eq 0 ]]; then
@@ -32,6 +48,42 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       SUMMARY_OUT="$1"
+      shift
+      ;;
+    --summary-json-out)
+      shift
+      if [[ $# -eq 0 ]]; then
+        usage
+        exit 2
+      fi
+      SUMMARY_JSON_OUT="$1"
+      shift
+      ;;
+    --soak-scenes|--soak-frames-per-scene|--soak-backend|--soak-pack|--soak-resolution|--soak-dt-ms|--soak-scene-duration-sec|--soak-summary-out|--soak-runner-bin)
+      key="$1"
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      if [[ "$key" == "--soak-summary-out" ]]; then
+        SOAK_SUMMARY_OUT="$1"
+      elif [[ "$key" == "--soak-summary-json-out" ]]; then
+        SOAK_SUMMARY_JSON_OUT="$1"
+      else
+        SOAK_ARGS+=("--${key#--soak-}" "$1")
+      fi
+      shift
+      ;;
+    --soak-skip-build|--soak-skip-pack)
+      SOAK_ARGS+=("--${1#--soak-}")
+      shift
+      ;;
+    --bundle-out-dir|--bundle-gate-summary|--bundle-soak-summary|--bundle-ci-summary)
+      key="$1"
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      if [[ "$key" == "--bundle-out-dir" ]]; then
+        BUNDLE_OUT="$1"
+      fi
+      BUNDLE_ARGS+=("--${key#--bundle-}" "$1")
       shift
       ;;
     -h|--help)
@@ -48,6 +100,18 @@ done
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_release_gate}"
 if [[ -z "$SUMMARY_OUT" ]]; then
   SUMMARY_OUT="$BUILD_DIR/release_gate_summary.md"
+fi
+if [[ -z "$SUMMARY_JSON_OUT" ]]; then
+  SUMMARY_JSON_OUT="$BUILD_DIR/release_gate_summary.json"
+fi
+if [[ -z "$SOAK_SUMMARY_OUT" ]]; then
+  SOAK_SUMMARY_OUT="$BUILD_DIR/demo_soak_summary.md"
+fi
+if [[ -z "$SOAK_SUMMARY_JSON_OUT" ]]; then
+  SOAK_SUMMARY_JSON_OUT="$BUILD_DIR/demo_soak_summary.json"
+fi
+if [[ -z "$BUNDLE_OUT" ]]; then
+  BUNDLE_OUT="$BUILD_DIR/release_bundle"
 fi
 LOG_DIR="$BUILD_DIR/logs"
 TMP_BUILD_DIR="$BUILD_DIR/tmp"
@@ -67,6 +131,10 @@ run_step() {
 
 write_summary() {
   local status="$1"
+  local soak_summary_text=""
+  if [[ $WITH_SOAK -ne 0 && -f "$SOAK_SUMMARY_OUT" ]]; then
+    soak_summary_text="$(cat "$SOAK_SUMMARY_OUT")"
+  fi
   {
     echo "# Release Gate Summary"
     echo
@@ -78,6 +146,8 @@ write_summary() {
     echo "- Summary path: \`$SUMMARY_OUT\`"
     echo "- allow_dirty: \`$ALLOW_DIRTY\`"
     echo "- skip_cc_suite: \`$SKIP_CC_SUITE\`"
+    echo "- with_soak: \`$WITH_SOAK\`"
+    echo "- with_bundle: \`$WITH_BUNDLE\`"
     if [[ $ALLOW_DIRTY -eq 0 ]]; then
       echo "- Worktree policy: clean required"
     else
@@ -94,7 +164,36 @@ write_summary() {
     else
       echo "4. \`./scripts/ci/run_cc_suite.sh\` skipped"
     fi
+    if [[ $WITH_SOAK -ne 0 ]]; then
+      echo "5. \`./scripts/release/run_demo_soak.sh ...\`"
+      echo "- Soak summary path: \`$SOAK_SUMMARY_OUT\`"
+    fi
+    if [[ $WITH_BUNDLE -ne 0 ]]; then
+      echo "6. \`./scripts/release/run_release_bundle.sh ...\`"
+      echo "- Bundle out dir: \`$BUNDLE_OUT\`"
+    fi
+    if [[ -n "$soak_summary_text" ]]; then
+      echo
+      echo "## Soak Summary"
+      echo
+      printf "%s\n" "$soak_summary_text"
+    fi
   } >"$SUMMARY_OUT"
+  {
+    printf '{\n'
+    printf '  "status": "%s",\n' "$status"
+    printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
+    printf '  "branch": "%s",\n' "$(git branch --show-current)"
+    printf '  "allow_dirty": %s,\n' "$ALLOW_DIRTY"
+    printf '  "skip_cc_suite": %s,\n' "$SKIP_CC_SUITE"
+    printf '  "with_soak": %s,\n' "$WITH_SOAK"
+    printf '  "with_bundle": %s,\n' "$WITH_BUNDLE"
+    printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
+    printf '  "soak_summary_md": "%s",\n' "$SOAK_SUMMARY_OUT"
+    printf '  "soak_summary_json": "%s",\n' "$SOAK_SUMMARY_JSON_OUT"
+    printf '  "bundle_out_dir": "%s"\n' "$BUNDLE_OUT"
+    printf '}\n'
+  } >"$SUMMARY_JSON_OUT"
 }
 
 trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary failed; fi; exit $rc' EXIT
@@ -114,4 +213,24 @@ if [[ $SKIP_CC_SUITE -eq 0 ]]; then
   run_step "run-cc-suite" ./scripts/ci/run_cc_suite.sh
 fi
 
-echo "trace_id=release.gate.ok summary=$SUMMARY_OUT"
+if [[ $WITH_SOAK -ne 0 ]]; then
+  soak_cmd=(bash scripts/release/run_demo_soak.sh --summary-out "$SOAK_SUMMARY_OUT" --summary-json-out "$SOAK_SUMMARY_JSON_OUT")
+  if [[ ${#SOAK_ARGS[@]} -gt 0 ]]; then
+    soak_cmd+=("${SOAK_ARGS[@]}")
+  fi
+  run_step "release-soak" "${soak_cmd[@]}"
+fi
+
+if [[ $WITH_BUNDLE -ne 0 ]]; then
+  bundle_cmd=(bash scripts/release/run_release_bundle.sh --out-dir "$BUNDLE_OUT" --gate-summary "$SUMMARY_OUT")
+  if [[ $WITH_SOAK -ne 0 ]]; then
+    bundle_cmd+=(--soak-summary "$SOAK_SUMMARY_OUT")
+  fi
+  bundle_cmd+=(--ci-summary "$ROOT_DIR/build_ci_cc/ci_suite_summary.md")
+  if [[ ${#BUNDLE_ARGS[@]} -gt 0 ]]; then
+    bundle_cmd+=("${BUNDLE_ARGS[@]}")
+  fi
+  run_step "release-bundle" "${bundle_cmd[@]}"
+fi
+
+echo "trace_id=release.gate.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT"

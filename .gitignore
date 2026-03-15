@@ -4,6 +4,7 @@ templates/minimal-vn/assets/scripts/*.vns.bin
 templates/minimal-vn/build/
 build_release_gate/
 build_release_soak/
+build_release_bundle/
 
 # Generated perf outputs
 tests/perf/perf_summary.csv

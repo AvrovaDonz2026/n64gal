@@ -253,6 +253,7 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 ```bash
 python3 tools/toolchain.py --help
 python3 tools/toolchain.py validate-all
+python3 tools/toolchain.py validate-release-audit --allow-dirty
 python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
@@ -282,44 +283,73 @@ python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sa
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
+python3 tools/toolchain.py release-host-sdk-smoke --summary-out build_release_host_sdk/host_sdk_smoke_summary.md
+python3 tools/toolchain.py release-preview-evidence --summary-out build_release_preview/preview_evidence_summary.md
 bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
+python3 tools/toolchain.py release-report --out-dir build_release_report
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
 
 当前统一入口已经覆盖：
 
 1. `validate-all`
-2. `validate-release-docs`
-3. `validate-manifest`
-4. `validate-release-contracts`
-5. `validate-toolchain-contracts`
-6. `validate-backend-contracts`
-7. `validate-api-index-contracts`
-8. `validate-compat-matrix`
-9. `validate-ecosystem-contracts`
-10. `validate-error-contracts`
-11. `validate-host-sdk-contracts`
-12. `validate-migration-contracts`
-13. `validate-pack-contracts`
-14. `validate-platform-contracts`
-15. `validate-preview-contracts`
-16. `validate-perf-contracts`
-17. `validate-porting-contracts`
-18. `validate-runtime-contracts`
-19. `validate-save-contracts`
-20. `validate-template-contracts`
-21. `probe-vnsave`
-22. `probe-trace-summary`
-23. `probe-preview`
-24. `probe-perf-summary`
-25. `probe-perf-compare`
-26. `probe-kernel-bench`
-27. `probe-kernel-compare`
-28. `migrate-vnsave`
-29. `release gate script`
-30. `release-gate`
-31. `demo soak script`
-32. `release-soak`
+2. `validate-release-audit`
+3. `validate-release-docs`
+4. `validate-manifest`
+5. `validate-release-contracts`
+6. `validate-toolchain-contracts`
+7. `validate-backend-contracts`
+8. `validate-api-index-contracts`
+9. `validate-compat-matrix`
+10. `validate-ecosystem-contracts`
+11. `validate-error-contracts`
+12. `validate-host-sdk-contracts`
+13. `validate-migration-contracts`
+14. `validate-pack-contracts`
+15. `validate-platform-contracts`
+16. `validate-preview-contracts`
+17. `validate-perf-contracts`
+18. `validate-porting-contracts`
+19. `validate-runtime-contracts`
+20. `validate-save-contracts`
+21. `validate-template-contracts`
+22. `probe-vnsave`
+23. `probe-trace-summary`
+24. `probe-preview`
+25. `probe-perf-summary`
+26. `probe-perf-compare`
+27. `probe-kernel-bench`
+28. `probe-kernel-compare`
+29. `migrate-vnsave`
+30. `release gate script`
+31. `release-gate`
+32. `host sdk smoke`
+33. `preview evidence`
+34. `demo soak script`
+35. `release-soak`
+36. `release-gate --with-soak`
+37. `release-soak --runner-bin`
+38. `release-gate --soak-runner-bin`
+39. `release-bundle`
+40. `release-report`
+41. `release-gate --with-bundle`
+
+当前建议：
+
+1. 发布前优先用 `python3 tools/toolchain.py release-gate --with-soak ...`
+2. 若已有 release-like `vn_player`，优先用 `python3 tools/toolchain.py release-soak --runner-bin <path> ...`
+3. 若想一条命令完成 gate + soak，优先用 `python3 tools/toolchain.py release-gate --with-soak --soak-runner-bin <path> ...`
+4. 若想把 gate / soak / bundle 一次跑完，优先用 `python3 tools/toolchain.py release-gate --with-soak --with-bundle ...`
+5. 若要补宿主 SDK 发布级证据，继续跑 `python3 tools/toolchain.py release-host-sdk-smoke ...`
+6. 若要补 preview 发布级证据，继续跑 `python3 tools/toolchain.py release-preview-evidence ...`
+7. 若要生成单一发布报告，继续跑 `python3 tools/toolchain.py release-report --out-dir <dir>`
+8. 若只想收口正式版证据目录，继续跑 `python3 tools/toolchain.py release-bundle --out-dir <dir>`
+9. 这样会把 contract gate、`cc` suite、host SDK smoke、preview 证据和 soak 留痕合并成一份可引用摘要
 
 键盘模式按键：
 

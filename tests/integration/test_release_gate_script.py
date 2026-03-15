@@ -11,14 +11,45 @@ SCRIPT = ["bash", "scripts/release/run_release_gate.sh"]
 
 def main():
     summary_path = ROOT / "tests" / "integration" / "release_gate_tmp.md"
+    soak_summary_path = ROOT / "tests" / "integration" / "release_gate_soak_tmp.md"
+    summary_path_runner = ROOT / "tests" / "integration" / "release_gate_runner_tmp.md"
+    soak_summary_path_runner = ROOT / "tests" / "integration" / "release_gate_soak_runner_tmp.md"
+    runner_bin = ROOT / "build_release_soak" / "vn_player"
+    bundle_dir = ROOT / "tests" / "integration" / "release_gate_bundle_tmp"
     try:
         if summary_path.exists():
             summary_path.unlink()
     except FileNotFoundError:
         pass
+    try:
+        if soak_summary_path.exists():
+            soak_summary_path.unlink()
+    except FileNotFoundError:
+        pass
+    try:
+        if summary_path_runner.exists():
+            summary_path_runner.unlink()
+    except FileNotFoundError:
+        pass
+    try:
+        if soak_summary_path_runner.exists():
+            soak_summary_path_runner.unlink()
+    except FileNotFoundError:
+        pass
+    if bundle_dir.exists():
+        import shutil
+        shutil.rmtree(bundle_dir)
 
     proc = subprocess.run(
-        SCRIPT + ["--allow-dirty", "--skip-cc-suite", "--summary-out", str(summary_path)],
+        SCRIPT + [
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--soak-summary-out", str(soak_summary_path),
+            "--summary-out", str(summary_path),
+        ],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -40,8 +71,71 @@ def main():
     if "validate-all" not in summary_text:
         print("release gate summary missing validate-all step", file=sys.stderr)
         return 1
+    if "with_soak" not in summary_text:
+        print("release gate summary missing soak flag", file=sys.stderr)
+        return 1
+    if "## Soak Summary" not in summary_text:
+        print("release gate summary missing embedded soak summary", file=sys.stderr)
+        return 1
+    if not soak_summary_path.exists():
+        print("release gate soak summary missing", file=sys.stderr)
+        return 1
+
+    proc = subprocess.run(
+        SCRIPT + [
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", str(runner_bin),
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--soak-summary-out", str(soak_summary_path_runner),
+            "--summary-out", str(summary_path_runner),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        print(f"release gate runner-bin failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
+        return 1
+    if not summary_path_runner.exists() or not soak_summary_path_runner.exists():
+        print("release gate runner-bin summaries missing", file=sys.stderr)
+        return 1
+
+    proc = subprocess.run(
+        SCRIPT + [
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--with-bundle",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", str(runner_bin),
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--summary-out", str(summary_path_runner),
+            "--bundle-out-dir", str(bundle_dir),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        print(f"release gate bundle failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
+        return 1
+    if not (bundle_dir / "release_bundle_index.md").exists():
+        print("release gate bundle index missing", file=sys.stderr)
+        return 1
 
     summary_path.unlink()
+    soak_summary_path.unlink()
+    summary_path_runner.unlink()
+    soak_summary_path_runner.unlink()
+    import shutil
+    shutil.rmtree(bundle_dir)
     print("test_release_gate_script ok")
     return 0
 
