@@ -15,9 +15,15 @@ def run_case(args):
 
 def main():
     out_path = "tests/integration/toolchain_tmp.vnsave"
+    summary_path = "tests/integration/toolchain_release_gate_tmp.md"
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
+    except FileNotFoundError:
+        pass
+    try:
+        if os.path.exists(summary_path):
+            os.remove(summary_path)
     except FileNotFoundError:
         pass
 
@@ -126,6 +132,14 @@ def main():
         print(f"validate-template-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["release-gate", "--allow-dirty", "--skip-cc-suite", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.gate.ok" not in out:
+        print(f"release-gate failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+    if not os.path.exists(summary_path):
+        print("release-gate did not write summary", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
         print(f"probe-vnsave failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -177,6 +191,11 @@ def main():
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
+    except FileNotFoundError:
+        pass
+    try:
+        if os.path.exists(summary_path):
+            os.remove(summary_path)
     except FileNotFoundError:
         pass
     print("test_toolchain_cli ok")

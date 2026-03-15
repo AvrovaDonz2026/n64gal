@@ -44,6 +44,8 @@ python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample
 python3 tools/toolchain.py probe-kernel-bench tests/fixtures/kernel_bench/sample_kernel_bench.csv
 python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
 ```
 
 当前作用：
@@ -52,6 +54,8 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 2. 提供统一帮助文本
 3. 保持现有 machine-readable 输出继续透传
 4. `validate-all` 可作为当前 `1.0.0` release gate 的单命令入口
+5. `scripts/release/run_release_gate.sh` 可生成 release gate 摘要并串行执行本地发布前门禁
+6. `tools/toolchain.py release-gate` 是对 release gate 脚本的统一入口包装
 
 ### validate
 

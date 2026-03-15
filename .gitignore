@@ -2,6 +2,7 @@ build/
 build_*/
 templates/minimal-vn/assets/scripts/*.vns.bin
 templates/minimal-vn/build/
+build_release_gate/
 
 # Generated perf outputs
 tests/perf/perf_summary.csv

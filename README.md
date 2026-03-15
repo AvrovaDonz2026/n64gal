@@ -279,6 +279,8 @@ python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample
 python3 tools/toolchain.py probe-kernel-bench tests/fixtures/kernel_bench/sample_kernel_bench.csv
 python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
 ```
 
 当前统一入口已经覆盖：
@@ -311,6 +313,8 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 26. `probe-kernel-bench`
 27. `probe-kernel-compare`
 28. `migrate-vnsave`
+29. `release gate script`
+30. `release-gate`
 
 键盘模式按键：
 

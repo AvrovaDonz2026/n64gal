@@ -23,7 +23,9 @@
 
 ## 3. 测试与 CI
 
+- [ ] `bash scripts/release/run_release_gate.sh`
 - [ ] `python3 tools/toolchain.py validate-all`
+- [ ] `python3 tools/toolchain.py release-gate`
 - [ ] `./scripts/check_c89.sh`
 - [ ] `./scripts/ci/run_cc_suite.sh`
 - [ ] GitHub `ci-matrix` 主矩阵长期稳定

@@ -67,6 +67,7 @@ def print_usage(program: str) -> int:
                 "  validate-runtime-contracts",
                 "  validate-save-contracts",
                 "  validate-template-contracts",
+                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -293,6 +294,10 @@ def command_validate_template_contracts(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_template_contracts.py"])
 
 
+def command_release_gate(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_gate.sh"] + list(argv))
+
+
 def command_migrate_vnsave(argv) -> int:
     tool = ensure_c_tool(
         "vnsave_migrate",
@@ -459,6 +464,8 @@ def main(argv) -> int:
             return command_validate_save_contracts(args)
         if command == "validate-template-contracts":
             return command_validate_template_contracts(args)
+        if command == "release-gate":
+            return command_release_gate(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":
