@@ -1,0 +1,9 @@
+{
+  "images": [
+    {
+      "name": "minimal_ui_rgba16",
+      "source": "demo_ui.png",
+      "format": "rgba16"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "template_version": 1,
+  "template_name": "minimal-vn",
+  "kind": "content-project",
+  "stability": "preview",
+  "scene_name": "S0",
+  "pack_output": "build/minimal.vnpak"
+}

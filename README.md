@@ -82,6 +82,7 @@ tests/unit/     单元测试
 tests/integration/ 预览协议等集成测试
 tests/perf/     基准脚本与 CSV 输出
 examples/       宿主嵌入与集成示例
+templates/      最小内容项目与宿主模板
 docs/api/       API 文档
 ```
 
@@ -232,15 +233,43 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 2. 成功/失败都输出 machine-readable `trace_id`
 3. 详细规则见 [docs/api/save.md](./docs/api/save.md) 与 [docs/toolchain.md](./docs/toolchain.md)
 
+## 模板骨架
+
+当前已提供：
+
+1. `templates/minimal-vn/`
+2. `templates/host-embed/`
+
+当前模板约定：
+
+1. 模板源码保留在 `assets/` / `src/`
+2. 生成产物统一写回 `templates/minimal-vn/build/`
+
+目录说明见 [docs/project-layout.md](./docs/project-layout.md)。
+
 ## 统一 Toolchain 入口
 
 ```bash
 python3 tools/toolchain.py --help
+python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
 python3 tools/toolchain.py validate-toolchain-contracts
+python3 tools/toolchain.py validate-backend-contracts
+python3 tools/toolchain.py validate-api-index-contracts
+python3 tools/toolchain.py validate-compat-matrix
+python3 tools/toolchain.py validate-ecosystem-contracts
+python3 tools/toolchain.py validate-error-contracts
 python3 tools/toolchain.py validate-host-sdk-contracts
+python3 tools/toolchain.py validate-migration-contracts
+python3 tools/toolchain.py validate-pack-contracts
+python3 tools/toolchain.py validate-platform-contracts
 python3 tools/toolchain.py validate-preview-contracts
+python3 tools/toolchain.py validate-perf-contracts
+python3 tools/toolchain.py validate-porting-contracts
+python3 tools/toolchain.py validate-runtime-contracts
+python3 tools/toolchain.py validate-save-contracts
+python3 tools/toolchain.py validate-template-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
@@ -253,19 +282,33 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 
 当前统一入口已经覆盖：
 
-1. `validate-manifest`
-2. `validate-release-contracts`
-3. `validate-toolchain-contracts`
-4. `validate-host-sdk-contracts`
-5. `validate-preview-contracts`
-6. `probe-vnsave`
-7. `probe-trace-summary`
-8. `probe-preview`
-9. `probe-perf-summary`
-10. `probe-perf-compare`
-11. `probe-kernel-bench`
-12. `probe-kernel-compare`
-13. `migrate-vnsave`
+1. `validate-release-docs`
+2. `validate-manifest`
+3. `validate-release-contracts`
+4. `validate-toolchain-contracts`
+5. `validate-backend-contracts`
+6. `validate-api-index-contracts`
+7. `validate-compat-matrix`
+8. `validate-ecosystem-contracts`
+9. `validate-error-contracts`
+10. `validate-host-sdk-contracts`
+11. `validate-migration-contracts`
+12. `validate-pack-contracts`
+13. `validate-platform-contracts`
+14. `validate-preview-contracts`
+15. `validate-perf-contracts`
+16. `validate-porting-contracts`
+17. `validate-runtime-contracts`
+18. `validate-save-contracts`
+19. `validate-template-contracts`
+20. `probe-vnsave`
+21. `probe-trace-summary`
+22. `probe-preview`
+23. `probe-perf-summary`
+24. `probe-perf-compare`
+25. `probe-kernel-bench`
+26. `probe-kernel-compare`
+27. `migrate-vnsave`
 
 键盘模式按键：
 
@@ -460,6 +503,7 @@ baseline/candidate 全量 sweep 示例（非 CI smoke gate）：
 5. Pack API：[`docs/api/pack.md`](./docs/api/pack.md)
 6. API 索引：[`docs/api/README.md`](./docs/api/README.md)
 7. Dirty-Tile 设计/API 现状（draft + landed slices）：[`docs/api/dirty-tile-draft.md`](./docs/api/dirty-tile-draft.md)
+8. 后端移植指南：[`docs/backend-porting.md`](./docs/backend-porting.md)
 
 ## 开发约束
 

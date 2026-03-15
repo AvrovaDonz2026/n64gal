@@ -71,11 +71,26 @@ trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary 
 
 run_capture "$LOG_DIR/check_c89.log" ./scripts/check_c89.sh
 run_capture "$LOG_DIR/check_api_docs_sync.log" ./scripts/check_api_docs_sync.sh
+run_capture "$LOG_DIR/test_release_docs_validate.log" python3 tests/integration/test_release_docs_validate.py
 run_capture "$LOG_DIR/test_manifest_validate.log" python3 tests/integration/test_manifest_validate.py
 run_capture "$LOG_DIR/test_release_contracts_validate.log" python3 tests/integration/test_release_contracts_validate.py
 run_capture "$LOG_DIR/test_toolchain_contracts_validate.log" python3 tests/integration/test_toolchain_contracts_validate.py
+run_capture "$LOG_DIR/test_backend_contracts_validate.log" python3 tests/integration/test_backend_contracts_validate.py
+run_capture "$LOG_DIR/test_api_index_contracts_validate.log" python3 tests/integration/test_api_index_contracts_validate.py
+run_capture "$LOG_DIR/test_compat_matrix_validate.log" python3 tests/integration/test_compat_matrix_validate.py
+run_capture "$LOG_DIR/test_ecosystem_contracts_validate.log" python3 tests/integration/test_ecosystem_contracts_validate.py
+run_capture "$LOG_DIR/test_error_contracts_validate.log" python3 tests/integration/test_error_contracts_validate.py
 run_capture "$LOG_DIR/test_host_sdk_contracts_validate.log" python3 tests/integration/test_host_sdk_contracts_validate.py
+run_capture "$LOG_DIR/test_migration_contracts_validate.log" python3 tests/integration/test_migration_contracts_validate.py
+run_capture "$LOG_DIR/test_pack_contracts_validate.log" python3 tests/integration/test_pack_contracts_validate.py
+run_capture "$LOG_DIR/test_platform_contracts_validate.log" python3 tests/integration/test_platform_contracts_validate.py
 run_capture "$LOG_DIR/test_preview_contracts_validate.log" python3 tests/integration/test_preview_contracts_validate.py
+run_capture "$LOG_DIR/test_perf_contracts_validate.log" python3 tests/integration/test_perf_contracts_validate.py
+run_capture "$LOG_DIR/test_porting_contracts_validate.log" python3 tests/integration/test_porting_contracts_validate.py
+run_capture "$LOG_DIR/test_runtime_contracts_validate.log" python3 tests/integration/test_runtime_contracts_validate.py
+run_capture "$LOG_DIR/test_save_contracts_validate.log" python3 tests/integration/test_save_contracts_validate.py
+run_capture "$LOG_DIR/test_template_contracts_validate.log" python3 tests/integration/test_template_contracts_validate.py
+run_capture "$LOG_DIR/test_templates_layout.log" python3 tests/integration/test_templates_layout.py
 run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_trace_summary.log" python3 tests/integration/test_trace_summary.py
 run_capture "$LOG_DIR/test_preview_summary.log" python3 tests/integration/test_preview_summary.py

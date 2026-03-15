@@ -26,11 +26,25 @@ def print_usage(program: str) -> int:
                 f"usage: {program} <command> [args]",
                 "",
                 "commands:",
+                "  validate-release-docs",
                 "  validate-manifest <manifest.json>",
                 "  validate-release-contracts",
                 "  validate-toolchain-contracts",
+                "  validate-backend-contracts",
+                "  validate-api-index-contracts",
+                "  validate-compat-matrix",
+                "  validate-ecosystem-contracts",
+                "  validate-error-contracts",
                 "  validate-host-sdk-contracts",
+                "  validate-migration-contracts",
+                "  validate-pack-contracts",
+                "  validate-platform-contracts",
                 "  validate-preview-contracts",
+                "  validate-perf-contracts",
+                "  validate-porting-contracts",
+                "  validate-runtime-contracts",
+                "  validate-save-contracts",
+                "  validate-template-contracts",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -98,6 +112,13 @@ def command_validate_manifest(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_manifest.py", argv[0]])
 
 
+def command_validate_release_docs(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_release_docs.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_release_docs.py"])
+
+
 def command_validate_release_contracts(argv) -> int:
     if len(argv) != 0:
         print("trace_id=tool.toolchain.validate_release_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
@@ -112,6 +133,41 @@ def command_validate_toolchain_contracts(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_toolchain_contracts.py"])
 
 
+def command_validate_backend_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_backend_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_backend_contracts.py"])
+
+
+def command_validate_api_index_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_api_index_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_api_index_contracts.py"])
+
+
+def command_validate_compat_matrix(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_compat_matrix.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_compat_matrix.py"])
+
+
+def command_validate_ecosystem_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_ecosystem_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_ecosystem_contracts.py"])
+
+
+def command_validate_error_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_error_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_error_contracts.py"])
+
+
 def command_validate_host_sdk_contracts(argv) -> int:
     if len(argv) != 0:
         print("trace_id=tool.toolchain.validate_host_sdk_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
@@ -119,11 +175,67 @@ def command_validate_host_sdk_contracts(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_host_sdk_contracts.py"])
 
 
+def command_validate_migration_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_migration_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_migration_contracts.py"])
+
+
+def command_validate_pack_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_pack_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_pack_contracts.py"])
+
+
+def command_validate_platform_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_platform_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_platform_contracts.py"])
+
+
 def command_validate_preview_contracts(argv) -> int:
     if len(argv) != 0:
         print("trace_id=tool.toolchain.validate_preview_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
         return 2
     return run_forward([sys.executable, "tools/validate/validate_preview_contracts.py"])
+
+
+def command_validate_perf_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_perf_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_perf_contracts.py"])
+
+
+def command_validate_porting_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_porting_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_porting_contracts.py"])
+
+
+def command_validate_runtime_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_runtime_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_runtime_contracts.py"])
+
+
+def command_validate_save_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_save_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_save_contracts.py"])
+
+
+def command_validate_template_contracts(argv) -> int:
+    if len(argv) != 0:
+        print("trace_id=tool.toolchain.validate_template_contracts.usage error_code=-1 error_name=VN_E_INVALID_ARG message=unexpected argument", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/validate/validate_template_contracts.py"])
 
 
 def command_migrate_vnsave(argv) -> int:
@@ -252,16 +364,44 @@ def main(argv) -> int:
     command = argv[1]
     args = argv[2:]
     try:
+        if command == "validate-release-docs":
+            return command_validate_release_docs(args)
         if command == "validate-manifest":
             return command_validate_manifest(args)
         if command == "validate-release-contracts":
             return command_validate_release_contracts(args)
         if command == "validate-toolchain-contracts":
             return command_validate_toolchain_contracts(args)
+        if command == "validate-backend-contracts":
+            return command_validate_backend_contracts(args)
+        if command == "validate-api-index-contracts":
+            return command_validate_api_index_contracts(args)
+        if command == "validate-compat-matrix":
+            return command_validate_compat_matrix(args)
+        if command == "validate-ecosystem-contracts":
+            return command_validate_ecosystem_contracts(args)
+        if command == "validate-error-contracts":
+            return command_validate_error_contracts(args)
         if command == "validate-host-sdk-contracts":
             return command_validate_host_sdk_contracts(args)
+        if command == "validate-migration-contracts":
+            return command_validate_migration_contracts(args)
+        if command == "validate-pack-contracts":
+            return command_validate_pack_contracts(args)
+        if command == "validate-platform-contracts":
+            return command_validate_platform_contracts(args)
         if command == "validate-preview-contracts":
             return command_validate_preview_contracts(args)
+        if command == "validate-perf-contracts":
+            return command_validate_perf_contracts(args)
+        if command == "validate-porting-contracts":
+            return command_validate_porting_contracts(args)
+        if command == "validate-runtime-contracts":
+            return command_validate_runtime_contracts(args)
+        if command == "validate-save-contracts":
+            return command_validate_save_contracts(args)
+        if command == "validate-template-contracts":
+            return command_validate_template_contracts(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":

@@ -15,12 +15,20 @@ def run_case(args):
 
 def main():
     out_path = "tests/integration/toolchain_tmp.vnsave"
-    if os.path.exists(out_path):
-        os.remove(out_path)
+    try:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+    except FileNotFoundError:
+        pass
 
     rc, out, err = run_case(["--help"])
     if rc != 2 or "validate-manifest" not in err or "probe-vnsave" not in err:
         print("toolchain help output mismatch", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-release-docs"])
+    if rc != 0 or "trace_id=tool.validate.release_docs.ok" not in out:
+        print(f"validate-release-docs failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["validate-manifest", "tests/fixtures/tool_manifest/valid/vnsave_migrate.json"])
@@ -38,14 +46,79 @@ def main():
         print(f"validate-toolchain-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-backend-contracts"])
+    if rc != 0 or "trace_id=tool.validate.backend_contracts.ok" not in out:
+        print(f"validate-backend-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-api-index-contracts"])
+    if rc != 0 or "trace_id=tool.validate.api_index_contracts.ok" not in out:
+        print(f"validate-api-index-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-compat-matrix"])
+    if rc != 0 or "trace_id=tool.validate.compat_matrix.ok" not in out:
+        print(f"validate-compat-matrix failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-ecosystem-contracts"])
+    if rc != 0 or "trace_id=tool.validate.ecosystem_contracts.ok" not in out:
+        print(f"validate-ecosystem-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-error-contracts"])
+    if rc != 0 or "trace_id=tool.validate.error_contracts.ok" not in out:
+        print(f"validate-error-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["validate-host-sdk-contracts"])
     if rc != 0 or "trace_id=tool.validate.host_sdk_contracts.ok" not in out:
         print(f"validate-host-sdk-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-migration-contracts"])
+    if rc != 0 or "trace_id=tool.validate.migration_contracts.ok" not in out:
+        print(f"validate-migration-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-pack-contracts"])
+    if rc != 0 or "trace_id=tool.validate.pack_contracts.ok" not in out:
+        print(f"validate-pack-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-platform-contracts"])
+    if rc != 0 or "trace_id=tool.validate.platform_contracts.ok" not in out:
+        print(f"validate-platform-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["validate-preview-contracts"])
     if rc != 0 or "trace_id=tool.validate.preview_contracts.ok" not in out:
         print(f"validate-preview-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-perf-contracts"])
+    if rc != 0 or "trace_id=tool.validate.perf_contracts.ok" not in out:
+        print(f"validate-perf-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-porting-contracts"])
+    if rc != 0 or "trace_id=tool.validate.porting_contracts.ok" not in out:
+        print(f"validate-porting-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-runtime-contracts"])
+    if rc != 0 or "trace_id=tool.validate.runtime_contracts.ok" not in out:
+        print(f"validate-runtime-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-save-contracts"])
+    if rc != 0 or "trace_id=tool.validate.save_contracts.ok" not in out:
+        print(f"validate-save-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-template-contracts"])
+    if rc != 0 or "trace_id=tool.validate.template_contracts.ok" not in out:
+        print(f"validate-template-contracts failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
@@ -96,8 +169,11 @@ def main():
         print("unknown command handling mismatch", file=sys.stderr)
         return 1
 
-    if os.path.exists(out_path):
-        os.remove(out_path)
+    try:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+    except FileNotFoundError:
+        pass
     print("test_toolchain_cli ok")
     return 0
 

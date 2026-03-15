@@ -1406,10 +1406,11 @@ cmake --build build-wasm
 
 ### 任务清单
 
-- [ ] 最小项目模板（脚本/资源/pack/运行命令齐全）
-- [ ] 宿主嵌入模板（Session API + 输入桥接样例）
-- [ ] 模板版本字段与升级说明
-- [ ] Linux/Windows 启动命令与目录约定
+- [x] 最小项目模板（脚本/资源/pack/运行命令齐全）
+- [x] 宿主嵌入模板（Session API + 输入桥接样例）
+- [x] 模板版本字段与升级说明
+- [x] Linux/Windows 启动命令与目录约定
+- [x] 模板生成物已统一收口到 `build/`，源码目录不再承载发布产物
 
 ### 验收命令
 
@@ -1451,11 +1452,25 @@ cmake --build build-wasm
 
 ### 任务清单
 
+- [x] `validate`：已落 release 文档链一致性校验（`tools/validate/validate_release_docs.py`）
 - [x] `validate`：已落首个 manifest 结构校验（`tools/validate/validate_manifest.py`）
 - [x] `validate`：已落 release contract 一致性校验（`tools/validate/validate_release_contracts.py`）
 - [x] `validate`：已落 toolchain 命令面一致性校验（`tools/validate/validate_toolchain_contracts.py`）
+- [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
+- [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
+- [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）
+- [x] `validate`：已落生态治理与 extension manifest 一致性校验（`tools/validate/validate_ecosystem_contracts.py`）
+- [x] `validate`：已落公共错误面契约一致性校验（`tools/validate/validate_error_contracts.py`）
 - [x] `validate`：已落 host SDK 契约一致性校验（`tools/validate/validate_host_sdk_contracts.py`）
+- [x] `validate`：已落 migration 文档与边界一致性校验（`tools/validate/validate_migration_contracts.py`）
+- [x] `validate`：已落 pack/vnpak 契约一致性校验（`tools/validate/validate_pack_contracts.py`）
+- [x] `validate`：已落平台矩阵与平台承诺一致性校验（`tools/validate/validate_platform_contracts.py`）
 - [x] `validate`：已落 preview protocol 契约一致性校验（`tools/validate/validate_preview_contracts.py`）
+- [x] `validate`：已落 perf 合同一致性校验（`tools/validate/validate_perf_contracts.py`）
+- [x] `validate`：已落 backend porting 指南一致性校验（`tools/validate/validate_porting_contracts.py`）
+- [x] `validate`：已落 runtime 契约一致性校验（`tools/validate/validate_runtime_contracts.py`）
+- [x] `validate`：已落 save/vnsave 契约一致性校验（`tools/validate/validate_save_contracts.py`）
+- [x] `validate`：已落模板契约一致性校验（`tools/validate/validate_template_contracts.py`）
 - [x] `migrate`：已落首个 `vnsave v0 -> v1` 迁移命令（`tools/migrate/vnsave_migrate`）
 - [x] `probe`：已落 `vnsave` / runtime trace / preview / perf summary / perf compare / kernel bench / kernel compare 探测入口（`tools/probe/vnsave_probe` / `tools/probe/trace_summary.py` / `tools/probe/preview_summary.py` / `tools/probe/perf_summary.py` / `tools/probe/perf_compare_summary.py` / `tools/probe/kernel_bench_summary.py` / `tools/probe/kernel_compare_summary.py`）
 - [x] 统一 CLI 帮助、退出码和机器可读输出格式（当前已覆盖 `validate_manifest.py` / `vnsave_migrate`）

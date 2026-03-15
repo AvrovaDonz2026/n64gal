@@ -16,11 +16,25 @@
 
 ```bash
 python3 tools/toolchain.py --help
+python3 tools/toolchain.py validate-release-docs
 python3 tools/toolchain.py validate-manifest tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/toolchain.py validate-release-contracts
 python3 tools/toolchain.py validate-toolchain-contracts
+python3 tools/toolchain.py validate-backend-contracts
+python3 tools/toolchain.py validate-api-index-contracts
+python3 tools/toolchain.py validate-compat-matrix
+python3 tools/toolchain.py validate-ecosystem-contracts
+python3 tools/toolchain.py validate-error-contracts
 python3 tools/toolchain.py validate-host-sdk-contracts
+python3 tools/toolchain.py validate-migration-contracts
+python3 tools/toolchain.py validate-pack-contracts
+python3 tools/toolchain.py validate-platform-contracts
 python3 tools/toolchain.py validate-preview-contracts
+python3 tools/toolchain.py validate-perf-contracts
+python3 tools/toolchain.py validate-porting-contracts
+python3 tools/toolchain.py validate-runtime-contracts
+python3 tools/toolchain.py validate-save-contracts
+python3 tools/toolchain.py validate-template-contracts
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
@@ -41,20 +55,48 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 
 当前已落地：
 
-1. `tools/validate/validate_manifest.py`
-2. `tools/validate/validate_release_contracts.py`
-3. `tools/validate/validate_toolchain_contracts.py`
-4. `tools/validate/validate_host_sdk_contracts.py`
-5. `tools/validate/validate_preview_contracts.py`
+1. `tools/validate/validate_release_docs.py`
+2. `tools/validate/validate_manifest.py`
+3. `tools/validate/validate_release_contracts.py`
+4. `tools/validate/validate_toolchain_contracts.py`
+5. `tools/validate/validate_backend_contracts.py`
+6. `tools/validate/validate_api_index_contracts.py`
+7. `tools/validate/validate_compat_matrix.py`
+8. `tools/validate/validate_ecosystem_contracts.py`
+9. `tools/validate/validate_error_contracts.py`
+10. `tools/validate/validate_host_sdk_contracts.py`
+11. `tools/validate/validate_migration_contracts.py`
+12. `tools/validate/validate_pack_contracts.py`
+13. `tools/validate/validate_platform_contracts.py`
+14. `tools/validate/validate_preview_contracts.py`
+15. `tools/validate/validate_perf_contracts.py`
+16. `tools/validate/validate_porting_contracts.py`
+17. `tools/validate/validate_runtime_contracts.py`
+18. `tools/validate/validate_save_contracts.py`
+19. `tools/validate/validate_template_contracts.py`
 
 示例：
 
 ```bash
+python3 tools/validate/validate_release_docs.py
 python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/vnsave_migrate.json
 python3 tools/validate/validate_release_contracts.py
 python3 tools/validate/validate_toolchain_contracts.py
+python3 tools/validate/validate_backend_contracts.py
+python3 tools/validate/validate_api_index_contracts.py
+python3 tools/validate/validate_compat_matrix.py
+python3 tools/validate/validate_ecosystem_contracts.py
+python3 tools/validate/validate_error_contracts.py
 python3 tools/validate/validate_host_sdk_contracts.py
+python3 tools/validate/validate_migration_contracts.py
+python3 tools/validate/validate_pack_contracts.py
+python3 tools/validate/validate_platform_contracts.py
 python3 tools/validate/validate_preview_contracts.py
+python3 tools/validate/validate_perf_contracts.py
+python3 tools/validate/validate_porting_contracts.py
+python3 tools/validate/validate_runtime_contracts.py
+python3 tools/validate/validate_save_contracts.py
+python3 tools/validate/validate_template_contracts.py
 ```
 
 输出约定：

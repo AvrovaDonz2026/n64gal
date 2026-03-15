@@ -1,0 +1,7 @@
+{
+  "template_version": 1,
+  "template_name": "host-embed",
+  "kind": "host-project",
+  "stability": "preview",
+  "entry_source": "src/session_loop.c"
+}
