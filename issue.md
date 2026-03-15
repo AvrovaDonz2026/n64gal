@@ -3,7 +3,7 @@
 基于 [`dream.md`](./dream.md) `v1.6-executable-c89-single-api` 整理。  
 目标：将白皮书转为可直接执行的 GitHub issue 工单体系。
 
-## 0.1 落地状态快照（2026-03-09）
+## 0.1 落地状态快照（2026-03-15）
 
 ### 已完成（代码已合入 main）
 
@@ -17,7 +17,7 @@
 8. `ISSUE-017`（部分）：`docs/api/*` 文档集与维护入口已建立
 9. `ISSUE-014`（部分）：`riscv-perf-report` workflow 与 wrapper 已合入，且 `ci-matrix` 在 `f5eaa54` / `1792d6e` 两次 push 均为 `success`
 
-### 近期追踪（2026-03-09）
+### 近期追踪（2026-03-15）
 
 1. `df68232`：落地 revision-compare perf 工具、qemu RVV smoke 报告与 perf 工作流文档。
 2. `f5eaa54`：新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh`。
@@ -78,6 +78,11 @@
 66. `ISSUE-009` 已继续压 NEON `sample_combine` chunk 的常量载入：当前新增了 `vn_neon_sample_combine_chunk_preloaded_u32x4()`，把 `seed_xor/checker_xor/v8/base_rgb/text_blue_bias/sprite_blue_bias` 的向量常量改成每行预加载一次，再由 `vn_neon_build_textured_row_palette()`、`vn_neon_sample_texels_row()` 与 `vn_neon_sample_blend_texels_row()` 的 hot loop 直接复用，减少 per-chunk 反复 `vld1q` 行常量的开销。当前本地已通过 `check_c89`、host/aarch64 严格编译与 `run_cc_suite.sh` 复核。
 67. `ISSUE-009` 已把 NEON non-palette direct row 的参数初始化也收口到按 `v8` 复用：当前在未命中 row-palette 的路径上，`vn_neon_init_textured_row_params()` 不再每行无条件重建，而是仅在 `v8` 变化时更新，和 row-palette 路径保持一致，减少 per-row 参数准备成本。当前本地已通过 `check_c89`、host/aarch64 严格编译与 `run_cc_suite.sh` 复核。
 68. `ISSUE-009` 已把 NEON `fill/fade` row kernel 也统一成 8px unroll：当前 `vn_neon_fill_u32()` 与 `vn_neon_blend_u32_uniform()` 都已优先按 8 像素推进，再回落到 4 像素与 scalar tail，和 textured / row-palette 热路径保持一致，进一步压缩全屏 `clear/fade` 的 loop overhead。当前本地已通过 `check_c89`、host/aarch64 严格编译与 `run_cc_suite.sh` 复核。
+69. `ISSUE-021` / `ISSUE-022` 已从文档骨架推进到可执行模板与统一门禁：`templates/minimal-vn`、`templates/host-embed`、`docs/project-layout.md` 已入库，模板输出路径已统一收口到 `templates/minimal-vn/build/`；同时新增 `validate_template_contracts.py` 与 `test_templates_layout.py`，把模板输入/输出边界、文档和脚本约定纳入主线套件。
+70. `ISSUE-022` 已形成真正的统一 Creator Toolchain：当前 `tools/toolchain.py` 已聚合 `validate/probe/migrate`，并补齐 `release docs / backend / api index / compat matrix / ecosystem / error / host sdk / migration / pack / platform / preview / perf / porting / runtime / save / template` 等 contract validator；`python3 tools/toolchain.py validate-all` 已作为单命令总门禁落地。
+71. `ISSUE-012` / `ISSUE-022` 已新增统一 release gate：`scripts/release/run_release_gate.sh` 会串行执行 `validate-all + check_c89 + check_api_docs_sync + run_cc_suite`，并产出 `release_gate_summary.md`；同时 `tools/toolchain.py release-gate` 已作为统一入口包装，`docs/release-checklist-v1.0.0.md` 现已把它列为正式版前置命令。
+72. `ISSUE-012` 已补上 demo soak 留痕入口：新增 `scripts/release/run_demo_soak.sh` 与 `tools/toolchain.py release-soak`，当前可对 `S0,S1,S2,S3,S10` 生成 scene 级 soak 摘要；`tests/integration/test_release_soak_script.py` 已接入 `run_cc_suite.sh`，用于把“Demo soak 至少一轮完整留痕”从 checklist 文本推进成可执行命令。
+73. `ISSUE-017` / `ISSUE-022` 当前已形成三层 release/contract gate：`scripts/check_api_docs_sync.sh` 负责公开面变更同步，`python3 tools/toolchain.py validate-all` 负责 contract validator 汇总，`python3 tools/toolchain.py release-gate` / `release-soak` 负责正式版前的统一门禁和 soak 留痕。当前继续补文档门禁的收益已经下降，后续主线应优先回到真正影响 `v1.0.0` 的实现缺口。
 69. `ISSUE-007` 已起一条实验性 `avx2_asm` 分支后端：当前新增 `VN_ARCH_AVX2_ASM` / `VN_RENDERER_FLAG_FORCE_AVX2_ASM`、`--backend=avx2_asm` 和独立 backend 名称，但仍保持 force-only，不纳入 `VN_ARCH_MASK_ALL`。实现上它与 `avx2` 共享 framebuffer / textured / dirty-submit 主路径，只在 GNU x64 下启用 x64 ASM fill；若 asm 不可用则初始化失败并回退 `scalar`。本地最新稳定 `kernel avx2 -> avx2_asm` 样本里 `clear_full p95 0.797ms -> 0.105ms`，而其它非 fill kernel 基本持平，说明当前收益仍集中在 `clear/fill(alpha=255)`；同时 `test_renderer_dirty_submit`、`test_backend_consistency` 与 `test_runtime_golden` 现已把 `avx2_asm / avx2_asm_dirty` 纳入最小一致性覆盖。
 39. `ISSUE-007` 本轮继续推进 `avx2` textured-row 主线：direct textured row 的 non-palette 路径已从逐像素 `sample/hash -> combine -> blend` 收口到 8-lane AVX2 chunk helper，`vn_avx2_sample_texels_row()` 与 `vn_avx2_sample_blend_texels_row()` 现在都复用同一套 chunk 核心；palette alpha path 也已改成复用统一的 packed-channel blend helper。本地已再次通过 `check_c89`、x64 下的 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_backend_consistency`、`test_runtime_golden`，以及短窗口 `scalar -> avx2` smoke compare。
 40. `ISSUE-007` / `ISSUE-008` 本轮同时补上 x64 反回归链路：`.github/workflows/ci-matrix.yml` 的 `linux-x64` / `windows-x64` 现已显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`；`tests/perf/run_perf.sh` / `run_perf_compare.sh` / `compare_perf.sh` 则开始把 `requested_backend` 与 `actual_backend` 一起写入 `perf_summary.csv` / compare markdown，用来防止 AVX2 静默回退后仍把 perf 结果记成 `avx2`。本地已复核单次 compare 与 `repeat=2` compare 都可正常产出新字段。
