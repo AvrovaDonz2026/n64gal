@@ -23,6 +23,7 @@ def main():
     platform_out_dir = "tests/integration/toolchain_release_platform_tmp"
     platform_summary_path = f"{platform_out_dir}/platform_evidence_summary.md"
     platform_summary_json_path = f"{platform_out_dir}/platform_evidence_summary.json"
+    ci_summary_path = "tests/integration/toolchain_release_ci_suite_summary.md"
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
@@ -33,6 +34,13 @@ def main():
             os.remove(summary_path)
     except FileNotFoundError:
         pass
+    try:
+        if os.path.exists(ci_summary_path):
+            os.remove(ci_summary_path)
+    except FileNotFoundError:
+        pass
+    with open(ci_summary_path, "w", encoding="utf-8") as handle:
+        handle.write("# CI Suite Summary\n\n- Status: `success`\n")
 
     rc, out, err = run_case(["--help"])
     if rc != 2 or "validate-all" not in err or "validate-manifest" not in err or "probe-vnsave" not in err:
@@ -162,7 +170,7 @@ def main():
         print(f"release-preview-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-platform-evidence", "--out-dir", platform_out_dir])
+    rc, out, err = run_case(["release-platform-evidence", "--out-dir", platform_out_dir, "--ci-suite-summary", ci_summary_path])
     if rc != 0 or "trace_id=release.platform.ok" not in out:
         print(f"release-platform-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
@@ -178,6 +186,7 @@ def main():
         "--soak-frames-per-scene", "2",
         "--soak-scenes", "S0",
         "--summary-out", summary_path,
+        "--ci-suite-summary", ci_summary_path,
     ])
     if rc != 0 or "trace_id=release.gate.ok" not in out:
         print(f"release-gate runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -197,7 +206,7 @@ def main():
         "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
         "--gate-summary", summary_path,
         "--soak-summary", summary_path,
-        "--ci-summary", summary_path,
+        "--ci-summary", ci_summary_path,
         "--host-sdk-summary", host_sdk_summary_path,
         "--host-sdk-summary-json", host_sdk_summary_json_path,
         "--platform-evidence-summary", platform_summary_path,
@@ -214,7 +223,7 @@ def main():
         "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
         "--gate-summary", summary_path,
         "--soak-summary", summary_path,
-        "--ci-suite-summary", summary_path,
+        "--ci-suite-summary", ci_summary_path,
         "--host-sdk-summary", host_sdk_summary_path,
         "--platform-evidence-summary", platform_summary_path,
         "--preview-evidence-summary", preview_summary_path,
@@ -286,6 +295,7 @@ def main():
         host_sdk_summary_json_path,
         preview_summary_path,
         preview_summary_json_path,
+        ci_summary_path,
     ):
         try:
             if os.path.exists(extra_path):

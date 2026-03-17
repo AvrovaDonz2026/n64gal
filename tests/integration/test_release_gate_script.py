@@ -18,6 +18,7 @@ def main():
     summary_json_path_runner = ROOT / "tests" / "integration" / "release_gate_runner_tmp.json"
     soak_summary_path_runner = ROOT / "tests" / "integration" / "release_gate_soak_runner_tmp.md"
     soak_summary_json_path_runner = ROOT / "tests" / "integration" / "release_gate_soak_runner_tmp.json"
+    ci_summary_path = ROOT / "tests" / "integration" / "release_gate_ci_suite_summary.md"
     runner_bin = ROOT / "build_release_soak" / "vn_player"
     bundle_dir = ROOT / "tests" / "integration" / "release_gate_bundle_tmp"
     for path in (
@@ -29,6 +30,7 @@ def main():
         summary_json_path_runner,
         soak_summary_path_runner,
         soak_summary_json_path_runner,
+        ci_summary_path,
     ):
         try:
             if path.exists():
@@ -38,6 +40,7 @@ def main():
     if bundle_dir.exists():
         import shutil
         shutil.rmtree(bundle_dir)
+    ci_summary_path.write_text("# CI Suite Summary\n\n- Status: `success`\n", encoding="utf-8")
 
     proc = subprocess.run(
         SCRIPT + [
@@ -131,6 +134,7 @@ def main():
             "--soak-summary-json-out", str(soak_summary_json_path_runner),
             "--summary-out", str(summary_path_runner),
             "--summary-json-out", str(summary_json_path_runner),
+            "--ci-suite-summary", str(ci_summary_path),
             "--bundle-out-dir", str(bundle_dir),
         ],
         cwd=ROOT,
@@ -152,6 +156,7 @@ def main():
     summary_json_path_runner.unlink()
     soak_summary_path_runner.unlink()
     soak_summary_json_path_runner.unlink()
+    ci_summary_path.unlink()
     import shutil
     shutil.rmtree(bundle_dir)
     print("test_release_gate_script ok")

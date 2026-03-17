@@ -12,9 +12,16 @@ def main():
     out_dir = ROOT / 'tests' / 'integration' / 'release_platform_tmp'
     summary_md = out_dir / 'platform_evidence_summary.md'
     summary_json = out_dir / 'platform_evidence_summary.json'
+    ci_summary = ROOT / 'tests' / 'integration' / 'release_platform_ci_suite_summary.md'
     if out_dir.exists():
         import shutil
         shutil.rmtree(out_dir)
+    try:
+        if ci_summary.exists():
+            ci_summary.unlink()
+    except FileNotFoundError:
+        pass
+    ci_summary.write_text('# CI Suite Summary\n\n- Status: `success`\n', encoding='utf-8')
 
     help_proc = subprocess.run(
         SCRIPT + ['--help'],
@@ -30,7 +37,7 @@ def main():
         return 1
 
     proc = subprocess.run(
-        SCRIPT + ['--out-dir', str(out_dir), '--summary-out', str(summary_md), '--summary-json-out', str(summary_json)],
+        SCRIPT + ['--out-dir', str(out_dir), '--ci-suite-summary', str(ci_summary), '--summary-out', str(summary_md), '--summary-json-out', str(summary_json)],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -88,6 +95,7 @@ def main():
 
     import shutil
     shutil.rmtree(out_dir)
+    ci_summary.unlink()
     print('test_release_platform_evidence ok')
     return 0
 
