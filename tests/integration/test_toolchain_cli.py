@@ -175,6 +175,11 @@ def main():
         print(f"release-platform-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
+    if rc != 0 or "trace_id=release.soak.ok" not in out:
+        print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case([
         "release-gate",
         "--allow-dirty",
@@ -190,11 +195,6 @@ def main():
     ])
     if rc != 0 or "trace_id=release.gate.ok" not in out:
         print(f"release-gate runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
-
-    rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
-    if rc != 0 or "trace_id=release.soak.ok" not in out:
-        print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["release-soak", "--skip-pack", "--skip-build", "--runner-bin", "build_release_soak/vn_player", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
