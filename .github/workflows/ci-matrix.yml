@@ -26,16 +26,23 @@ jobs:
       - name: Verify AVX2 dirty-submit coverage
         if: always()
         run: |
+          summary_path="build_ci_cc/ci_suite_summary.md"
           log_path="build_ci_cc/ci_logs/test_renderer_dirty_submit.log"
+          if [ ! -f "$summary_path" ]; then
+            echo "missing suite summary: $summary_path" >&2
+            exit 1
+          fi
           if [ ! -f "$log_path" ]; then
             echo "missing dirty submit log: $log_path" >&2
             exit 1
           fi
-          if ! grep -q "matched backend=avx2" "$log_path"; then
-            echo "expected matched backend=avx2 in $log_path" >&2
+          if ! grep -q 'Dirty submit matched backends: `.*avx2' "$summary_path"; then
+            echo "expected matched backend=avx2 in $summary_path" >&2
+            cat "$summary_path"
             cat "$log_path"
             exit 1
           fi
+          echo "- Verified dirty submit summary on linux-x64: \`$summary_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit log on linux-x64: \`$log_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit backend hit: \`avx2\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload native suite artifact
@@ -62,16 +69,23 @@ jobs:
       - name: Verify AVX2 dirty-submit coverage (clang)
         if: always()
         run: |
+          summary_path="build_ci_cc_clang/ci_suite_summary.md"
           log_path="build_ci_cc_clang/ci_logs/test_renderer_dirty_submit.log"
+          if [ ! -f "$summary_path" ]; then
+            echo "missing suite summary: $summary_path" >&2
+            exit 1
+          fi
           if [ ! -f "$log_path" ]; then
             echo "missing dirty submit log: $log_path" >&2
             exit 1
           fi
-          if ! grep -q "matched backend=avx2" "$log_path"; then
-            echo "expected matched backend=avx2 in $log_path" >&2
+          if ! grep -q 'Dirty submit matched backends: `.*avx2' "$summary_path"; then
+            echo "expected matched backend=avx2 in $summary_path" >&2
+            cat "$summary_path"
             cat "$log_path"
             exit 1
           fi
+          echo "- Verified dirty submit summary on linux-x64-clang: \`$summary_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit log on linux-x64-clang: \`$log_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit backend hit (clang): \`avx2\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload native clang suite artifact
@@ -215,16 +229,23 @@ jobs:
       - name: Verify NEON dirty-submit coverage
         if: always()
         run: |
+          summary_path="build_ci_cc/ci_suite_summary.md"
           log_path="build_ci_cc/ci_logs/test_renderer_dirty_submit.log"
+          if [ ! -f "$summary_path" ]; then
+            echo "missing suite summary: $summary_path" >&2
+            exit 1
+          fi
           if [ ! -f "$log_path" ]; then
             echo "missing dirty submit log: $log_path" >&2
             exit 1
           fi
-          if ! grep -q "matched backend=neon" "$log_path"; then
-            echo "expected matched backend=neon in $log_path" >&2
+          if ! grep -q 'Dirty submit matched backends: `.*neon' "$summary_path"; then
+            echo "expected matched backend=neon in $summary_path" >&2
+            cat "$summary_path"
             cat "$log_path"
             exit 1
           fi
+          echo "- Verified dirty submit summary on linux-arm64: \`$summary_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit log on linux-arm64: \`$log_path\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Verified dirty submit backend hit: \`neon\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload native suite artifact
