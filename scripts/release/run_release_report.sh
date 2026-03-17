@@ -9,12 +9,15 @@ BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_inde
 GATE_SUMMARY="${GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 SOAK_SUMMARY="${SOAK_SUMMARY:-$ROOT_DIR/build_release_soak/demo_soak_summary.md}"
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
+HOST_SDK_SUMMARY="${HOST_SDK_SUMMARY:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.md}"
+PLATFORM_EVIDENCE_SUMMARY="${PLATFORM_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_platform/platform_evidence_summary.md}"
+PREVIEW_EVIDENCE_SUMMARY="${PREVIEW_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_preview/preview_evidence_summary.md}"
 REPORT_OUT=""
 REPORT_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--report-out <path>] [--report-json-out <path>]
+usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
 EOF
 }
 
@@ -48,6 +51,24 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       CI_SUITE_SUMMARY="$1"
+      shift
+      ;;
+    --host-sdk-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      HOST_SDK_SUMMARY="$1"
+      shift
+      ;;
+    --platform-evidence-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PLATFORM_EVIDENCE_SUMMARY="$1"
+      shift
+      ;;
+    --preview-evidence-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PREVIEW_EVIDENCE_SUMMARY="$1"
       shift
       ;;
     --report-out)
@@ -93,6 +114,9 @@ require_file "$BUNDLE_INDEX"
 require_file "$GATE_SUMMARY"
 require_file "$SOAK_SUMMARY"
 require_file "$CI_SUITE_SUMMARY"
+require_file "$HOST_SDK_SUMMARY"
+require_file "$PLATFORM_EVIDENCE_SUMMARY"
+require_file "$PREVIEW_EVIDENCE_SUMMARY"
 
 {
   echo "# Release Report"
@@ -103,6 +127,9 @@ require_file "$CI_SUITE_SUMMARY"
   echo "- Gate summary: \`$GATE_SUMMARY\`"
   echo "- Soak summary: \`$SOAK_SUMMARY\`"
   echo "- CI suite summary: \`$CI_SUITE_SUMMARY\`"
+  echo "- Host SDK summary: \`$HOST_SDK_SUMMARY\`"
+  echo "- Platform evidence summary: \`$PLATFORM_EVIDENCE_SUMMARY\`"
+  echo "- Preview evidence summary: \`$PREVIEW_EVIDENCE_SUMMARY\`"
   echo
   echo "## Core Evidence"
   echo
@@ -110,7 +137,10 @@ require_file "$CI_SUITE_SUMMARY"
   echo "2. Release gate summary"
   echo "3. Demo soak summary"
   echo "4. CI suite summary"
-  echo "5. Release note / evidence / package docs"
+  echo "5. Host SDK smoke summary"
+  echo "6. Platform evidence summary"
+  echo "7. Preview evidence summary"
+  echo "8. Release note / evidence / package docs"
   echo
   echo "## Perf Evidence Docs"
   echo
@@ -135,8 +165,11 @@ require_file "$CI_SUITE_SUMMARY"
   printf '  "bundle_index": "%s",\n' "$BUNDLE_INDEX"
   printf '  "gate_summary": "%s",\n' "$GATE_SUMMARY"
   printf '  "soak_summary": "%s",\n' "$SOAK_SUMMARY"
-  printf '  "ci_suite_summary": "%s"\n' "$CI_SUITE_SUMMARY"
+  printf '  "ci_suite_summary": "%s",\n' "$CI_SUITE_SUMMARY"
+  printf '  "host_sdk_summary": "%s",\n' "$HOST_SDK_SUMMARY"
+  printf '  "platform_evidence_summary": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY"
+  printf '  "preview_evidence_summary": "%s"\n' "$PREVIEW_EVIDENCE_SUMMARY"
   printf '}\n'
 } >"$REPORT_JSON_OUT"
 
-echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY ci_summary=$CI_SUITE_SUMMARY"
+echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY ci_summary=$CI_SUITE_SUMMARY host_sdk_summary=$HOST_SDK_SUMMARY platform_summary=$PLATFORM_EVIDENCE_SUMMARY preview_summary=$PREVIEW_EVIDENCE_SUMMARY"

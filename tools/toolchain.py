@@ -69,12 +69,13 @@ def print_usage(program: str) -> int:
                 "  validate-runtime-contracts",
                 "  validate-save-contracts",
                 "  validate-template-contracts",
-                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>]",
-                "  release-host-sdk-smoke [--summary-out <path>] [--skip-build]",
-                "  release-preview-evidence [--summary-out <path>] [--skip-build]",
-                "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>]",
-                "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>]",
-                "  release-report [--out-dir <path>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>]",
+                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>] [--summary-json-out <path>] [--with-soak] [--with-bundle]",
+                "  release-host-sdk-smoke [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
+                "  release-platform-evidence [--out-dir <path>] [--platform-doc <path>] [--ci-suite-summary <path>] [--summary-out <path>] [--summary-json-out <path>]",
+                "  release-preview-evidence [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
+                "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>] [--summary-out <path>] [--summary-json-out <path>]",
+                "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
+                "  release-report [--out-dir <path>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -313,6 +314,10 @@ def command_release_host_sdk_smoke(argv) -> int:
     return run_forward(["bash", "scripts/release/run_host_sdk_smoke.sh"] + list(argv))
 
 
+def command_release_platform_evidence(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_platform_evidence.sh"] + list(argv))
+
+
 def command_release_preview_evidence(argv) -> int:
     return run_forward(["bash", "scripts/release/run_preview_evidence.sh"] + list(argv))
 
@@ -501,6 +506,8 @@ def main(argv) -> int:
             return command_release_gate(args)
         if command == "release-host-sdk-smoke":
             return command_release_host_sdk_smoke(args)
+        if command == "release-platform-evidence":
+            return command_release_platform_evidence(args)
         if command == "release-preview-evidence":
             return command_release_preview_evidence(args)
         if command == "release-soak":

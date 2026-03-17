@@ -28,9 +28,11 @@
 - [ ] `python3 tools/toolchain.py validate-all`
 - [ ] `python3 tools/toolchain.py release-gate`
 - [ ] `python3 tools/toolchain.py release-host-sdk-smoke`
+- [ ] `python3 tools/toolchain.py release-platform-evidence --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-preview-evidence`
 - [ ] `python3 tools/toolchain.py release-soak`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak`
+- [ ] `python3 tools/toolchain.py release-gate --with-soak --with-bundle`
 - [ ] `python3 tools/toolchain.py release-bundle --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-report --out-dir <dir>`
 - [ ] `./scripts/check_c89.sh`
@@ -41,6 +43,9 @@
 - [ ] `test_backend_consistency` 稳定
 - [ ] `test_preview_protocol` 稳定
 - [ ] Demo soak 至少一轮完整留痕
+- [ ] `release-gate` / `release-soak` / `release-host-sdk-smoke` / `release-platform-evidence` / `release-preview-evidence` / `release-bundle` / `release-report` 的 markdown + json 摘要已归档
+- [ ] `release-bundle` 已包含 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要
+- [ ] `release-report` 已显式引用 `host-sdk/platform/preview` 摘要
 
 ## 4. 文档与版本边界
 
@@ -81,4 +86,5 @@
 - [ ] 工作树干净
 - [ ] tag / release note / asset 一致
 - [ ] release 证据链可直接被外部引用
+- [ ] `release_gate_summary(.md/.json)`、`demo_soak_summary(.md/.json)`、`host_sdk_smoke_summary(.md/.json)`、`platform_evidence_summary(.md/.json)`、`preview_evidence_summary(.md/.json)`、`release_bundle_index(.md/.json)`、`release_report(.md/.json)` 可直接随 release 引用
 - [ ] 版本范围、已知限制、迁移边界全部明确

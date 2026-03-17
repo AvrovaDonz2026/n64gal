@@ -16,6 +16,13 @@ def run_case(args):
 def main():
     out_path = "tests/integration/toolchain_tmp.vnsave"
     summary_path = "tests/integration/toolchain_release_gate_tmp.md"
+    host_sdk_summary_path = "tests/integration/toolchain_release_host_sdk_summary.md"
+    host_sdk_summary_json_path = "tests/integration/toolchain_release_host_sdk_summary.json"
+    preview_summary_path = "tests/integration/toolchain_release_preview_summary.md"
+    preview_summary_json_path = "tests/integration/toolchain_release_preview_summary.json"
+    platform_out_dir = "tests/integration/toolchain_release_platform_tmp"
+    platform_summary_path = f"{platform_out_dir}/platform_evidence_summary.md"
+    platform_summary_json_path = f"{platform_out_dir}/platform_evidence_summary.json"
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
@@ -145,14 +152,19 @@ def main():
         print("release-gate did not write summary", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", summary_path])
+    rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", host_sdk_summary_path, "--summary-json-out", host_sdk_summary_json_path])
     if rc != 0 or "trace_id=release.host_sdk.ok" not in out:
         print(f"release-host-sdk-smoke failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-preview-evidence", "--summary-out", summary_path])
+    rc, out, err = run_case(["release-preview-evidence", "--summary-out", preview_summary_path, "--summary-json-out", preview_summary_json_path])
     if rc != 0 or "trace_id=release.preview.ok" not in out:
         print(f"release-preview-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-platform-evidence", "--out-dir", platform_out_dir])
+    if rc != 0 or "trace_id=release.platform.ok" not in out:
+        print(f"release-platform-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case([
@@ -181,12 +193,32 @@ def main():
         print(f"release-soak runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-bundle", "--out-dir", "tests/integration/toolchain_release_bundle_tmp", "--gate-summary", summary_path, "--soak-summary", summary_path, "--ci-summary", summary_path])
+    rc, out, err = run_case(["release-bundle",
+        "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
+        "--gate-summary", summary_path,
+        "--soak-summary", summary_path,
+        "--ci-summary", summary_path,
+        "--host-sdk-summary", host_sdk_summary_path,
+        "--host-sdk-summary-json", host_sdk_summary_json_path,
+        "--platform-evidence-summary", platform_summary_path,
+        "--platform-evidence-summary-json", platform_summary_json_path,
+        "--preview-evidence-summary", preview_summary_path,
+        "--preview-evidence-summary-json", preview_summary_json_path,
+    ])
     if rc != 0 or "trace_id=release.bundle.ok" not in out:
         print(f"release-bundle failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-report", "--out-dir", "tests/integration/toolchain_release_report_tmp", "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md", "--gate-summary", summary_path, "--soak-summary", summary_path, "--ci-suite-summary", summary_path])
+    rc, out, err = run_case(["release-report",
+        "--out-dir", "tests/integration/toolchain_release_report_tmp",
+        "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
+        "--gate-summary", summary_path,
+        "--soak-summary", summary_path,
+        "--ci-suite-summary", summary_path,
+        "--host-sdk-summary", host_sdk_summary_path,
+        "--platform-evidence-summary", platform_summary_path,
+        "--preview-evidence-summary", preview_summary_path,
+    ])
     if rc != 0 or "trace_id=release.report.ok" not in out:
         print(f"release-report failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
@@ -249,12 +281,26 @@ def main():
             os.remove(summary_path)
     except FileNotFoundError:
         pass
+    for extra_path in (
+        host_sdk_summary_path,
+        host_sdk_summary_json_path,
+        preview_summary_path,
+        preview_summary_json_path,
+    ):
+        try:
+            if os.path.exists(extra_path):
+                os.remove(extra_path)
+        except FileNotFoundError:
+            pass
     if os.path.isdir("tests/integration/toolchain_release_bundle_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_bundle_tmp")
     if os.path.isdir("tests/integration/toolchain_release_report_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_report_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_platform_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_platform_tmp")
     print("test_toolchain_cli ok")
     return 0
 

@@ -8,10 +8,16 @@ OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_bundle}"
 RELEASE_GATE_SUMMARY="${RELEASE_GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 DEMO_SOAK_SUMMARY="${DEMO_SOAK_SUMMARY:-$ROOT_DIR/build_release_gate/demo_soak_summary.md}"
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
+HOST_SDK_SUMMARY="${HOST_SDK_SUMMARY:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.md}"
+HOST_SDK_SUMMARY_JSON="${HOST_SDK_SUMMARY_JSON:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.json}"
+PLATFORM_EVIDENCE_SUMMARY="${PLATFORM_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_platform/platform_evidence_summary.md}"
+PLATFORM_EVIDENCE_SUMMARY_JSON="${PLATFORM_EVIDENCE_SUMMARY_JSON:-$ROOT_DIR/build_release_platform/platform_evidence_summary.json}"
+PREVIEW_EVIDENCE_SUMMARY="${PREVIEW_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_preview/preview_evidence_summary.md}"
+PREVIEW_EVIDENCE_SUMMARY_JSON="${PREVIEW_EVIDENCE_SUMMARY_JSON:-$ROOT_DIR/build_release_preview/preview_evidence_summary.json}"
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>]
+usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>]
 EOF
 }
 
@@ -39,6 +45,42 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       CI_SUITE_SUMMARY="$1"
+      shift
+      ;;
+    --host-sdk-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      HOST_SDK_SUMMARY="$1"
+      shift
+      ;;
+    --host-sdk-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      HOST_SDK_SUMMARY_JSON="$1"
+      shift
+      ;;
+    --platform-evidence-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PLATFORM_EVIDENCE_SUMMARY="$1"
+      shift
+      ;;
+    --platform-evidence-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PLATFORM_EVIDENCE_SUMMARY_JSON="$1"
+      shift
+      ;;
+    --preview-evidence-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PREVIEW_EVIDENCE_SUMMARY="$1"
+      shift
+      ;;
+    --preview-evidence-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      PREVIEW_EVIDENCE_SUMMARY_JSON="$1"
       shift
       ;;
     -h|--help)
@@ -77,6 +119,12 @@ copy_required "assets/demo/demo.vnpak" "$OUT_DIR/demo.vnpak"
 copy_required "$RELEASE_GATE_SUMMARY" "$SUM_DIR/release_gate_summary.md"
 copy_required "$DEMO_SOAK_SUMMARY" "$SUM_DIR/demo_soak_summary.md"
 copy_required "$CI_SUITE_SUMMARY" "$SUM_DIR/ci_suite_summary.md"
+copy_required "$HOST_SDK_SUMMARY" "$SUM_DIR/host_sdk_smoke_summary.md"
+copy_required "$HOST_SDK_SUMMARY_JSON" "$SUM_DIR/host_sdk_smoke_summary.json"
+copy_required "$PLATFORM_EVIDENCE_SUMMARY" "$SUM_DIR/platform_evidence_summary.md"
+copy_required "$PLATFORM_EVIDENCE_SUMMARY_JSON" "$SUM_DIR/platform_evidence_summary.json"
+copy_required "$PREVIEW_EVIDENCE_SUMMARY" "$SUM_DIR/preview_evidence_summary.md"
+copy_required "$PREVIEW_EVIDENCE_SUMMARY_JSON" "$SUM_DIR/preview_evidence_summary.json"
 
 INDEX_MD="$OUT_DIR/release_bundle_index.md"
 INDEX_JSON="$OUT_DIR/release_bundle_index.json"
@@ -101,6 +149,12 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
   echo "1. \`summaries/release_gate_summary.md\`"
   echo "2. \`summaries/demo_soak_summary.md\`"
   echo "3. \`summaries/ci_suite_summary.md\`"
+  echo "4. \`summaries/host_sdk_smoke_summary.md\`"
+  echo "5. \`summaries/host_sdk_smoke_summary.json\`"
+  echo "6. \`summaries/platform_evidence_summary.md\`"
+  echo "7. \`summaries/platform_evidence_summary.json\`"
+  echo "8. \`summaries/preview_evidence_summary.md\`"
+  echo "9. \`summaries/preview_evidence_summary.json\`"
   echo
   echo "## Assets"
   echo
@@ -124,7 +178,13 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
   printf '  "summaries": [\n'
   printf '    "%s",\n' "summaries/release_gate_summary.md"
   printf '    "%s",\n' "summaries/demo_soak_summary.md"
-  printf '    "%s"\n' "summaries/ci_suite_summary.md"
+  printf '    "%s",\n' "summaries/ci_suite_summary.md"
+  printf '    "%s",\n' "summaries/host_sdk_smoke_summary.md"
+  printf '    "%s",\n' "summaries/host_sdk_smoke_summary.json"
+  printf '    "%s",\n' "summaries/platform_evidence_summary.md"
+  printf '    "%s",\n' "summaries/platform_evidence_summary.json"
+  printf '    "%s",\n' "summaries/preview_evidence_summary.md"
+  printf '    "%s"\n' "summaries/preview_evidence_summary.json"
   printf '  ],\n'
   printf '  "assets": [\n'
   printf '    "%s"\n' "demo.vnpak"

@@ -21,7 +21,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_runtime_run(config, result)` 结构化运行入口。
    - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
-   - `Creator Toolchain` 已形成可执行门禁层：`validate-all`、`release-gate` 与 `release-soak` 已落地，当前 `1.0.0` 的主要 release contract / API / platform / perf / template / migration 文档面都已有对应 validator 和统一入口。
+   - `Creator Toolchain` 已形成可执行门禁层：`validate-all`、`release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle` 与 `release-report` 已落地；当前 `1.0.0` 的主要 release contract / API / platform / perf / template / migration 文档面都已有对应 validator 和统一入口，release-facing 证据也开始统一收口到 markdown/json 双摘要。
 2. 进行中:
    - Golden 基线收口：`test_runtime_golden` 已固化 `S0/S1/S2/S3/S10 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。
    - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；`Dirty-Tile` 已继续推进到第二阶段：`VN_RUNTIME_PERF_DIRTY_TILE`、`VNRunResult` 统计字段、CLI 开关与内部 dirty planner 已接入 runtime/preview；共享 `renderer_submit_dirty(...)` / `submit_ops_dirty(...)` 契约也已落地，`scalar`、`avx2`、`neon`、`rvv` 都已实现 clip 提交；runtime 现在还会在“已知必整帧”场景同时跳过 planner build 与 full-redraw commit 的 bounds 计算，并在重新回到可增量帧时惰性重建 `prev_bounds`。其中 `rvv` 已按 `qemu-first` 路线补齐 smoke 验证。动态分辨率最小 runtime slice 也已落地：`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`、`--perf-dynamic-resolution=<on|off>`、`VNRunResult.render_width/render_height/dynamic_resolution_*` 与 preview `final_state` 已可观测，当前策略保持默认 `off`，先通过 on/off compare 累积证据再决定是否默认开启。
@@ -30,7 +30,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `rvv` 最小后端已接入，`tex/hash -> combine -> alpha` 热路径已向量化，`sample -> combine` 已融合，且 `alpha=255` / `alpha<255` 都已收口到更短的写回路径；UV LUT 已压到 8-bit，`seed/checker` 常量和基础偏置也已前折叠。`riscv64` 的 `cross-build / qemu-scalar / qemu-rvv / qemu perf artifact` 已验证，当前按 `qemu-first` 收口；原生 `native-riscv64/RVV` 设备未就绪前，原生 nightly 与发布级 perf 证据暂保留为外部阻塞项。
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
-详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，`v0.1.0-mvp` 当前差距见 [`docs/release-gap-v0.1.0-mvp.md`](./docs/release-gap-v0.1.0-mvp.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)，`1.0.0` 范围决策见 [`docs/release-roadmap-1.0.0.md`](./docs/release-roadmap-1.0.0.md)，正式版 checklist 见 [`docs/release-checklist-v1.0.0.md`](./docs/release-checklist-v1.0.0.md)，兼容矩阵见 [`docs/compat-matrix.md`](./docs/compat-matrix.md)，生态治理见 [`docs/extension-manifest.md`](./docs/extension-manifest.md) 与 [`docs/ecosystem-governance.md`](./docs/ecosystem-governance.md)，公共错误面见 [`docs/errors.md`](./docs/errors.md)，`vnsave` 版本策略见 [`docs/vnsave-version-policy.md`](./docs/vnsave-version-policy.md)。当前 GitHub prerelease：[`v0.1.0-alpha`](https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha)。本地正式版 gate 当前也已有统一入口：`python3 tools/toolchain.py validate-all`、`python3 tools/toolchain.py release-gate` 与 `python3 tools/toolchain.py release-soak`。
+详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，`v0.1.0-mvp` 当前差距见 [`docs/release-gap-v0.1.0-mvp.md`](./docs/release-gap-v0.1.0-mvp.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)，`1.0.0` 范围决策见 [`docs/release-roadmap-1.0.0.md`](./docs/release-roadmap-1.0.0.md)，正式版 checklist 见 [`docs/release-checklist-v1.0.0.md`](./docs/release-checklist-v1.0.0.md)，兼容矩阵见 [`docs/compat-matrix.md`](./docs/compat-matrix.md)，生态治理见 [`docs/extension-manifest.md`](./docs/extension-manifest.md) 与 [`docs/ecosystem-governance.md`](./docs/ecosystem-governance.md)，公共错误面见 [`docs/errors.md`](./docs/errors.md)，`vnsave` 版本策略见 [`docs/vnsave-version-policy.md`](./docs/vnsave-version-policy.md)。当前 GitHub prerelease：[`v0.1.0-alpha`](https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha)。本地正式版 gate 当前也已有统一入口：`python3 tools/toolchain.py validate-all`、`python3 tools/toolchain.py release-gate`、`python3 tools/toolchain.py release-host-sdk-smoke`、`python3 tools/toolchain.py release-platform-evidence`、`python3 tools/toolchain.py release-preview-evidence`、`python3 tools/toolchain.py release-soak`、`python3 tools/toolchain.py release-bundle` 与 `python3 tools/toolchain.py release-report`。
 
 ## 目标平台矩阵
 
@@ -283,10 +283,16 @@ python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sa
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 bash scripts/release/run_release_gate.sh --allow-dirty --skip-cc-suite
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --summary-json-out build_release_gate/release_gate_summary.json
 python3 tools/toolchain.py release-host-sdk-smoke --summary-out build_release_host_sdk/host_sdk_smoke_summary.md
+python3 tools/toolchain.py release-host-sdk-smoke --summary-json-out build_release_host_sdk/host_sdk_smoke_summary.json
+python3 tools/toolchain.py release-platform-evidence --out-dir build_release_platform
+python3 tools/toolchain.py release-platform-evidence --summary-json-out build_release_platform/platform_evidence_summary.json
 python3 tools/toolchain.py release-preview-evidence --summary-out build_release_preview/preview_evidence_summary.md
+python3 tools/toolchain.py release-preview-evidence --summary-json-out build_release_preview/preview_evidence_summary.json
 bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-soak --summary-json-out build_release_soak/demo_soak_summary.json --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
@@ -294,6 +300,16 @@ python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
 python3 tools/toolchain.py release-report --out-dir build_release_report
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
+
+当前 release-facing 默认产物：
+
+1. `release-gate` -> `build_release_gate/release_gate_summary.md` + `build_release_gate/release_gate_summary.json`
+2. `release-soak` -> `build_release_soak/demo_soak_summary.md` + `build_release_soak/demo_soak_summary.json`
+3. `release-host-sdk-smoke` -> `build_release_host_sdk/host_sdk_smoke_summary.md` + `build_release_host_sdk/host_sdk_smoke_summary.json`
+4. `release-platform-evidence` -> `build_release_platform/platform_evidence_summary.md` + `build_release_platform/platform_evidence_summary.json`
+5. `release-preview-evidence` -> `build_release_preview/preview_evidence_summary.md` + `build_release_preview/preview_evidence_summary.json`
+6. `release-bundle` -> `build_release_bundle/release_bundle_index.md` + `build_release_bundle/release_bundle_index.json`
+7. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
 
 当前统一入口已经覆盖：
 
@@ -329,15 +345,16 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 30. `release gate script`
 31. `release-gate`
 32. `host sdk smoke`
-33. `preview evidence`
-34. `demo soak script`
-35. `release-soak`
-36. `release-gate --with-soak`
-37. `release-soak --runner-bin`
-38. `release-gate --soak-runner-bin`
-39. `release-bundle`
-40. `release-report`
-41. `release-gate --with-bundle`
+33. `platform evidence`
+34. `preview evidence`
+35. `demo soak script`
+36. `release-soak`
+37. `release-gate --with-soak`
+38. `release-soak --runner-bin`
+39. `release-gate --soak-runner-bin`
+40. `release-bundle`
+41. `release-report`
+42. `release-gate --with-bundle`
 
 当前建议：
 
@@ -346,10 +363,13 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 3. 若想一条命令完成 gate + soak，优先用 `python3 tools/toolchain.py release-gate --with-soak --soak-runner-bin <path> ...`
 4. 若想把 gate / soak / bundle 一次跑完，优先用 `python3 tools/toolchain.py release-gate --with-soak --with-bundle ...`
 5. 若要补宿主 SDK 发布级证据，继续跑 `python3 tools/toolchain.py release-host-sdk-smoke ...`
-6. 若要补 preview 发布级证据，继续跑 `python3 tools/toolchain.py release-preview-evidence ...`
-7. 若要生成单一发布报告，继续跑 `python3 tools/toolchain.py release-report --out-dir <dir>`
-8. 若只想收口正式版证据目录，继续跑 `python3 tools/toolchain.py release-bundle --out-dir <dir>`
-9. 这样会把 contract gate、`cc` suite、host SDK smoke、preview 证据和 soak 留痕合并成一份可引用摘要
+6. 若要补平台发布级证据，继续跑 `python3 tools/toolchain.py release-platform-evidence --out-dir <dir>`
+7. 若要补 preview 发布级证据，继续跑 `python3 tools/toolchain.py release-preview-evidence ...`
+8. 若要生成单一发布报告，继续跑 `python3 tools/toolchain.py release-report --out-dir <dir>`
+9. 若只想收口正式版证据目录，继续跑 `python3 tools/toolchain.py release-bundle --out-dir <dir>`；当前它会打包 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要
+10. 若想一条命令把 `gate + soak + host-sdk/platform/preview evidence + bundle` 全跑完，优先用 `python3 tools/toolchain.py release-gate --with-soak --with-bundle ...`
+11. `release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle` 与 `release-report` 当前都默认同时产出 markdown + json 摘要
+12. 这样会把 contract gate、`cc` suite、platform/host SDK/preview 证据和 soak 留痕合并成一份可引用摘要
 
 键盘模式按键：
 

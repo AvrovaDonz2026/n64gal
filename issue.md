@@ -83,6 +83,9 @@
 71. `ISSUE-012` / `ISSUE-022` 已新增统一 release gate：`scripts/release/run_release_gate.sh` 会串行执行 `validate-all + check_c89 + check_api_docs_sync + run_cc_suite`，并产出 `release_gate_summary.md`；同时 `tools/toolchain.py release-gate` 已作为统一入口包装，`docs/release-checklist-v1.0.0.md` 现已把它列为正式版前置命令。
 72. `ISSUE-012` 已补上 demo soak 留痕入口：新增 `scripts/release/run_demo_soak.sh` 与 `tools/toolchain.py release-soak`，当前可对 `S0,S1,S2,S3,S10` 生成 scene 级 soak 摘要；`tests/integration/test_release_soak_script.py` 已接入 `run_cc_suite.sh`，用于把“Demo soak 至少一轮完整留痕”从 checklist 文本推进成可执行命令。
 73. `ISSUE-017` / `ISSUE-022` 当前已形成三层 release/contract gate：`scripts/check_api_docs_sync.sh` 负责公开面变更同步，`python3 tools/toolchain.py validate-all` 负责 contract validator 汇总，`python3 tools/toolchain.py release-gate` / `release-soak` 负责正式版前的统一门禁和 soak 留痕。当前继续补文档门禁的收益已经下降，后续主线应优先回到真正影响 `v1.0.0` 的实现缺口。
+74. `ISSUE-012` / `ISSUE-022` 已把 release-facing 证据继续扩到 `platform / host SDK / preview`：当前 `scripts/release/run_platform_evidence.sh`、`run_host_sdk_smoke.sh` 与 `run_preview_evidence.sh` 都已接到 `tools/toolchain.py`，分别对应 `release-platform-evidence`、`release-host-sdk-smoke` 与 `release-preview-evidence`，用于把平台矩阵、宿主示例和 preview protocol 的 release-like 证据统一收口成可引用摘要。
+75. `ISSUE-012` 已把正式版证据目录继续收口到 `bundle / report / audit`：当前 `scripts/release/run_release_bundle.sh`、`run_release_report.sh` 与 `tools/validate/validate_release_audit.py` 都已落地，`release-bundle` 负责汇总关键 docs、gate/soak/CI 摘要与 `demo.vnpak`，`release-report` 负责生成单一发布报告，`validate-release-audit` 则负责校验 release note / evidence / asset / git 状态的最小一致性。
+76. `ISSUE-012` 当前的 release-facing 脚本都开始统一输出 markdown + json 双摘要：`release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle` 与 `release-report` 均已有稳定的 `*.md` + `*.json` 输出约定，便于后续把 `1.0.0` 证据链直接挂进 release asset 或外部引用页面。
 69. `ISSUE-007` 已起一条实验性 `avx2_asm` 分支后端：当前新增 `VN_ARCH_AVX2_ASM` / `VN_RENDERER_FLAG_FORCE_AVX2_ASM`、`--backend=avx2_asm` 和独立 backend 名称，但仍保持 force-only，不纳入 `VN_ARCH_MASK_ALL`。实现上它与 `avx2` 共享 framebuffer / textured / dirty-submit 主路径，只在 GNU x64 下启用 x64 ASM fill；若 asm 不可用则初始化失败并回退 `scalar`。本地最新稳定 `kernel avx2 -> avx2_asm` 样本里 `clear_full p95 0.797ms -> 0.105ms`，而其它非 fill kernel 基本持平，说明当前收益仍集中在 `clear/fill(alpha=255)`；同时 `test_renderer_dirty_submit`、`test_backend_consistency` 与 `test_runtime_golden` 现已把 `avx2_asm / avx2_asm_dirty` 纳入最小一致性覆盖。
 39. `ISSUE-007` 本轮继续推进 `avx2` textured-row 主线：direct textured row 的 non-palette 路径已从逐像素 `sample/hash -> combine -> blend` 收口到 8-lane AVX2 chunk helper，`vn_avx2_sample_texels_row()` 与 `vn_avx2_sample_blend_texels_row()` 现在都复用同一套 chunk 核心；palette alpha path 也已改成复用统一的 packed-channel blend helper。本地已再次通过 `check_c89`、x64 下的 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_backend_consistency`、`test_runtime_golden`，以及短窗口 `scalar -> avx2` smoke compare。
 40. `ISSUE-007` / `ISSUE-008` 本轮同时补上 x64 反回归链路：`.github/workflows/ci-matrix.yml` 的 `linux-x64` / `windows-x64` 现已显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`；`tests/perf/run_perf.sh` / `run_perf_compare.sh` / `compare_perf.sh` 则开始把 `requested_backend` 与 `actual_backend` 一起写入 `perf_summary.csv` / compare markdown，用来防止 AVX2 静默回退后仍把 perf 结果记成 `avx2`。本地已复核单次 compare 与 `repeat=2` compare 都可正常产出新字段。
@@ -1467,10 +1470,13 @@ cmake --build build-wasm
 - [x] 已落 `release-gate` 统一入口（`python3 tools/toolchain.py release-gate`）
 - [x] 已落 demo soak 脚本与统一入口（`scripts/release/run_demo_soak.sh` / `python3 tools/toolchain.py release-soak`）
 - [x] 已落 `release-gate --with-soak` 组合入口，用于把正式版 contract gate 与 soak 留痕合并成一条命令
-- [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`）
+- [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`），当前会收口 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要
 - [x] 已落 host SDK 发布级 smoke 摘要入口（`scripts/release/run_host_sdk_smoke.sh` / `python3 tools/toolchain.py release-host-sdk-smoke`）
-- [x] 已落 `release-report` 发布报告入口（`scripts/release/run_release_report.sh` / `python3 tools/toolchain.py release-report`）
+- [x] 已落平台发布级证据入口（`scripts/release/run_platform_evidence.sh` / `python3 tools/toolchain.py release-platform-evidence`）
+- [x] 已落 `release-report` 发布报告入口（`scripts/release/run_release_report.sh` / `python3 tools/toolchain.py release-report`），当前会显式引用 `host-sdk/platform/preview` 摘要
 - [x] 已落 preview 发布级证据入口（`scripts/release/run_preview_evidence.sh` / `python3 tools/toolchain.py release-preview-evidence`）
+- [x] 已落 release-facing markdown/json 双摘要约定（`release-gate` / `release-soak` / `release-host-sdk-smoke` / `release-platform-evidence` / `release-preview-evidence` / `release-bundle` / `release-report`）
+- [x] 已落 `release-gate --with-bundle` 组合入口，用于把 gate / soak / host-sdk/platform/preview evidence / bundle 合并成一条正式版前命令
 - [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
 - [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
 - [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）

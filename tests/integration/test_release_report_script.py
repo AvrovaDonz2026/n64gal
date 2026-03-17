@@ -16,13 +16,16 @@ def main():
     gate_summary = ROOT / "tests" / "integration" / "release_report_gate.md"
     soak_summary = ROOT / "tests" / "integration" / "release_report_soak.md"
     ci_summary = ROOT / "tests" / "integration" / "release_report_ci.md"
+    host_sdk_summary = ROOT / "tests" / "integration" / "release_report_host_sdk.md"
+    platform_summary = ROOT / "tests" / "integration" / "release_report_platform.md"
+    preview_summary = ROOT / "tests" / "integration" / "release_report_preview.md"
 
     if out_dir.exists():
         import shutil
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for path in (bundle_index, gate_summary, soak_summary, ci_summary):
+    for path in (bundle_index, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
         try:
             path.unlink()
         except FileNotFoundError:
@@ -36,6 +39,9 @@ def main():
             "--gate-summary", str(gate_summary),
             "--soak-summary", str(soak_summary),
             "--ci-suite-summary", str(ci_summary),
+            "--host-sdk-summary", str(host_sdk_summary),
+            "--platform-evidence-summary", str(platform_summary),
+            "--preview-evidence-summary", str(preview_summary),
         ],
         cwd=ROOT,
         capture_output=True,
@@ -63,10 +69,13 @@ def main():
     if "docs/perf-report.md" not in report_text:
         print("release report missing perf doc index", file=sys.stderr)
         return 1
+    if str(host_sdk_summary) not in report_text or str(platform_summary) not in report_text or str(preview_summary) not in report_text:
+        print("release report missing release-facing evidence references", file=sys.stderr)
+        return 1
 
     import shutil
     shutil.rmtree(out_dir)
-    for path in (bundle_index, gate_summary, soak_summary, ci_summary):
+    for path in (bundle_index, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
         path.unlink()
 
     print("test_release_report_script ok")

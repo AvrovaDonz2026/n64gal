@@ -11,31 +11,30 @@ SCRIPT = ["bash", "scripts/release/run_release_gate.sh"]
 
 def main():
     summary_path = ROOT / "tests" / "integration" / "release_gate_tmp.md"
+    summary_json_path = ROOT / "tests" / "integration" / "release_gate_tmp.json"
     soak_summary_path = ROOT / "tests" / "integration" / "release_gate_soak_tmp.md"
+    soak_summary_json_path = ROOT / "tests" / "integration" / "release_gate_soak_tmp.json"
     summary_path_runner = ROOT / "tests" / "integration" / "release_gate_runner_tmp.md"
+    summary_json_path_runner = ROOT / "tests" / "integration" / "release_gate_runner_tmp.json"
     soak_summary_path_runner = ROOT / "tests" / "integration" / "release_gate_soak_runner_tmp.md"
+    soak_summary_json_path_runner = ROOT / "tests" / "integration" / "release_gate_soak_runner_tmp.json"
     runner_bin = ROOT / "build_release_soak" / "vn_player"
     bundle_dir = ROOT / "tests" / "integration" / "release_gate_bundle_tmp"
-    try:
-        if summary_path.exists():
-            summary_path.unlink()
-    except FileNotFoundError:
-        pass
-    try:
-        if soak_summary_path.exists():
-            soak_summary_path.unlink()
-    except FileNotFoundError:
-        pass
-    try:
-        if summary_path_runner.exists():
-            summary_path_runner.unlink()
-    except FileNotFoundError:
-        pass
-    try:
-        if soak_summary_path_runner.exists():
-            soak_summary_path_runner.unlink()
-    except FileNotFoundError:
-        pass
+    for path in (
+        summary_path,
+        summary_json_path,
+        soak_summary_path,
+        soak_summary_json_path,
+        summary_path_runner,
+        summary_json_path_runner,
+        soak_summary_path_runner,
+        soak_summary_json_path_runner,
+    ):
+        try:
+            if path.exists():
+                path.unlink()
+        except FileNotFoundError:
+            pass
     if bundle_dir.exists():
         import shutil
         shutil.rmtree(bundle_dir)
@@ -48,7 +47,9 @@ def main():
             "--soak-frames-per-scene", "2",
             "--soak-scenes", "S0",
             "--soak-summary-out", str(soak_summary_path),
+            "--soak-summary-json-out", str(soak_summary_json_path),
             "--summary-out", str(summary_path),
+            "--summary-json-out", str(summary_json_path),
         ],
         cwd=ROOT,
         capture_output=True,
@@ -62,6 +63,9 @@ def main():
         return 1
     if not summary_path.exists():
         print("release gate summary missing", file=sys.stderr)
+        return 1
+    if not summary_json_path.exists():
+        print("release gate json summary missing", file=sys.stderr)
         return 1
 
     summary_text = summary_path.read_text(encoding="utf-8")
@@ -80,6 +84,9 @@ def main():
     if not soak_summary_path.exists():
         print("release gate soak summary missing", file=sys.stderr)
         return 1
+    if not soak_summary_json_path.exists():
+        print("release gate soak json summary missing", file=sys.stderr)
+        return 1
 
     proc = subprocess.run(
         SCRIPT + [
@@ -92,7 +99,9 @@ def main():
             "--soak-frames-per-scene", "2",
             "--soak-scenes", "S0",
             "--soak-summary-out", str(soak_summary_path_runner),
+            "--soak-summary-json-out", str(soak_summary_json_path_runner),
             "--summary-out", str(summary_path_runner),
+            "--summary-json-out", str(summary_json_path_runner),
         ],
         cwd=ROOT,
         capture_output=True,
@@ -101,8 +110,11 @@ def main():
     if proc.returncode != 0:
         print(f"release gate runner-bin failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
         return 1
-    if not summary_path_runner.exists() or not soak_summary_path_runner.exists():
-        print("release gate runner-bin summaries missing", file=sys.stderr)
+    if not summary_path_runner.exists() or not summary_json_path_runner.exists():
+        print("release gate runner-bin gate summaries missing", file=sys.stderr)
+        return 1
+    if not soak_summary_path_runner.exists() or not soak_summary_json_path_runner.exists():
+        print("release gate runner-bin soak summaries missing", file=sys.stderr)
         return 1
 
     proc = subprocess.run(
@@ -116,7 +128,9 @@ def main():
             "--soak-runner-bin", str(runner_bin),
             "--soak-frames-per-scene", "2",
             "--soak-scenes", "S0",
+            "--soak-summary-json-out", str(soak_summary_json_path_runner),
             "--summary-out", str(summary_path_runner),
+            "--summary-json-out", str(summary_json_path_runner),
             "--bundle-out-dir", str(bundle_dir),
         ],
         cwd=ROOT,
@@ -131,9 +145,13 @@ def main():
         return 1
 
     summary_path.unlink()
+    summary_json_path.unlink()
     soak_summary_path.unlink()
+    soak_summary_json_path.unlink()
     summary_path_runner.unlink()
+    summary_json_path_runner.unlink()
     soak_summary_path_runner.unlink()
+    soak_summary_json_path_runner.unlink()
     import shutil
     shutil.rmtree(bundle_dir)
     print("test_release_gate_script ok")

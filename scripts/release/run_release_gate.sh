@@ -16,6 +16,14 @@ SOAK_SUMMARY_OUT=""
 SOAK_SUMMARY_JSON_OUT=""
 BUNDLE_ARGS=()
 BUNDLE_OUT=""
+HOST_SDK_SUMMARY_OUT=""
+HOST_SDK_SUMMARY_JSON_OUT=""
+PLATFORM_EVIDENCE_OUT_DIR=""
+PLATFORM_EVIDENCE_SUMMARY_OUT=""
+PLATFORM_EVIDENCE_SUMMARY_JSON_OUT=""
+PREVIEW_EVIDENCE_OUT_DIR=""
+PREVIEW_EVIDENCE_SUMMARY_OUT=""
+PREVIEW_EVIDENCE_SUMMARY_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -59,7 +67,7 @@ while [[ $# -gt 0 ]]; do
       SUMMARY_JSON_OUT="$1"
       shift
       ;;
-    --soak-scenes|--soak-frames-per-scene|--soak-backend|--soak-pack|--soak-resolution|--soak-dt-ms|--soak-scene-duration-sec|--soak-summary-out|--soak-runner-bin)
+    --soak-scenes|--soak-frames-per-scene|--soak-backend|--soak-pack|--soak-resolution|--soak-dt-ms|--soak-scene-duration-sec|--soak-summary-out|--soak-summary-json-out|--soak-runner-bin)
       key="$1"
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
@@ -112,6 +120,30 @@ if [[ -z "$SOAK_SUMMARY_JSON_OUT" ]]; then
 fi
 if [[ -z "$BUNDLE_OUT" ]]; then
   BUNDLE_OUT="$BUILD_DIR/release_bundle"
+fi
+if [[ -z "$HOST_SDK_SUMMARY_OUT" ]]; then
+  HOST_SDK_SUMMARY_OUT="$BUILD_DIR/host_sdk_smoke_summary.md"
+fi
+if [[ -z "$HOST_SDK_SUMMARY_JSON_OUT" ]]; then
+  HOST_SDK_SUMMARY_JSON_OUT="$BUILD_DIR/host_sdk_smoke_summary.json"
+fi
+if [[ -z "$PLATFORM_EVIDENCE_OUT_DIR" ]]; then
+  PLATFORM_EVIDENCE_OUT_DIR="$BUILD_DIR/platform_evidence"
+fi
+if [[ -z "$PLATFORM_EVIDENCE_SUMMARY_OUT" ]]; then
+  PLATFORM_EVIDENCE_SUMMARY_OUT="$PLATFORM_EVIDENCE_OUT_DIR/platform_evidence_summary.md"
+fi
+if [[ -z "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT" ]]; then
+  PLATFORM_EVIDENCE_SUMMARY_JSON_OUT="$PLATFORM_EVIDENCE_OUT_DIR/platform_evidence_summary.json"
+fi
+if [[ -z "$PREVIEW_EVIDENCE_OUT_DIR" ]]; then
+  PREVIEW_EVIDENCE_OUT_DIR="$BUILD_DIR/preview_evidence"
+fi
+if [[ -z "$PREVIEW_EVIDENCE_SUMMARY_OUT" ]]; then
+  PREVIEW_EVIDENCE_SUMMARY_OUT="$PREVIEW_EVIDENCE_OUT_DIR/preview_evidence_summary.md"
+fi
+if [[ -z "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT" ]]; then
+  PREVIEW_EVIDENCE_SUMMARY_JSON_OUT="$PREVIEW_EVIDENCE_OUT_DIR/preview_evidence_summary.json"
 fi
 LOG_DIR="$BUILD_DIR/logs"
 TMP_BUILD_DIR="$BUILD_DIR/tmp"
@@ -171,6 +203,9 @@ write_summary() {
     if [[ $WITH_BUNDLE -ne 0 ]]; then
       echo "6. \`./scripts/release/run_release_bundle.sh ...\`"
       echo "- Bundle out dir: \`$BUNDLE_OUT\`"
+      echo "- Host SDK summary path: \`$HOST_SDK_SUMMARY_OUT\`"
+      echo "- Platform evidence summary path: \`$PLATFORM_EVIDENCE_SUMMARY_OUT\`"
+      echo "- Preview evidence summary path: \`$PREVIEW_EVIDENCE_SUMMARY_OUT\`"
     fi
     if [[ -n "$soak_summary_text" ]]; then
       echo
@@ -191,6 +226,12 @@ write_summary() {
     printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
     printf '  "soak_summary_md": "%s",\n' "$SOAK_SUMMARY_OUT"
     printf '  "soak_summary_json": "%s",\n' "$SOAK_SUMMARY_JSON_OUT"
+    printf '  "host_sdk_summary_md": "%s",\n' "$HOST_SDK_SUMMARY_OUT"
+    printf '  "host_sdk_summary_json": "%s",\n' "$HOST_SDK_SUMMARY_JSON_OUT"
+    printf '  "platform_evidence_summary_md": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY_OUT"
+    printf '  "platform_evidence_summary_json": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT"
+    printf '  "preview_evidence_summary_md": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY_OUT"
+    printf '  "preview_evidence_summary_json": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT"
     printf '  "bundle_out_dir": "%s"\n' "$BUNDLE_OUT"
     printf '}\n'
   } >"$SUMMARY_JSON_OUT"
@@ -222,11 +263,17 @@ if [[ $WITH_SOAK -ne 0 ]]; then
 fi
 
 if [[ $WITH_BUNDLE -ne 0 ]]; then
+  run_step "release-host-sdk-smoke" bash scripts/release/run_host_sdk_smoke.sh --summary-out "$HOST_SDK_SUMMARY_OUT" --summary-json-out "$HOST_SDK_SUMMARY_JSON_OUT"
+  run_step "release-platform-evidence" bash scripts/release/run_platform_evidence.sh --out-dir "$PLATFORM_EVIDENCE_OUT_DIR" --ci-suite-summary "$ROOT_DIR/build_ci_cc/ci_suite_summary.md" --summary-out "$PLATFORM_EVIDENCE_SUMMARY_OUT" --summary-json-out "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT"
+  run_step "release-preview-evidence" bash scripts/release/run_preview_evidence.sh --out-dir "$PREVIEW_EVIDENCE_OUT_DIR" --summary-out "$PREVIEW_EVIDENCE_SUMMARY_OUT" --summary-json-out "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT"
   bundle_cmd=(bash scripts/release/run_release_bundle.sh --out-dir "$BUNDLE_OUT" --gate-summary "$SUMMARY_OUT")
   if [[ $WITH_SOAK -ne 0 ]]; then
     bundle_cmd+=(--soak-summary "$SOAK_SUMMARY_OUT")
   fi
   bundle_cmd+=(--ci-summary "$ROOT_DIR/build_ci_cc/ci_suite_summary.md")
+  bundle_cmd+=(--host-sdk-summary "$HOST_SDK_SUMMARY_OUT" --host-sdk-summary-json "$HOST_SDK_SUMMARY_JSON_OUT")
+  bundle_cmd+=(--platform-evidence-summary "$PLATFORM_EVIDENCE_SUMMARY_OUT" --platform-evidence-summary-json "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT")
+  bundle_cmd+=(--preview-evidence-summary "$PREVIEW_EVIDENCE_SUMMARY_OUT" --preview-evidence-summary-json "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT")
   if [[ ${#BUNDLE_ARGS[@]} -gt 0 ]]; then
     bundle_cmd+=("${BUNDLE_ARGS[@]}")
   fi
