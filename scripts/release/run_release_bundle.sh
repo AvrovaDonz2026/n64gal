@@ -128,6 +128,26 @@ copy_required "$PREVIEW_EVIDENCE_SUMMARY_JSON" "$SUM_DIR/preview_evidence_summar
 
 INDEX_MD="$OUT_DIR/release_bundle_index.md"
 INDEX_JSON="$OUT_DIR/release_bundle_index.json"
+MANIFEST_MD="$OUT_DIR/release_bundle_manifest.md"
+MANIFEST_JSON="$OUT_DIR/release_bundle_manifest.json"
+BUNDLE_FILES=(
+  "docs/release-v0.1.0-alpha.md"
+  "docs/release-evidence-v0.1.0-alpha.md"
+  "docs/release-package-v0.1.0-alpha.md"
+  "docs/release-checklist-v1.0.0.md"
+  "README.md"
+  "CHANGELOG.md"
+  "summaries/release_gate_summary.md"
+  "summaries/demo_soak_summary.md"
+  "summaries/ci_suite_summary.md"
+  "summaries/host_sdk_smoke_summary.md"
+  "summaries/host_sdk_smoke_summary.json"
+  "summaries/platform_evidence_summary.md"
+  "summaries/platform_evidence_summary.json"
+  "summaries/preview_evidence_summary.md"
+  "summaries/preview_evidence_summary.json"
+  "demo.vnpak"
+)
 {
   echo "# Release Bundle"
   echo
@@ -159,6 +179,11 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
   echo "## Assets"
   echo
   echo "1. \`demo.vnpak\`"
+  echo
+  echo "## Manifests"
+  echo
+  echo "1. \`release_bundle_manifest.md\`"
+  echo "2. \`release_bundle_manifest.json\`"
 } >"$INDEX_MD"
 
 {
@@ -167,6 +192,9 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
   printf '  "branch": "%s",\n' "$(git branch --show-current)"
   printf '  "out_dir": "%s",\n' "$OUT_DIR"
   printf '  "index_md": "%s",\n' "$INDEX_MD"
+  printf '  "manifest_md": "%s",\n' "$MANIFEST_MD"
+  printf '  "manifest_json": "%s",\n' "$MANIFEST_JSON"
+  printf '  "external_reference_ready": true,\n'
   printf '  "docs": [\n'
   printf '    "%s",\n' "docs/release-v0.1.0-alpha.md"
   printf '    "%s",\n' "docs/release-evidence-v0.1.0-alpha.md"
@@ -192,4 +220,42 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
   printf '}\n'
 } >"$INDEX_JSON"
 
-echo "trace_id=release.bundle.ok out_dir=$OUT_DIR index=$INDEX_MD index_json=$INDEX_JSON"
+{
+  echo "# Release Bundle Manifest"
+  echo
+  echo "- Head: \`$(git rev-parse --short HEAD)\`"
+  echo "- Branch: \`$(git branch --show-current)\`"
+  echo "- Out dir: \`$OUT_DIR\`"
+  echo
+  echo "| Path | SHA256 | Bytes |"
+  echo "|---|---|---:|"
+  for rel in "${BUNDLE_FILES[@]}"; do
+    abs="$OUT_DIR/$rel"
+    sha="$(sha256sum "$abs" | awk '{print $1}')"
+    size="$(wc -c <"$abs" | tr -d '[:space:]')"
+    echo "| \`$rel\` | \`$sha\` | $size |"
+  done
+} >"$MANIFEST_MD"
+
+{
+  printf '{\n'
+  printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
+  printf '  "branch": "%s",\n' "$(git branch --show-current)"
+  printf '  "out_dir": "%s",\n' "$OUT_DIR"
+  printf '  "files": [\n'
+  for i in "${!BUNDLE_FILES[@]}"; do
+    rel="${BUNDLE_FILES[$i]}"
+    abs="$OUT_DIR/$rel"
+    sha="$(sha256sum "$abs" | awk '{print $1}')"
+    size="$(wc -c <"$abs" | tr -d '[:space:]')"
+    printf '    {"path":"%s","sha256":"%s","bytes":%s}' "$rel" "$sha" "$size"
+    if [[ $i -lt $((${#BUNDLE_FILES[@]} - 1)) ]]; then
+      printf ','
+    fi
+    printf '\n'
+  done
+  printf '  ]\n'
+  printf '}\n'
+} >"$MANIFEST_JSON"
+
+echo "trace_id=release.bundle.ok out_dir=$OUT_DIR index=$INDEX_MD index_json=$INDEX_JSON manifest=$MANIFEST_MD manifest_json=$MANIFEST_JSON"

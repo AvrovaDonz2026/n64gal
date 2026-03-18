@@ -298,6 +298,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
 python3 tools/toolchain.py release-report --out-dir build_release_report
+python3 tools/toolchain.py release-publish-map --out-dir build_release_publish
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
 
@@ -309,7 +310,9 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 4. `release-platform-evidence` -> `build_release_platform/platform_evidence_summary.md` + `build_release_platform/platform_evidence_summary.json`
 5. `release-preview-evidence` -> `build_release_preview/preview_evidence_summary.md` + `build_release_preview/preview_evidence_summary.json`
 6. `release-bundle` -> `build_release_bundle/release_bundle_index.md` + `build_release_bundle/release_bundle_index.json`
-7. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
+7. `release-bundle` -> `build_release_bundle/release_bundle_manifest.md` + `build_release_bundle/release_bundle_manifest.json`
+8. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
+9. `release-publish-map` -> `build_release_publish/release_publish_map.md` + `build_release_publish/release_publish_map.json`
 
 当前统一入口已经覆盖：
 
@@ -366,10 +369,12 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 6. 若要补平台发布级证据，继续跑 `python3 tools/toolchain.py release-platform-evidence --out-dir <dir>`
 7. 若要补 preview 发布级证据，继续跑 `python3 tools/toolchain.py release-preview-evidence ...`
 8. 若要生成单一发布报告，继续跑 `python3 tools/toolchain.py release-report --out-dir <dir>`
-9. 若只想收口正式版证据目录，继续跑 `python3 tools/toolchain.py release-bundle --out-dir <dir>`；当前它会打包 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要
+9. 若只想收口正式版证据目录，继续跑 `python3 tools/toolchain.py release-bundle --out-dir <dir>`；当前它会打包 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要，并生成带 SHA256 的 manifest
 10. 若想一条命令把 `gate + soak + host-sdk/platform/preview evidence + bundle` 全跑完，优先用 `python3 tools/toolchain.py release-gate --with-soak --with-bundle ...`
 11. `release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle` 与 `release-report` 当前都默认同时产出 markdown + json 摘要
-12. 这样会把 contract gate、`cc` suite、platform/host SDK/preview 证据和 soak 留痕合并成一份可引用摘要
+12. 若要固定 `tag / release note / asset / bundle / report` 的映射，继续跑 `python3 tools/toolchain.py release-publish-map --out-dir <dir>`
+13. `release-report` 当前会显式引用 `release_bundle_manifest.json`，便于后续把证据链直接挂到 release asset
+14. 这样会把 contract gate、`cc` suite、platform/host SDK/preview 证据和 soak 留痕合并成一份可引用摘要
 
 键盘模式按键：
 

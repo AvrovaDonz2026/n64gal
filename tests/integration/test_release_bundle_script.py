@@ -63,11 +63,16 @@ def main():
 
         index_path = out_dir / "release_bundle_index.md"
         index_json_path = out_dir / "release_bundle_index.json"
+        manifest_path = out_dir / "release_bundle_manifest.md"
+        manifest_json_path = out_dir / "release_bundle_manifest.json"
         if not index_path.exists():
             print("release bundle index missing", file=sys.stderr)
             return 1
         if not index_json_path.exists():
             print("release bundle json index missing", file=sys.stderr)
+            return 1
+        if not manifest_path.exists() or not manifest_json_path.exists():
+            print("release bundle manifest missing", file=sys.stderr)
             return 1
         index_text = index_path.read_text(encoding="utf-8")
         if "summaries/release_gate_summary.md" not in index_text:
@@ -85,6 +90,14 @@ def main():
             return 1
         if '"summaries/host_sdk_smoke_summary.json"' not in index_json_text:
             print("release bundle json missing host sdk json summary", file=sys.stderr)
+            return 1
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+        if "release_bundle_manifest.json" not in index_text or "`demo.vnpak`" not in manifest_text:
+            print("release bundle manifest contents missing", file=sys.stderr)
+            return 1
+        manifest_json_text = manifest_json_path.read_text(encoding="utf-8")
+        if '"path":"demo.vnpak"' not in manifest_json_text or '"sha256":"' not in manifest_json_text:
+            print("release bundle manifest json missing digest entry", file=sys.stderr)
             return 1
         if not (out_dir / "demo.vnpak").exists():
             print("release bundle missing demo.vnpak", file=sys.stderr)

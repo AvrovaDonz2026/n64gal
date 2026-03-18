@@ -13,6 +13,7 @@ def main():
     out_dir = ROOT / "tests" / "integration" / "release_report_tmp"
     report_json = out_dir / "release_report.json"
     bundle_index = ROOT / "tests" / "integration" / "release_report_bundle.md"
+    bundle_manifest = ROOT / "tests" / "integration" / "release_report_bundle_manifest.json"
     gate_summary = ROOT / "tests" / "integration" / "release_report_gate.md"
     soak_summary = ROOT / "tests" / "integration" / "release_report_soak.md"
     ci_summary = ROOT / "tests" / "integration" / "release_report_ci.md"
@@ -25,17 +26,21 @@ def main():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for path in (bundle_index, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
+    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
         try:
             path.unlink()
         except FileNotFoundError:
             pass
-        path.write_text(f"# {path.name}\n", encoding="utf-8")
+        if path.suffix == ".json":
+            path.write_text('{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1}]}\n', encoding="utf-8")
+        else:
+            path.write_text(f"# {path.name}\n", encoding="utf-8")
 
     proc = subprocess.run(
         SCRIPT + [
             "--out-dir", str(out_dir),
             "--bundle-index", str(bundle_index),
+            "--bundle-manifest", str(bundle_manifest),
             "--gate-summary", str(gate_summary),
             "--soak-summary", str(soak_summary),
             "--ci-suite-summary", str(ci_summary),
@@ -69,13 +74,16 @@ def main():
     if "docs/perf-report.md" not in report_text:
         print("release report missing perf doc index", file=sys.stderr)
         return 1
+    if str(bundle_manifest) not in report_text:
+        print("release report missing bundle manifest reference", file=sys.stderr)
+        return 1
     if str(host_sdk_summary) not in report_text or str(platform_summary) not in report_text or str(preview_summary) not in report_text:
         print("release report missing release-facing evidence references", file=sys.stderr)
         return 1
 
     import shutil
     shutil.rmtree(out_dir)
-    for path in (bundle_index, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
+    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
         path.unlink()
 
     print("test_release_report_script ok")

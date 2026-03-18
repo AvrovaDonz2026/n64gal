@@ -1470,10 +1470,11 @@ cmake --build build-wasm
 - [x] 已落 `release-gate` 统一入口（`python3 tools/toolchain.py release-gate`）
 - [x] 已落 demo soak 脚本与统一入口（`scripts/release/run_demo_soak.sh` / `python3 tools/toolchain.py release-soak`）
 - [x] 已落 `release-gate --with-soak` 组合入口，用于把正式版 contract gate 与 soak 留痕合并成一条命令
-- [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`），当前会收口 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要
+- [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`），当前会收口 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要，并生成 `release_bundle_manifest(.md/.json)` 供外部引用
 - [x] 已落 host SDK 发布级 smoke 摘要入口（`scripts/release/run_host_sdk_smoke.sh` / `python3 tools/toolchain.py release-host-sdk-smoke`）
 - [x] 已落平台发布级证据入口（`scripts/release/run_platform_evidence.sh` / `python3 tools/toolchain.py release-platform-evidence`）
-- [x] 已落 `release-report` 发布报告入口（`scripts/release/run_release_report.sh` / `python3 tools/toolchain.py release-report`），当前会显式引用 `host-sdk/platform/preview` 摘要
+- [x] 已落 `release-report` 发布报告入口（`scripts/release/run_release_report.sh` / `python3 tools/toolchain.py release-report`），当前会显式引用 `host-sdk/platform/preview` 摘要与 `release_bundle_manifest.json`
+- [x] 已落 `release-publish-map` 发布映射入口（`scripts/release/run_release_publish_map.sh` / `python3 tools/toolchain.py release-publish-map`），当前会固定 `tag / release URL / release note / demo asset / bundle / report`
 - [x] 已落 preview 发布级证据入口（`scripts/release/run_preview_evidence.sh` / `python3 tools/toolchain.py release-preview-evidence`）
 - [x] 已落 release-facing markdown/json 双摘要约定（`release-gate` / `release-soak` / `release-host-sdk-smoke` / `release-platform-evidence` / `release-preview-evidence` / `release-bundle` / `release-report`）
 - [x] 已落 `release-gate --with-bundle` 组合入口，用于把 gate / soak / host-sdk/platform/preview evidence / bundle 合并成一条正式版前命令

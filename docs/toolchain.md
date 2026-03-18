@@ -62,6 +62,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
 python3 tools/toolchain.py release-report --out-dir build_release_report
+python3 tools/toolchain.py release-publish-map --out-dir build_release_publish
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
 
@@ -77,12 +78,13 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 8. `release-gate --with-soak` 可把 contract gate 与 soak 留痕合并成一条正式版前命令，并把 soak 摘要内嵌进 release gate summary
 9. `release-soak --runner-bin <path>` 可直接复用 release-like / 预编译 `vn_player`，避免每次都现场编译
 10. `release-gate --with-soak --soak-runner-bin <path>` 可在单条正式版前命令里直接复用 release-like 二进制
-11. `release-bundle` 可把 gate/soak/ci summary、host SDK/platform/preview 证据与关键 release docs 汇总成单一目录和 markdown/json index
+11. `release-bundle` 可把 gate/soak/ci summary、host SDK/platform/preview 证据与关键 release docs 汇总成单一目录和 markdown/json index，并生成带 SHA256 的 manifest
 12. `release-host-sdk-smoke` 可给宿主 SDK 示例产出发布级 smoke 摘要
 13. `release-report` 可把 bundle/gate/soak/ci/host SDK/platform/preview 摘要汇总成单一发布报告
 14. `release-gate --with-bundle` 可把 contract gate、soak、host SDK/platform/preview 证据与 bundle 合并成一条正式版前命令
 15. `release-preview-evidence` 可给 preview protocol 固定 request/response 路径产出发布级证据摘要
 16. `release-platform-evidence` 可把平台矩阵、suite summary 与 release-like 命令收成单一平台证据摘要
+17. `release-publish-map` 可把 tag、release URL、release note、demo asset、bundle 与 report 收成单一发布映射
 
 ### release-facing outputs
 
@@ -94,13 +96,17 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 4. `release-platform-evidence` -> `build_release_platform/platform_evidence_summary.md` + `build_release_platform/platform_evidence_summary.json`
 5. `release-preview-evidence` -> `build_release_preview/preview_evidence_summary.md` + `build_release_preview/preview_evidence_summary.json`
 6. `release-bundle` -> `build_release_bundle/release_bundle_index.md` + `build_release_bundle/release_bundle_index.json`
-7. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
+7. `release-bundle` -> `build_release_bundle/release_bundle_manifest.md` + `build_release_bundle/release_bundle_manifest.json`
+8. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
+9. `release-publish-map` -> `build_release_publish/release_publish_map.md` + `build_release_publish/release_publish_map.json`
 
 其中：
 
 1. `release-bundle` 当前默认收口 `release_gate_summary`、`demo_soak_summary`、`ci_suite_summary`、`host_sdk_smoke_summary`、`platform_evidence_summary`、`preview_evidence_summary`
-2. `release-report` 当前会把以上摘要与 release docs/perf docs 再汇总成单一发布报告
-3. `release-gate --with-bundle` 当前会自动跑 `release-host-sdk-smoke`、`release-platform-evidence` 与 `release-preview-evidence`，再调用 `release-bundle`
+2. `release-bundle_manifest.json` 当前为每个收口文件提供 `path/sha256/bytes`
+3. `release-report` 当前会把以上摘要、bundle manifest 与 release docs/perf docs 再汇总成单一发布报告
+4. `release-gate --with-bundle` 当前会自动跑 `release-host-sdk-smoke`、`release-platform-evidence` 与 `release-preview-evidence`，再调用 `release-bundle`
+5. `release-publish-map` 当前会固定 `tag / release URL / release note / demo asset / bundle / report` 的发布映射
 
 当前推荐顺序：
 
@@ -112,6 +118,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 6. `python3 tools/toolchain.py release-preview-evidence`
 7. `python3 tools/toolchain.py release-bundle --out-dir <dir>`
 8. `python3 tools/toolchain.py release-report --out-dir <dir>`
+9. `python3 tools/toolchain.py release-publish-map --out-dir <dir>`
 
 ### validate
 

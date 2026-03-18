@@ -221,6 +221,7 @@ def main():
     rc, out, err = run_case(["release-report",
         "--out-dir", "tests/integration/toolchain_release_report_tmp",
         "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
+        "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
         "--gate-summary", summary_path,
         "--soak-summary", summary_path,
         "--ci-suite-summary", ci_summary_path,
@@ -230,6 +231,16 @@ def main():
     ])
     if rc != 0 or "trace_id=release.report.ok" not in out:
         print(f"release-report failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-publish-map",
+        "--out-dir", "tests/integration/toolchain_release_publish_tmp",
+        "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
+        "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
+        "--report-json", "tests/integration/toolchain_release_report_tmp/release_report.json",
+    ])
+    if rc != 0 or "trace_id=release.publish_map.ok" not in out:
+        print(f"release-publish-map failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
@@ -308,6 +319,9 @@ def main():
     if os.path.isdir("tests/integration/toolchain_release_report_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_report_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_publish_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_publish_tmp")
     if os.path.isdir("tests/integration/toolchain_release_platform_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_platform_tmp")

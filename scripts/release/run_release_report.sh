@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_report}"
 BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_index.md}"
+BUNDLE_MANIFEST=""
 GATE_SUMMARY="${GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 SOAK_SUMMARY="${SOAK_SUMMARY:-$ROOT_DIR/build_release_soak/demo_soak_summary.md}"
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
@@ -17,7 +18,7 @@ REPORT_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
+usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
 EOF
 }
 
@@ -33,6 +34,12 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       BUNDLE_INDEX="$1"
+      shift
+      ;;
+    --bundle-manifest)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      BUNDLE_MANIFEST="$1"
       shift
       ;;
     --gate-summary)
@@ -95,6 +102,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$OUT_DIR"
+if [[ -z "$BUNDLE_MANIFEST" ]]; then
+  BUNDLE_MANIFEST="$(cd "$(dirname "$BUNDLE_INDEX")" && pwd)/release_bundle_manifest.json"
+fi
 if [[ -z "$REPORT_OUT" ]]; then
   REPORT_OUT="$OUT_DIR/release_report.md"
 fi
@@ -111,6 +121,7 @@ require_file() {
 }
 
 require_file "$BUNDLE_INDEX"
+require_file "$BUNDLE_MANIFEST"
 require_file "$GATE_SUMMARY"
 require_file "$SOAK_SUMMARY"
 require_file "$CI_SUITE_SUMMARY"
@@ -124,6 +135,7 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   echo "- Head: \`$(git rev-parse --short HEAD)\`"
   echo "- Branch: \`$(git branch --show-current)\`"
   echo "- Bundle index: \`$BUNDLE_INDEX\`"
+  echo "- Bundle manifest: \`$BUNDLE_MANIFEST\`"
   echo "- Gate summary: \`$GATE_SUMMARY\`"
   echo "- Soak summary: \`$SOAK_SUMMARY\`"
   echo "- CI suite summary: \`$CI_SUITE_SUMMARY\`"
@@ -134,13 +146,14 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   echo "## Core Evidence"
   echo
   echo "1. Release bundle index"
-  echo "2. Release gate summary"
-  echo "3. Demo soak summary"
-  echo "4. CI suite summary"
-  echo "5. Host SDK smoke summary"
-  echo "6. Platform evidence summary"
-  echo "7. Preview evidence summary"
-  echo "8. Release note / evidence / package docs"
+  echo "2. Release bundle manifest"
+  echo "3. Release gate summary"
+  echo "4. Demo soak summary"
+  echo "5. CI suite summary"
+  echo "6. Host SDK smoke summary"
+  echo "7. Platform evidence summary"
+  echo "8. Preview evidence summary"
+  echo "9. Release note / evidence / package docs"
   echo
   echo "## Perf Evidence Docs"
   echo
@@ -163,6 +176,7 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   printf '  "branch": "%s",\n' "$(git branch --show-current)"
   printf '  "report_md": "%s",\n' "$REPORT_OUT"
   printf '  "bundle_index": "%s",\n' "$BUNDLE_INDEX"
+  printf '  "bundle_manifest": "%s",\n' "$BUNDLE_MANIFEST"
   printf '  "gate_summary": "%s",\n' "$GATE_SUMMARY"
   printf '  "soak_summary": "%s",\n' "$SOAK_SUMMARY"
   printf '  "ci_suite_summary": "%s",\n' "$CI_SUITE_SUMMARY"
@@ -172,4 +186,4 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   printf '}\n'
 } >"$REPORT_JSON_OUT"
 
-echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY ci_summary=$CI_SUITE_SUMMARY host_sdk_summary=$HOST_SDK_SUMMARY platform_summary=$PLATFORM_EVIDENCE_SUMMARY preview_summary=$PREVIEW_EVIDENCE_SUMMARY"
+echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX bundle_manifest=$BUNDLE_MANIFEST gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY ci_summary=$CI_SUITE_SUMMARY host_sdk_summary=$HOST_SDK_SUMMARY platform_summary=$PLATFORM_EVIDENCE_SUMMARY preview_summary=$PREVIEW_EVIDENCE_SUMMARY"

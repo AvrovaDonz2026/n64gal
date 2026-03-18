@@ -75,7 +75,8 @@ def print_usage(program: str) -> int:
                 "  release-preview-evidence [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>] [--summary-out <path>] [--summary-json-out <path>]",
                 "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
-                "  release-report [--out-dir <path>] [--bundle-index <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
+                "  release-report [--out-dir <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
+                "  release-publish-map [--out-dir <path>] [--tag <tag>] [--release-url <url>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -334,6 +335,10 @@ def command_release_report(argv) -> int:
     return run_forward(["bash", "scripts/release/run_release_report.sh"] + list(argv))
 
 
+def command_release_publish_map(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_publish_map.sh"] + list(argv))
+
+
 def command_migrate_vnsave(argv) -> int:
     tool = ensure_c_tool(
         "vnsave_migrate",
@@ -516,6 +521,8 @@ def main(argv) -> int:
             return command_release_bundle(args)
         if command == "release-report":
             return command_release_report(args)
+        if command == "release-publish-map":
+            return command_release_publish_map(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":

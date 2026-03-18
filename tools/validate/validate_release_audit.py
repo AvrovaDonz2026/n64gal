@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import sys
 
 
@@ -56,12 +57,14 @@ def main(argv):
     skip_git = 0
     release_gate_summary = ""
     soak_summary = ""
+    bundle_manifest = ""
+    publish_map = ""
     i = 1
 
     while i < len(argv):
         arg = argv[i]
         if arg in ("-h", "--help"):
-            print("usage: validate_release_audit.py [--allow-dirty|--require-clean] [--skip-git] [--release-gate-summary <path>] [--soak-summary <path>] [root]", file=sys.stderr)
+            print("usage: validate_release_audit.py [--allow-dirty|--require-clean] [--skip-git] [--release-gate-summary <path>] [--soak-summary <path>] [--bundle-manifest <path>] [--publish-map <path>] [root]", file=sys.stderr)
             return 2
         if arg == "--allow-dirty":
             allow_dirty = 1
@@ -87,6 +90,20 @@ def main(argv):
             if i >= len(argv):
                 return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "soak_summary", "missing value")
             soak_summary = argv[i]
+            i += 1
+            continue
+        if arg == "--bundle-manifest":
+            i += 1
+            if i >= len(argv):
+                return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "bundle_manifest", "missing value")
+            bundle_manifest = argv[i]
+            i += 1
+            continue
+        if arg == "--publish-map":
+            i += 1
+            if i >= len(argv):
+                return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "publish_map", "missing value")
+            publish_map = argv[i]
             i += 1
             continue
         if arg.startswith("-"):
@@ -131,6 +148,39 @@ def main(argv):
         if soak_summary:
             if not (root / soak_summary).exists():
                 raise FileNotFoundError(soak_summary)
+        if bundle_manifest:
+            bundle_manifest_path = root / bundle_manifest
+            if not bundle_manifest_path.exists():
+                raise FileNotFoundError(bundle_manifest)
+            payload = json.loads(bundle_manifest_path.read_text(encoding="utf-8"))
+            files = payload.get("files")
+            if not isinstance(files, list) or not files:
+                raise ValueError("bundle_manifest.files")
+            demo_entry = None
+            for entry in files:
+                if isinstance(entry, dict) and entry.get("path") == "demo.vnpak":
+                    demo_entry = entry
+                    break
+            if demo_entry is None:
+                raise ValueError("bundle_manifest.demo")
+            if not demo_entry.get("sha256") or int(demo_entry.get("bytes", 0)) <= 0:
+                raise ValueError("bundle_manifest.demo_fields")
+        if publish_map:
+            publish_map_path = root / publish_map
+            if not publish_map_path.exists():
+                raise FileNotFoundError(publish_map)
+            payload = json.loads(publish_map_path.read_text(encoding="utf-8"))
+            if payload.get("tag") != "v0.1.0-alpha":
+                raise ValueError("publish_map.tag")
+            if "releases/tag/v0.1.0-alpha" not in payload.get("release_url", ""):
+                raise ValueError("publish_map.release_url")
+            asset = payload.get("asset")
+            if not isinstance(asset, dict):
+                raise ValueError("publish_map.asset")
+            if not asset.get("path", "").endswith("assets/demo/demo.vnpak"):
+                raise ValueError("publish_map.asset_path")
+            if not asset.get("sha256") or int(asset.get("bytes", 0)) <= 0:
+                raise ValueError("publish_map.asset_fields")
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release artifact missing")
     except ValueError as exc:
@@ -147,6 +197,8 @@ def main(argv):
                 f"skip_git={skip_git}",
                 f"release_gate_summary={release_gate_summary if release_gate_summary else 'n/a'}",
                 f"soak_summary={soak_summary if soak_summary else 'n/a'}",
+                f"bundle_manifest={bundle_manifest if bundle_manifest else 'n/a'}",
+                f"publish_map={publish_map if publish_map else 'n/a'}",
             ]
         )
     )
