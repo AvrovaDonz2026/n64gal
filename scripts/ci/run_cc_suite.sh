@@ -98,6 +98,7 @@ run_capture "$LOG_DIR/test_release_soak_script.log" python3 tests/integration/te
 run_capture "$LOG_DIR/test_release_bundle_script.log" python3 tests/integration/test_release_bundle_script.py
 run_capture "$LOG_DIR/test_release_report_script.log" python3 tests/integration/test_release_report_script.py
 run_capture "$LOG_DIR/test_release_publish_map_script.log" python3 tests/integration/test_release_publish_map_script.py
+run_capture "$LOG_DIR/test_release_export_script.log" python3 tests/integration/test_release_export_script.py
 run_capture "$LOG_DIR/test_release_host_sdk_smoke.log" python3 tests/integration/test_release_host_sdk_smoke.py
 run_capture "$LOG_DIR/test_release_preview_evidence.log" python3 tests/integration/test_release_preview_evidence.py
 run_capture "$LOG_DIR/test_release_platform_evidence.log" python3 tests/integration/test_release_platform_evidence.py

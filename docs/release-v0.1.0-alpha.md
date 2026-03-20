@@ -69,6 +69,8 @@
 4. `assets/demo/demo.vnpak`
 5. 关键 API 文档入口
 6. 当前 release note
+7. `release_bundle_manifest(.md/.json)`
+8. `release_publish_map(.md/.json)`
 
 ## 下一步
 

@@ -63,6 +63,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
 python3 tools/toolchain.py release-report --out-dir build_release_report
 python3 tools/toolchain.py release-publish-map --out-dir build_release_publish
+python3 tools/toolchain.py release-export --out-dir build_release_export
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
 ```
 
@@ -85,6 +86,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 15. `release-preview-evidence` 可给 preview protocol 固定 request/response 路径产出发布级证据摘要
 16. `release-platform-evidence` 可把平台矩阵、suite summary 与 release-like 命令收成单一平台证据摘要
 17. `release-publish-map` 可把 tag、release URL、release note、demo asset、bundle 与 report 收成单一发布映射
+18. `release-export` 可把 bundle、report 与 publish-map 串成单一导出命令
 
 ### release-facing outputs
 
@@ -99,6 +101,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 7. `release-bundle` -> `build_release_bundle/release_bundle_manifest.md` + `build_release_bundle/release_bundle_manifest.json`
 8. `release-report` -> `build_release_report/release_report.md` + `build_release_report/release_report.json`
 9. `release-publish-map` -> `build_release_publish/release_publish_map.md` + `build_release_publish/release_publish_map.json`
+10. `release-export` -> `build_release_export/release_export_summary.md` + `build_release_export/release_export_summary.json`
 
 其中：
 
@@ -107,6 +110,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 3. `release-report` 当前会把以上摘要、bundle manifest 与 release docs/perf docs 再汇总成单一发布报告
 4. `release-gate --with-bundle` 当前会自动跑 `release-host-sdk-smoke`、`release-platform-evidence` 与 `release-preview-evidence`，再调用 `release-bundle`
 5. `release-publish-map` 当前会固定 `tag / release URL / release note / demo asset / bundle / report` 的发布映射
+6. `release-export` 当前会顺序跑 `release-bundle`、`release-report` 与 `release-publish-map`
 
 当前推荐顺序：
 
@@ -119,6 +123,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 7. `python3 tools/toolchain.py release-bundle --out-dir <dir>`
 8. `python3 tools/toolchain.py release-report --out-dir <dir>`
 9. `python3 tools/toolchain.py release-publish-map --out-dir <dir>`
+10. `python3 tools/toolchain.py release-export --out-dir <dir>`
 
 ### validate
 

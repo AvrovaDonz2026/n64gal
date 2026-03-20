@@ -15,6 +15,10 @@
 5. `docs/release-evidence-v0.1.0-alpha.md`
 6. `docs/backend-porting.md`
 7. `docs/migration.md`
+8. `build_release_bundle/release_bundle_manifest.md`
+9. `build_release_bundle/release_bundle_manifest.json`
+10. `build_release_publish/release_publish_map.md`
+11. `build_release_publish/release_publish_map.json`
 
 ## 3. 当前已具备
 
@@ -25,6 +29,8 @@
 - [x] `docs/release-evidence-v0.1.0-alpha.md`
 - [x] `docs/backend-porting.md`
 - [x] `docs/migration.md`
+- [x] `release_bundle_manifest(.md/.json)` 生成入口
+- [x] `release_publish_map(.md/.json)` 生成入口
 
 ## 4. 当前缺口
 
