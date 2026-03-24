@@ -95,7 +95,7 @@ def main():
                 api_root = f"http://127.0.0.1:{server.server_address[1]}"
                 out_dir = temp_root / "remote_api"
                 proc = subprocess.run(
-                    SCRIPT + ["--github-repo", "AvrovaDonz2026/n64gal", "--tag", "v0.1.0-alpha", "--api-root", api_root, "--out-dir", str(out_dir)],
+                    SCRIPT + ["--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root, "--out-dir", str(out_dir)],
                     cwd=ROOT,
                     capture_output=True,
                     text=True,

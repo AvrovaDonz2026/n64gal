@@ -89,7 +89,7 @@ def main():
             thread.start()
             try:
                 api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                rc, out, err = run_case(["--github-repo", "AvrovaDonz2026/n64gal", "--tag", "v0.1.0-alpha", "--api-root", api_root])
+                rc, out, err = run_case(["--tag", "v0.1.0-alpha", "--api-root", api_root, "--github-repo", "AvrovaDonz2026/n64gal"])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -102,6 +102,35 @@ def main():
             return 1
         if "trace_id=tool.validate.release_remote_state.ok" not in out:
             print("missing remote validate api success trace", file=sys.stderr)
+            return 1
+
+    with tempfile.TemporaryDirectory(prefix="n64gal_release_remote_api_spec_") as temp_dir:
+        temp_root = Path(temp_dir)
+        api_served = temp_root / "repos" / "AvrovaDonz2026" / "n64gal" / "releases" / "tags" / "v0.1.0-alpha"
+        api_served.parent.mkdir(parents=True, exist_ok=True)
+        api_served.write_text((ROOT / fixture).read_text(encoding="utf-8"), encoding="utf-8")
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(temp_root)
+            server = TCPServer(("127.0.0.1", 0), QuietHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                api_root = f"http://127.0.0.1:{server.server_address[1]}"
+                rc, out, err = run_case(["--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root])
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+        finally:
+            os.chdir(old_cwd)
+
+        if rc != 0:
+            print(f"release remote validate api spec-default failed rc={rc} stderr={err}", file=sys.stderr)
+            return 1
+        if "trace_id=tool.validate.release_remote_state.ok" not in out:
+            print("missing remote validate api spec-default success trace", file=sys.stderr)
             return 1
 
     print("test_release_remote_state_validate ok")

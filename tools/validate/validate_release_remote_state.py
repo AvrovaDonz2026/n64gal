@@ -119,6 +119,11 @@ def main(argv):
     if mode_count != 1:
         return error("tool.validate.release_remote_state.usage", VN_E_INVALID_ARG, "release_json", "provide exactly one remote json source")
 
+    if github_repo and release_json is None and not release_json_url:
+        pass
+    elif not github_repo and release_json is None and not release_json_url:
+        github_repo = spec.get("repository", "")
+
     temp_path = None
     if release_json_url or github_repo:
         try:
@@ -150,17 +155,19 @@ def main(argv):
 
     tag = spec.get("tag")
     release_url = spec.get("release_url")
+    expect_draft = spec.get("draft", False)
+    expect_prerelease = spec.get("prerelease", True)
     asset = spec.get("asset", {})
     asset_path = asset.get("path", "")
-    asset_name = Path(asset_path).name
+    asset_name = asset.get("name", Path(asset_path).name)
 
     if remote.get("tag_name") != tag:
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "tag_name", "remote tag mismatch")
     if remote.get("html_url") != release_url:
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "html_url", "remote release url mismatch")
-    if remote.get("draft") not in (False, 0):
+    if bool(remote.get("draft")) != bool(expect_draft):
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "draft", "remote release must not be draft")
-    if remote.get("prerelease") not in (True, 1):
+    if bool(remote.get("prerelease")) != bool(expect_prerelease):
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "prerelease", "remote prerelease flag mismatch")
 
     assets = remote.get("assets")

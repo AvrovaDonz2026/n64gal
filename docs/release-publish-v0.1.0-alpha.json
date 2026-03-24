@@ -1,9 +1,13 @@
 {
   "version": "v0.1.0-alpha",
+  "repository": "AvrovaDonz2026/n64gal",
   "tag": "v0.1.0-alpha",
   "release_url": "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha",
+  "draft": false,
+  "prerelease": true,
   "release_note": "docs/release-v0.1.0-alpha.md",
   "asset": {
+    "name": "demo.vnpak",
     "path": "assets/demo/demo.vnpak"
   }
 }

@@ -110,8 +110,12 @@ def main(argv):
 
         require_contains(roadmap, "`v1.0.0` **先不包含 RVV / riscv64 native 承诺**", "roadmap.rvv_boundary")
         require_contains(checklist_v1, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist_v1.rvv_boundary")
+        require_contains(release_publish_spec, "\"repository\": \"AvrovaDonz2026/n64gal\"", "release_publish_spec.repository")
         require_contains(release_publish_spec, "\"tag\": \"v0.1.0-alpha\"", "release_publish_spec.tag")
+        require_contains(release_publish_spec, "\"draft\": false", "release_publish_spec.draft")
+        require_contains(release_publish_spec, "\"prerelease\": true", "release_publish_spec.prerelease")
         require_contains(release_publish_spec, "\"release_note\": \"docs/release-v0.1.0-alpha.md\"", "release_publish_spec.release_note")
+        require_contains(release_publish_spec, "\"name\": \"demo.vnpak\"", "release_publish_spec.asset_name")
         require_contains(release_publish_spec, "\"path\": \"assets/demo/demo.vnpak\"", "release_publish_spec.asset")
     except ValueError as exc:
         return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "release document drift detected")

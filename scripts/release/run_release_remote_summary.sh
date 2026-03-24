@@ -141,6 +141,9 @@ source_spec_defaults
 if [[ -z "$TAG_NAME" ]]; then
   TAG_NAME="$SPEC_TAG"
 fi
+if [[ -z "$GITHUB_REPO" ]]; then
+  GITHUB_REPO="$SPEC_REPOSITORY"
+fi
 
 if [[ -n "$RELEASE_JSON_URL" ]]; then
   RELEASE_JSON="$OUT_DIR/release_remote_state.json"
