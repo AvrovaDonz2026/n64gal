@@ -11,6 +11,7 @@ BUILD_DIR = ROOT / "build_toolchain"
 TMP_BUILD_DIR = BUILD_DIR / "tmp"
 VALIDATE_ALL_COMMANDS = (
     ("validate-release-audit", [sys.executable, "tools/validate/validate_release_audit.py", "--allow-dirty"]),
+    ("validate-release-remote-state", [sys.executable, "tools/validate/validate_release_remote_state.py", "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json"]),
     ("validate-release-docs", [sys.executable, "tools/validate/validate_release_docs.py"]),
     ("validate-manifest", [sys.executable, "tools/validate/validate_manifest.py", "tests/fixtures/tool_manifest/valid/vnsave_migrate.json"]),
     ("validate-release-contracts", [sys.executable, "tools/validate/validate_release_contracts.py"]),
