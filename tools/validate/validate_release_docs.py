@@ -58,6 +58,7 @@ def main(argv):
         mvp_gap = read_text(root, "docs/release-gap-v0.1.0-mvp.md")
         roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
         checklist_v1 = read_text(root, "docs/release-checklist-v1.0.0.md")
+        release_publish_spec = read_text(root, "docs/release-publish-v0.1.0-alpha.json")
     except FileNotFoundError as exc:
         return error("tool.validate.release_docs.io", VN_E_IO, str(exc), "required release document missing")
     except OSError:
@@ -98,6 +99,7 @@ def main(argv):
         require_contains(release_package, "`docs/release-evidence-v0.1.0-alpha.md`", "release_package.release_evidence")
         require_contains(release_package, "`docs/backend-porting.md`", "release_package.backend_porting")
         require_contains(release_package, "`docs/migration.md`", "release_package.migration")
+        require_contains(release_package, "`release_publish_map(.md/.json)`", "release_package.publish_map")
 
         require_contains(alpha_checklist, "`v0.1.0-alpha` 不是 ABI/格式冻结版本", "alpha_checklist.not_frozen")
         require_contains(alpha_checklist, "`riscv64 native` 不在当前发布级承诺范围", "alpha_checklist.rvv_boundary")
@@ -108,6 +110,9 @@ def main(argv):
 
         require_contains(roadmap, "`v1.0.0` **先不包含 RVV / riscv64 native 承诺**", "roadmap.rvv_boundary")
         require_contains(checklist_v1, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist_v1.rvv_boundary")
+        require_contains(release_publish_spec, "\"tag\": \"v0.1.0-alpha\"", "release_publish_spec.tag")
+        require_contains(release_publish_spec, "\"release_note\": \"docs/release-v0.1.0-alpha.md\"", "release_publish_spec.release_note")
+        require_contains(release_publish_spec, "\"path\": \"assets/demo/demo.vnpak\"", "release_publish_spec.asset")
     except ValueError as exc:
         return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "release document drift detected")
 

@@ -71,6 +71,7 @@
 6. 当前 release note
 7. `release_bundle_manifest(.md/.json)`
 8. `release_publish_map(.md/.json)`
+9. `docs/release-publish-v0.1.0-alpha.json`
 
 ## 下一步
 

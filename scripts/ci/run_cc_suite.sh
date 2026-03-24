@@ -73,6 +73,7 @@ run_capture "$LOG_DIR/check_c89.log" ./scripts/check_c89.sh
 run_capture "$LOG_DIR/check_api_docs_sync.log" ./scripts/check_api_docs_sync.sh
 run_capture "$LOG_DIR/test_release_docs_validate.log" python3 tests/integration/test_release_docs_validate.py
 run_capture "$LOG_DIR/test_release_audit_validate.log" python3 tests/integration/test_release_audit_validate.py
+run_capture "$LOG_DIR/test_release_remote_state_validate.log" python3 tests/integration/test_release_remote_state_validate.py
 run_capture "$LOG_DIR/test_manifest_validate.log" python3 tests/integration/test_manifest_validate.py
 run_capture "$LOG_DIR/test_release_contracts_validate.log" python3 tests/integration/test_release_contracts_validate.py
 run_capture "$LOG_DIR/test_toolchain_contracts_validate.log" python3 tests/integration/test_toolchain_contracts_validate.py
@@ -99,6 +100,7 @@ run_capture "$LOG_DIR/test_release_bundle_script.log" python3 tests/integration/
 run_capture "$LOG_DIR/test_release_report_script.log" python3 tests/integration/test_release_report_script.py
 run_capture "$LOG_DIR/test_release_publish_map_script.log" python3 tests/integration/test_release_publish_map_script.py
 run_capture "$LOG_DIR/test_release_export_script.log" python3 tests/integration/test_release_export_script.py
+run_capture "$LOG_DIR/test_release_remote_summary_script.log" python3 tests/integration/test_release_remote_summary_script.py
 run_capture "$LOG_DIR/test_release_host_sdk_smoke.log" python3 tests/integration/test_release_host_sdk_smoke.py
 run_capture "$LOG_DIR/test_release_preview_evidence.log" python3 tests/integration/test_release_preview_evidence.py
 run_capture "$LOG_DIR/test_release_platform_evidence.log" python3 tests/integration/test_release_platform_evidence.py

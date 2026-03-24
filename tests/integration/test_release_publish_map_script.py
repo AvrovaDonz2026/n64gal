@@ -17,10 +17,15 @@ def write_text(path: Path, text: str):
 def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_publish_") as temp_dir:
         out_dir = Path(temp_dir) / "publish"
+        release_spec = Path(temp_dir) / "release_spec.json"
         bundle_index = Path(temp_dir) / "release_bundle_index.md"
         bundle_manifest = Path(temp_dir) / "release_bundle_manifest.json"
         report_json = Path(temp_dir) / "release_report.json"
 
+        write_text(
+            release_spec,
+            '{"version":"v0.1.0-alpha","tag":"v0.1.0-alpha","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha","release_note":"docs/release-v0.1.0-alpha.md","asset":{"path":"assets/demo/demo.vnpak"}}\n',
+        )
         write_text(bundle_index, "# Release Bundle\n")
         write_text(bundle_manifest, '{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1}]}\n')
         write_text(report_json, '{"report_md":"release_report.md"}\n')
@@ -30,6 +35,8 @@ def main():
             + [
                 "--out-dir",
                 str(out_dir),
+                "--release-spec",
+                str(release_spec),
                 "--bundle-index",
                 str(bundle_index),
                 "--bundle-manifest",

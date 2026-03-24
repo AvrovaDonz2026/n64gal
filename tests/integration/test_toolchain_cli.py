@@ -57,6 +57,11 @@ def main():
         print(f"validate-release-audit failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["validate-release-remote-state", "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json"])
+    if rc != 0 or "trace_id=tool.validate.release_remote_state.ok" not in out:
+        print(f"validate-release-remote-state failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["validate-release-docs"])
     if rc != 0 or "trace_id=tool.validate.release_docs.ok" not in out:
         print(f"validate-release-docs failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -244,6 +249,7 @@ def main():
         return 1
 
     rc, out, err = run_case(["release-export",
+        "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
         "--out-dir", "tests/integration/toolchain_release_export_tmp",
         "--gate-summary", summary_path,
         "--soak-summary", summary_path,
@@ -257,6 +263,51 @@ def main():
     ])
     if rc != 0 or "trace_id=release.export.ok" not in out:
         print(f"release-export failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-remote-summary",
+        "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+        "--out-dir", "tests/integration/toolchain_release_remote_tmp",
+    ])
+    if rc != 0 or "trace_id=release.remote_summary.ok" not in out:
+        print(f"release-remote-summary failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-gate",
+        "--allow-dirty",
+        "--skip-cc-suite",
+        "--with-soak",
+        "--with-export",
+        "--soak-skip-build",
+        "--soak-skip-pack",
+        "--soak-runner-bin", "build_release_soak/vn_player",
+        "--soak-frames-per-scene", "2",
+        "--soak-scenes", "S0",
+        "--summary-out", summary_path,
+        "--ci-suite-summary", ci_summary_path,
+        "--export-out-dir", "tests/integration/toolchain_release_export_via_gate_tmp",
+    ])
+    if rc != 0 or "trace_id=release.gate.ok" not in out:
+        print(f"release-gate export failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["release-gate",
+        "--allow-dirty",
+        "--skip-cc-suite",
+        "--with-soak",
+        "--with-export",
+        "--soak-skip-build",
+        "--soak-skip-pack",
+        "--soak-runner-bin", "build_release_soak/vn_player",
+        "--soak-frames-per-scene", "2",
+        "--soak-scenes", "S0",
+        "--summary-out", summary_path,
+        "--ci-suite-summary", ci_summary_path,
+        "--export-out-dir", "tests/integration/toolchain_release_export_remote_via_gate_tmp",
+        "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+    ])
+    if rc != 0 or "trace_id=release.gate.ok" not in out:
+        print(f"release-gate remote export failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
@@ -341,6 +392,15 @@ def main():
     if os.path.isdir("tests/integration/toolchain_release_export_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_export_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_export_via_gate_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_export_via_gate_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_export_remote_via_gate_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_export_remote_via_gate_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_remote_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_remote_tmp")
     if os.path.isdir("tests/integration/toolchain_release_platform_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_platform_tmp")

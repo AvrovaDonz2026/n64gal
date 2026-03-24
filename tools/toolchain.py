@@ -50,6 +50,7 @@ def print_usage(program: str) -> int:
                 "commands:",
                 "  validate-all",
                 "  validate-release-audit [--allow-dirty] [--require-clean] [--skip-git]",
+                "  validate-release-remote-state (--release-json <path> | --release-json-url <url> | --github-repo <owner/repo>) [--tag <tag>] [--api-root <url>] [--token-env <env>] [--release-spec <path>]",
                 "  validate-release-docs",
                 "  validate-manifest <manifest.json>",
                 "  validate-release-contracts",
@@ -69,15 +70,16 @@ def print_usage(program: str) -> int:
                 "  validate-runtime-contracts",
                 "  validate-save-contracts",
                 "  validate-template-contracts",
-                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>] [--summary-json-out <path>] [--with-soak] [--with-bundle]",
+                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>] [--summary-json-out <path>] [--with-soak] [--with-bundle] [--with-export]",
                 "  release-host-sdk-smoke [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-platform-evidence [--out-dir <path>] [--platform-doc <path>] [--ci-suite-summary <path>] [--summary-out <path>] [--summary-json-out <path>]",
                 "  release-preview-evidence [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>] [--summary-out <path>] [--summary-json-out <path>]",
                 "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
                 "  release-report [--out-dir <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
-                "  release-publish-map [--out-dir <path>] [--tag <tag>] [--release-url <url>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>]",
-                "  release-export [--out-dir <path>] [--tag <tag>] [--release-url <url>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>]",
+                "  release-publish-map [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>]",
+                "  release-export [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>]",
+                "  release-remote-summary (--release-json <path> | --release-json-url <url> | --github-repo <owner/repo>) [--tag <tag>] [--api-root <url>] [--token-env <env>] [--release-spec <path>] [--out-dir <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
                 "  probe-trace-summary <runtime_trace.log>",
@@ -154,6 +156,10 @@ def command_validate_release_docs(argv) -> int:
 
 def command_validate_release_audit(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_release_audit.py"] + list(argv))
+
+
+def command_validate_release_remote_state(argv) -> int:
+    return run_forward([sys.executable, "tools/validate/validate_release_remote_state.py"] + list(argv))
 
 
 def command_validate_all(argv) -> int:
@@ -344,6 +350,10 @@ def command_release_export(argv) -> int:
     return run_forward(["bash", "scripts/release/run_release_export.sh"] + list(argv))
 
 
+def command_release_remote_summary(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_remote_summary.sh"] + list(argv))
+
+
 def command_migrate_vnsave(argv) -> int:
     tool = ensure_c_tool(
         "vnsave_migrate",
@@ -474,6 +484,8 @@ def main(argv) -> int:
             return command_validate_all(args)
         if command == "validate-release-audit":
             return command_validate_release_audit(args)
+        if command == "validate-release-remote-state":
+            return command_validate_release_remote_state(args)
         if command == "validate-release-docs":
             return command_validate_release_docs(args)
         if command == "validate-manifest":
@@ -530,6 +542,8 @@ def main(argv) -> int:
             return command_release_publish_map(args)
         if command == "release-export":
             return command_release_export(args)
+        if command == "release-remote-summary":
+            return command_release_remote_summary(args)
         if command == "migrate-vnsave":
             return command_migrate_vnsave(args)
         if command == "probe-vnsave":

@@ -18,6 +18,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_export_") as temp_dir:
         temp_root = Path(temp_dir)
         out_dir = temp_root / "export"
+        release_spec = temp_root / "release_spec.json"
         gate_summary = temp_root / "release_gate_summary.md"
         soak_summary = temp_root / "demo_soak_summary.md"
         ci_summary = temp_root / "ci_suite_summary.md"
@@ -27,7 +28,12 @@ def main():
         platform_summary_json = temp_root / "platform_evidence_summary.json"
         preview_summary = temp_root / "preview_evidence_summary.md"
         preview_summary_json = temp_root / "preview_evidence_summary.json"
+        remote_release_json = ROOT / "tests" / "fixtures" / "release_api" / "github_release_v0.1.0-alpha.json"
 
+        write_text(
+            release_spec,
+            '{"version":"v0.1.0-alpha","tag":"v0.1.0-alpha","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha","release_note":"docs/release-v0.1.0-alpha.md","asset":{"path":"assets/demo/demo.vnpak"}}\n',
+        )
         write_text(gate_summary, "# Release Gate Summary\n")
         write_text(soak_summary, "# Demo Soak Summary\n")
         write_text(ci_summary, "# CI Suite Summary\n\n- Status: `success`\n")
@@ -41,6 +47,7 @@ def main():
         proc = subprocess.run(
             SCRIPT + [
                 "--out-dir", str(out_dir),
+                "--release-spec", str(release_spec),
                 "--gate-summary", str(gate_summary),
                 "--soak-summary", str(soak_summary),
                 "--ci-suite-summary", str(ci_summary),
@@ -50,6 +57,7 @@ def main():
                 "--platform-evidence-summary-json", str(platform_summary_json),
                 "--preview-evidence-summary", str(preview_summary),
                 "--preview-evidence-summary-json", str(preview_summary_json),
+                "--remote-release-json", str(remote_release_json),
             ],
             cwd=ROOT,
             capture_output=True,
@@ -65,11 +73,23 @@ def main():
         if not (out_dir / "bundle" / "release_bundle_manifest.json").exists():
             print("release export missing bundle manifest", file=sys.stderr)
             return 1
+        if not (out_dir / "bundle" / "summaries" / "release_report.json").exists():
+            print("release export bundle missing report json", file=sys.stderr)
+            return 1
+        if not (out_dir / "bundle" / "summaries" / "release_publish_map.json").exists():
+            print("release export bundle missing publish map json", file=sys.stderr)
+            return 1
+        if not (out_dir / "bundle" / "summaries" / "release_remote_summary.json").exists():
+            print("release export bundle missing remote summary json", file=sys.stderr)
+            return 1
         if not (out_dir / "report" / "release_report.json").exists():
             print("release export missing report json", file=sys.stderr)
             return 1
         if not (out_dir / "publish" / "release_publish_map.json").exists():
             print("release export missing publish map json", file=sys.stderr)
+            return 1
+        if not (out_dir / "remote" / "release_remote_summary.json").exists():
+            print("release export missing remote summary json", file=sys.stderr)
             return 1
         if not (out_dir / "release_export_summary.json").exists():
             print("release export missing summary json", file=sys.stderr)

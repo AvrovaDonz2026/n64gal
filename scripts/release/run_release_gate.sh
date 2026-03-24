@@ -8,6 +8,7 @@ ALLOW_DIRTY=0
 SKIP_CC_SUITE=0
 WITH_SOAK=0
 WITH_BUNDLE=0
+WITH_EXPORT=0
 SUMMARY_OUT=""
 SUMMARY_JSON_OUT=""
 LOG_DIR=""
@@ -25,10 +26,20 @@ PLATFORM_EVIDENCE_SUMMARY_JSON_OUT=""
 PREVIEW_EVIDENCE_OUT_DIR=""
 PREVIEW_EVIDENCE_SUMMARY_OUT=""
 PREVIEW_EVIDENCE_SUMMARY_JSON_OUT=""
+EXPORT_OUT_DIR=""
+EXPORT_SUMMARY_OUT=""
+EXPORT_SUMMARY_JSON_OUT=""
+EXPORT_RELEASE_SPEC=""
+EXPORT_REMOTE_RELEASE_JSON=""
+EXPORT_REMOTE_RELEASE_JSON_URL=""
+EXPORT_REMOTE_GITHUB_REPO=""
+EXPORT_REMOTE_TAG=""
+EXPORT_REMOTE_API_ROOT=""
+EXPORT_REMOTE_TOKEN_ENV=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--with-soak] [--with-bundle] [--summary-out <path>] [--summary-json-out <path>] [--ci-suite-summary <path>] [--soak-...] [--bundle-...]
+usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--with-soak] [--with-bundle] [--with-export] [--summary-out <path>] [--summary-json-out <path>] [--ci-suite-summary <path>] [--soak-...] [--bundle-...] [--export-...] [--remote-...]
 EOF
 }
 
@@ -48,6 +59,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-bundle)
       WITH_BUNDLE=1
+      shift
+      ;;
+    --with-export)
+      WITH_EXPORT=1
       shift
       ;;
     --summary-out)
@@ -104,6 +119,34 @@ while [[ $# -gt 0 ]]; do
       BUNDLE_ARGS+=("--${key#--bundle-}" "$1")
       shift
       ;;
+    --export-out-dir|--export-summary-out|--export-summary-json-out)
+      key="$1"
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      if [[ "$key" == "--export-out-dir" ]]; then
+        EXPORT_OUT_DIR="$1"
+      elif [[ "$key" == "--export-summary-out" ]]; then
+        EXPORT_SUMMARY_OUT="$1"
+      elif [[ "$key" == "--export-summary-json-out" ]]; then
+        EXPORT_SUMMARY_JSON_OUT="$1"
+      fi
+      shift
+      ;;
+    --remote-release-json|--remote-release-json-url|--remote-github-repo|--remote-tag|--remote-api-root|--remote-token-env|--remote-release-spec)
+      key="$1"
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      case "$key" in
+        --remote-release-json) EXPORT_REMOTE_RELEASE_JSON="$1" ;;
+        --remote-release-json-url) EXPORT_REMOTE_RELEASE_JSON_URL="$1" ;;
+        --remote-github-repo) EXPORT_REMOTE_GITHUB_REPO="$1" ;;
+        --remote-tag) EXPORT_REMOTE_TAG="$1" ;;
+        --remote-api-root) EXPORT_REMOTE_API_ROOT="$1" ;;
+        --remote-token-env) EXPORT_REMOTE_TOKEN_ENV="$1" ;;
+        --remote-release-spec) EXPORT_RELEASE_SPEC="$1" ;;
+      esac
+      shift
+      ;;
     -h|--help)
       usage
       exit 2
@@ -130,6 +173,18 @@ if [[ -z "$SOAK_SUMMARY_JSON_OUT" ]]; then
 fi
 if [[ -z "$BUNDLE_OUT" ]]; then
   BUNDLE_OUT="$BUILD_DIR/release_bundle"
+fi
+if [[ -z "$EXPORT_OUT_DIR" ]]; then
+  EXPORT_OUT_DIR="$BUILD_DIR/release_export"
+fi
+if [[ -z "$EXPORT_SUMMARY_OUT" ]]; then
+  EXPORT_SUMMARY_OUT="$EXPORT_OUT_DIR/release_export_summary.md"
+fi
+if [[ -z "$EXPORT_SUMMARY_JSON_OUT" ]]; then
+  EXPORT_SUMMARY_JSON_OUT="$EXPORT_OUT_DIR/release_export_summary.json"
+fi
+if [[ -z "$EXPORT_RELEASE_SPEC" ]]; then
+  EXPORT_RELEASE_SPEC="$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json"
 fi
 if [[ -z "$CI_SUITE_SUMMARY" ]]; then
   CI_SUITE_SUMMARY="$ROOT_DIR/build_ci_cc/ci_suite_summary.md"
@@ -193,6 +248,7 @@ write_summary() {
     echo "- skip_cc_suite: \`$SKIP_CC_SUITE\`"
     echo "- with_soak: \`$WITH_SOAK\`"
     echo "- with_bundle: \`$WITH_BUNDLE\`"
+    echo "- with_export: \`$WITH_EXPORT\`"
     if [[ $ALLOW_DIRTY -eq 0 ]]; then
       echo "- Worktree policy: clean required"
     else
@@ -220,6 +276,13 @@ write_summary() {
       echo "- Platform evidence summary path: \`$PLATFORM_EVIDENCE_SUMMARY_OUT\`"
       echo "- Preview evidence summary path: \`$PREVIEW_EVIDENCE_SUMMARY_OUT\`"
     fi
+    if [[ $WITH_EXPORT -ne 0 ]]; then
+      echo "7. \`./scripts/release/run_release_export.sh ...\`"
+      echo "- Export out dir: \`$EXPORT_OUT_DIR\`"
+      if [[ -n "$EXPORT_REMOTE_RELEASE_JSON" || -n "$EXPORT_REMOTE_RELEASE_JSON_URL" || -n "$EXPORT_REMOTE_GITHUB_REPO" ]]; then
+        echo "- Remote release alignment enabled"
+      fi
+    fi
     if [[ -n "$soak_summary_text" ]]; then
       echo
       echo "## Soak Summary"
@@ -236,6 +299,7 @@ write_summary() {
     printf '  "skip_cc_suite": %s,\n' "$SKIP_CC_SUITE"
     printf '  "with_soak": %s,\n' "$WITH_SOAK"
     printf '  "with_bundle": %s,\n' "$WITH_BUNDLE"
+    printf '  "with_export": %s,\n' "$WITH_EXPORT"
     printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
     printf '  "soak_summary_md": "%s",\n' "$SOAK_SUMMARY_OUT"
     printf '  "soak_summary_json": "%s",\n' "$SOAK_SUMMARY_JSON_OUT"
@@ -245,7 +309,13 @@ write_summary() {
     printf '  "platform_evidence_summary_json": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT"
     printf '  "preview_evidence_summary_md": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY_OUT"
     printf '  "preview_evidence_summary_json": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT"
-    printf '  "bundle_out_dir": "%s"\n' "$BUNDLE_OUT"
+    printf '  "bundle_out_dir": "%s",\n' "$BUNDLE_OUT"
+    printf '  "export_out_dir": "%s",\n' "$EXPORT_OUT_DIR"
+    printf '  "export_summary_md": "%s",\n' "$EXPORT_SUMMARY_OUT"
+    printf '  "export_summary_json": "%s",\n' "$EXPORT_SUMMARY_JSON_OUT"
+    printf '  "remote_release_json": "%s",\n' "$EXPORT_REMOTE_RELEASE_JSON"
+    printf '  "remote_release_json_url": "%s",\n' "$EXPORT_REMOTE_RELEASE_JSON_URL"
+    printf '  "remote_github_repo": "%s"\n' "$EXPORT_REMOTE_GITHUB_REPO"
     printf '}\n'
   } >"$SUMMARY_JSON_OUT"
 }
@@ -275,10 +345,13 @@ if [[ $WITH_SOAK -ne 0 ]]; then
   run_step "release-soak" "${soak_cmd[@]}"
 fi
 
-if [[ $WITH_BUNDLE -ne 0 ]]; then
+if [[ $WITH_BUNDLE -ne 0 || $WITH_EXPORT -ne 0 ]]; then
   run_step "release-host-sdk-smoke" bash scripts/release/run_host_sdk_smoke.sh --summary-out "$HOST_SDK_SUMMARY_OUT" --summary-json-out "$HOST_SDK_SUMMARY_JSON_OUT"
   run_step "release-platform-evidence" bash scripts/release/run_platform_evidence.sh --out-dir "$PLATFORM_EVIDENCE_OUT_DIR" --ci-suite-summary "$CI_SUITE_SUMMARY" --summary-out "$PLATFORM_EVIDENCE_SUMMARY_OUT" --summary-json-out "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT"
   run_step "release-preview-evidence" bash scripts/release/run_preview_evidence.sh --out-dir "$PREVIEW_EVIDENCE_OUT_DIR" --summary-out "$PREVIEW_EVIDENCE_SUMMARY_OUT" --summary-json-out "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT"
+fi
+
+if [[ $WITH_BUNDLE -ne 0 ]]; then
   bundle_cmd=(bash scripts/release/run_release_bundle.sh --out-dir "$BUNDLE_OUT" --gate-summary "$SUMMARY_OUT")
   if [[ $WITH_SOAK -ne 0 ]]; then
     bundle_cmd+=(--soak-summary "$SOAK_SUMMARY_OUT")
@@ -291,6 +364,44 @@ if [[ $WITH_BUNDLE -ne 0 ]]; then
     bundle_cmd+=("${BUNDLE_ARGS[@]}")
   fi
   run_step "release-bundle" "${bundle_cmd[@]}"
+fi
+
+if [[ $WITH_EXPORT -ne 0 ]]; then
+  export_cmd=(bash scripts/release/run_release_export.sh
+    --out-dir "$EXPORT_OUT_DIR"
+    --release-spec "$EXPORT_RELEASE_SPEC"
+    --gate-summary "$SUMMARY_OUT"
+    --ci-suite-summary "$CI_SUITE_SUMMARY"
+    --host-sdk-summary "$HOST_SDK_SUMMARY_OUT"
+    --host-sdk-summary-json "$HOST_SDK_SUMMARY_JSON_OUT"
+    --platform-evidence-summary "$PLATFORM_EVIDENCE_SUMMARY_OUT"
+    --platform-evidence-summary-json "$PLATFORM_EVIDENCE_SUMMARY_JSON_OUT"
+    --preview-evidence-summary "$PREVIEW_EVIDENCE_SUMMARY_OUT"
+    --preview-evidence-summary-json "$PREVIEW_EVIDENCE_SUMMARY_JSON_OUT"
+    --summary-out "$EXPORT_SUMMARY_OUT"
+    --summary-json-out "$EXPORT_SUMMARY_JSON_OUT")
+  if [[ $WITH_SOAK -ne 0 ]]; then
+    export_cmd+=(--soak-summary "$SOAK_SUMMARY_OUT")
+  fi
+  if [[ -n "$EXPORT_REMOTE_RELEASE_JSON" ]]; then
+    export_cmd+=(--remote-release-json "$EXPORT_REMOTE_RELEASE_JSON")
+  fi
+  if [[ -n "$EXPORT_REMOTE_RELEASE_JSON_URL" ]]; then
+    export_cmd+=(--remote-release-json-url "$EXPORT_REMOTE_RELEASE_JSON_URL")
+  fi
+  if [[ -n "$EXPORT_REMOTE_GITHUB_REPO" ]]; then
+    export_cmd+=(--remote-github-repo "$EXPORT_REMOTE_GITHUB_REPO")
+  fi
+  if [[ -n "$EXPORT_REMOTE_TAG" ]]; then
+    export_cmd+=(--remote-tag "$EXPORT_REMOTE_TAG")
+  fi
+  if [[ -n "$EXPORT_REMOTE_API_ROOT" ]]; then
+    export_cmd+=(--remote-api-root "$EXPORT_REMOTE_API_ROOT")
+  fi
+  if [[ -n "$EXPORT_REMOTE_TOKEN_ENV" ]]; then
+    export_cmd+=(--remote-token-env "$EXPORT_REMOTE_TOKEN_ENV")
+  fi
+  run_step "release-export" "${export_cmd[@]}"
 fi
 
 echo "trace_id=release.gate.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT"

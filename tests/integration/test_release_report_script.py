@@ -71,15 +71,15 @@ def main():
     if "# Release Report" not in report_text:
         print("release report header missing", file=sys.stderr)
         return 1
-    if "docs/perf-report.md" not in report_text:
-        print("release report missing perf doc index", file=sys.stderr)
-        return 1
-    if str(bundle_manifest) not in report_text:
-        print("release report missing bundle manifest reference", file=sys.stderr)
-        return 1
+        if "docs/perf-report.md" not in report_text:
+            print("release report missing perf doc index", file=sys.stderr)
+            return 1
+        if str(bundle_manifest) not in report_text:
+            print("release report missing bundle manifest reference", file=sys.stderr)
+            return 1
     if str(host_sdk_summary) not in report_text or str(platform_summary) not in report_text or str(preview_summary) not in report_text:
-        print("release report missing release-facing evidence references", file=sys.stderr)
-        return 1
+            print("release report missing release-facing evidence references", file=sys.stderr)
+            return 1
 
     import shutil
     shutil.rmtree(out_dir)

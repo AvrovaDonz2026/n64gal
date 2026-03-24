@@ -33,10 +33,13 @@
 - [ ] `python3 tools/toolchain.py release-soak`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak --with-bundle`
+- [ ] `python3 tools/toolchain.py release-gate --with-soak --with-export`
 - [ ] `python3 tools/toolchain.py release-bundle --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-report --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-publish-map --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-export --out-dir <dir>`
+- [ ] `python3 tools/toolchain.py validate-release-remote-state --release-json <path>`
+- [ ] `python3 tools/toolchain.py release-remote-summary --release-json <path> --out-dir <dir>`
 - [ ] `./scripts/check_c89.sh`
 - [ ] `./scripts/ci/run_cc_suite.sh`
 - [ ] GitHub `ci-matrix` 主矩阵长期稳定
@@ -88,5 +91,5 @@
 - [ ] 工作树干净
 - [ ] tag / release note / asset 一致
 - [ ] release 证据链可直接被外部引用
-- [ ] `release_gate_summary(.md/.json)`、`demo_soak_summary(.md/.json)`、`host_sdk_smoke_summary(.md/.json)`、`platform_evidence_summary(.md/.json)`、`preview_evidence_summary(.md/.json)`、`release_bundle_index(.md/.json)`、`release_bundle_manifest(.md/.json)`、`release_report(.md/.json)`、`release_publish_map(.md/.json)`、`release_export_summary(.md/.json)` 可直接随 release 引用
+- [ ] `release_gate_summary(.md/.json)`、`demo_soak_summary(.md/.json)`、`host_sdk_smoke_summary(.md/.json)`、`platform_evidence_summary(.md/.json)`、`preview_evidence_summary(.md/.json)`、`release_bundle_index(.md/.json)`、`release_bundle_manifest(.md/.json)`、`release_report(.md/.json)`、`release_publish_map(.md/.json)`、`release_export_summary(.md/.json)`、`release_remote_summary(.md/.json)` 可直接随 release 引用
 - [ ] 版本范围、已知限制、迁移边界全部明确

@@ -26,6 +26,12 @@ def main():
         platform_summary_json = Path(temp_dir) / "platform_evidence_summary.json"
         preview_summary = Path(temp_dir) / "preview_evidence_summary.md"
         preview_summary_json = Path(temp_dir) / "preview_evidence_summary.json"
+        report_md = Path(temp_dir) / "release_report.md"
+        report_json = Path(temp_dir) / "release_report.json"
+        publish_map_md = Path(temp_dir) / "release_publish_map.md"
+        publish_map_json = Path(temp_dir) / "release_publish_map.json"
+        remote_summary_md = Path(temp_dir) / "release_remote_summary.md"
+        remote_summary_json = Path(temp_dir) / "release_remote_summary.json"
 
         write_text(gate_summary, "# Release Gate Summary\n\n- Status: `success`\n")
         write_text(soak_summary, "# Demo Soak Summary\n\n- Status: `success`\n")
@@ -36,6 +42,12 @@ def main():
         write_text(platform_summary_json, "{\n  \"status\": \"success\"\n}\n")
         write_text(preview_summary, "# Preview Evidence Summary\n\n- Status: `success`\n")
         write_text(preview_summary_json, "{\n  \"status\": \"success\"\n}\n")
+        write_text(report_md, "# Release Report\n")
+        write_text(report_json, "{\n  \"report_md\": \"release_report.md\"\n}\n")
+        write_text(publish_map_md, "# Release Publish Map\n")
+        write_text(publish_map_json, "{\n  \"tag\": \"v0.1.0-alpha\"\n}\n")
+        write_text(remote_summary_md, "# Release Remote Summary\n")
+        write_text(remote_summary_json, "{\n  \"tag\": \"v0.1.0-alpha\"\n}\n")
 
         proc = subprocess.run(
             SCRIPT + [
@@ -49,6 +61,12 @@ def main():
                 "--platform-evidence-summary-json", str(platform_summary_json),
                 "--preview-evidence-summary", str(preview_summary),
                 "--preview-evidence-summary-json", str(preview_summary_json),
+                "--report-md", str(report_md),
+                "--report-json", str(report_json),
+                "--publish-map-md", str(publish_map_md),
+                "--publish-map-json", str(publish_map_json),
+                "--remote-summary-md", str(remote_summary_md),
+                "--remote-summary-json", str(remote_summary_json),
             ],
             cwd=ROOT,
             capture_output=True,
@@ -84,12 +102,24 @@ def main():
         if "summaries/preview_evidence_summary.json" not in index_text:
             print("release bundle index missing preview json summary", file=sys.stderr)
             return 1
+        if "summaries/release_report.json" not in index_text or "summaries/release_publish_map.json" not in index_text:
+            print("release bundle index missing derived artifacts", file=sys.stderr)
+            return 1
+        if "summaries/release_remote_summary.json" not in index_text:
+            print("release bundle index missing remote summary artifact", file=sys.stderr)
+            return 1
         index_json_text = index_json_path.read_text(encoding="utf-8")
         if '"summaries/release_gate_summary.md"' not in index_json_text:
             print("release bundle json missing gate summary", file=sys.stderr)
             return 1
         if '"summaries/host_sdk_smoke_summary.json"' not in index_json_text:
             print("release bundle json missing host sdk json summary", file=sys.stderr)
+            return 1
+        if '"summaries/release_report.json"' not in index_json_text or '"summaries/release_publish_map.json"' not in index_json_text:
+            print("release bundle json missing derived artifact references", file=sys.stderr)
+            return 1
+        if '"summaries/release_remote_summary.json"' not in index_json_text:
+            print("release bundle json missing remote summary reference", file=sys.stderr)
             return 1
         manifest_text = manifest_path.read_text(encoding="utf-8")
         if "release_bundle_manifest.json" not in index_text or "`demo.vnpak`" not in manifest_text:

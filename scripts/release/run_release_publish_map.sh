@@ -5,10 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_publish}"
-TAG_NAME="${TAG_NAME:-v0.1.0-alpha}"
-RELEASE_URL="${RELEASE_URL:-https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha}"
-RELEASE_NOTE="${RELEASE_NOTE:-$ROOT_DIR/docs/release-v0.1.0-alpha.md}"
-ASSET_PATH="${ASSET_PATH:-$ROOT_DIR/assets/demo/demo.vnpak}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json}"
+TAG_NAME=""
+RELEASE_URL=""
+RELEASE_NOTE=""
+ASSET_PATH=""
 BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_index.md}"
 BUNDLE_MANIFEST="${BUNDLE_MANIFEST:-$ROOT_DIR/build_release_bundle/release_bundle_manifest.json}"
 REPORT_JSON="${REPORT_JSON:-$ROOT_DIR/build_release_report/release_report.json}"
@@ -17,7 +18,7 @@ MAP_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_publish_map.sh [--out-dir <dir>] [--tag <tag>] [--release-url <url>] [--release-note <path>] [--asset <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>] [--map-out <path>] [--map-json-out <path>]
+usage: scripts/release/run_release_publish_map.sh [--out-dir <dir>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--release-note <path>] [--asset <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>] [--map-out <path>] [--map-json-out <path>]
 EOF
 }
 
@@ -27,6 +28,12 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       OUT_DIR="$1"
+      shift
+      ;;
+    --release-spec)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_SPEC="$1"
       shift
       ;;
     --tag)
@@ -110,6 +117,43 @@ require_file() {
   fi
 }
 
+require_file "$RELEASE_SPEC"
+eval "$(
+python3 - "$RELEASE_SPEC" <<'PY'
+import json
+import shlex
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+asset = payload.get("asset", {})
+fields = {
+    "SPEC_VERSION": payload.get("version", ""),
+    "SPEC_TAG": payload.get("tag", ""),
+    "SPEC_RELEASE_URL": payload.get("release_url", ""),
+    "SPEC_RELEASE_NOTE": payload.get("release_note", ""),
+    "SPEC_ASSET_PATH": asset.get("path", ""),
+}
+for key, value in fields.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+)"
+
+if [[ -z "$TAG_NAME" ]]; then
+  TAG_NAME="$SPEC_TAG"
+fi
+if [[ -z "$RELEASE_URL" ]]; then
+  RELEASE_URL="$SPEC_RELEASE_URL"
+fi
+if [[ -z "$RELEASE_NOTE" ]]; then
+  RELEASE_NOTE="$ROOT_DIR/$SPEC_RELEASE_NOTE"
+fi
+if [[ -z "$ASSET_PATH" ]]; then
+  ASSET_PATH="$ROOT_DIR/$SPEC_ASSET_PATH"
+fi
+
 require_file "$RELEASE_NOTE"
 require_file "$ASSET_PATH"
 require_file "$BUNDLE_INDEX"
@@ -126,14 +170,16 @@ asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
   echo "- Branch: \`$(git branch --show-current)\`"
   echo "- Tag: \`$TAG_NAME\`"
   echo "- Release URL: \`$RELEASE_URL\`"
+  echo "- Release spec: \`$RELEASE_SPEC\`"
   echo
   echo "## Release Inputs"
   echo
-  echo "1. Release note: \`$RELEASE_NOTE\`"
-  echo "2. Asset: \`$ASSET_PATH\`"
-  echo "3. Bundle index: \`$BUNDLE_INDEX\`"
-  echo "4. Bundle manifest: \`$BUNDLE_MANIFEST\`"
-  echo "5. Release report json: \`$REPORT_JSON\`"
+  echo "1. Release spec: \`$RELEASE_SPEC\`"
+  echo "2. Release note: \`$RELEASE_NOTE\`"
+  echo "3. Asset: \`$ASSET_PATH\`"
+  echo "4. Bundle index: \`$BUNDLE_INDEX\`"
+  echo "5. Bundle manifest: \`$BUNDLE_MANIFEST\`"
+  echo "6. Release report json: \`$REPORT_JSON\`"
   echo
   echo "## Asset Digest"
   echo
@@ -145,6 +191,7 @@ asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
   printf '{\n'
   printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
   printf '  "branch": "%s",\n' "$(git branch --show-current)"
+  printf '  "release_spec": "%s",\n' "$RELEASE_SPEC"
   printf '  "tag": "%s",\n' "$TAG_NAME"
   printf '  "release_url": "%s",\n' "$RELEASE_URL"
   printf '  "release_note": "%s",\n' "$RELEASE_NOTE"

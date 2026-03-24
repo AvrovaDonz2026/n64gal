@@ -59,12 +59,13 @@ def main(argv):
     soak_summary = ""
     bundle_manifest = ""
     publish_map = ""
+    release_spec = "docs/release-publish-v0.1.0-alpha.json"
     i = 1
 
     while i < len(argv):
         arg = argv[i]
         if arg in ("-h", "--help"):
-            print("usage: validate_release_audit.py [--allow-dirty|--require-clean] [--skip-git] [--release-gate-summary <path>] [--soak-summary <path>] [--bundle-manifest <path>] [--publish-map <path>] [root]", file=sys.stderr)
+            print("usage: validate_release_audit.py [--allow-dirty|--require-clean] [--skip-git] [--release-gate-summary <path>] [--soak-summary <path>] [--bundle-manifest <path>] [--publish-map <path>] [--release-spec <path>] [root]", file=sys.stderr)
             return 2
         if arg == "--allow-dirty":
             allow_dirty = 1
@@ -106,6 +107,13 @@ def main(argv):
             publish_map = argv[i]
             i += 1
             continue
+        if arg == "--release-spec":
+            i += 1
+            if i >= len(argv):
+                return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "release_spec", "missing value")
+            release_spec = argv[i]
+            i += 1
+            continue
         if arg.startswith("-"):
             return error("tool.validate.release_audit.usage", VN_E_INVALID_ARG, "argv", "unexpected flag")
         root = Path(arg)
@@ -122,6 +130,7 @@ def main(argv):
         release_evidence = read_text(root, "docs/release-evidence-v0.1.0-alpha.md")
         release_package = read_text(root, "docs/release-package-v0.1.0-alpha.md")
         checklist = read_text(root, "docs/release-checklist-v1.0.0.md")
+        release_spec_text = read_text(root, release_spec)
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release audit file missing")
     except OSError:
@@ -181,6 +190,20 @@ def main(argv):
                 raise ValueError("publish_map.asset_path")
             if not asset.get("sha256") or int(asset.get("bytes", 0)) <= 0:
                 raise ValueError("publish_map.asset_fields")
+            if payload.get("release_spec") and payload.get("release_spec") != str(release_spec):
+                raise ValueError("publish_map.release_spec")
+        payload = json.loads(release_spec_text)
+        if payload.get("tag") != "v0.1.0-alpha":
+            raise ValueError("release_spec.tag")
+        if "releases/tag/v0.1.0-alpha" not in payload.get("release_url", ""):
+            raise ValueError("release_spec.release_url")
+        if payload.get("release_note") != "docs/release-v0.1.0-alpha.md":
+            raise ValueError("release_spec.release_note")
+        asset = payload.get("asset")
+        if not isinstance(asset, dict):
+            raise ValueError("release_spec.asset")
+        if asset.get("path") != "assets/demo/demo.vnpak":
+            raise ValueError("release_spec.asset_path")
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release artifact missing")
     except ValueError as exc:
@@ -199,6 +222,7 @@ def main(argv):
                 f"soak_summary={soak_summary if soak_summary else 'n/a'}",
                 f"bundle_manifest={bundle_manifest if bundle_manifest else 'n/a'}",
                 f"publish_map={publish_map if publish_map else 'n/a'}",
+                f"release_spec={release_spec if release_spec else 'n/a'}",
             ]
         )
     )

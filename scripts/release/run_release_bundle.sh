@@ -14,10 +14,16 @@ PLATFORM_EVIDENCE_SUMMARY="${PLATFORM_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_
 PLATFORM_EVIDENCE_SUMMARY_JSON="${PLATFORM_EVIDENCE_SUMMARY_JSON:-$ROOT_DIR/build_release_platform/platform_evidence_summary.json}"
 PREVIEW_EVIDENCE_SUMMARY="${PREVIEW_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_preview/preview_evidence_summary.md}"
 PREVIEW_EVIDENCE_SUMMARY_JSON="${PREVIEW_EVIDENCE_SUMMARY_JSON:-$ROOT_DIR/build_release_preview/preview_evidence_summary.json}"
+RELEASE_REPORT_MD=""
+RELEASE_REPORT_JSON=""
+RELEASE_PUBLISH_MAP_MD=""
+RELEASE_PUBLISH_MAP_JSON=""
+RELEASE_REMOTE_SUMMARY_MD=""
+RELEASE_REMOTE_SUMMARY_JSON=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>]
+usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>] [--report-md <path>] [--report-json <path>] [--publish-map-md <path>] [--publish-map-json <path>] [--remote-summary-md <path>] [--remote-summary-json <path>]
 EOF
 }
 
@@ -83,6 +89,42 @@ while [[ $# -gt 0 ]]; do
       PREVIEW_EVIDENCE_SUMMARY_JSON="$1"
       shift
       ;;
+    --report-md)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_REPORT_MD="$1"
+      shift
+      ;;
+    --report-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_REPORT_JSON="$1"
+      shift
+      ;;
+    --publish-map-md)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_PUBLISH_MAP_MD="$1"
+      shift
+      ;;
+    --publish-map-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_PUBLISH_MAP_JSON="$1"
+      shift
+      ;;
+    --remote-summary-md)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_REMOTE_SUMMARY_MD="$1"
+      shift
+      ;;
+    --remote-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_REMOTE_SUMMARY_JSON="$1"
+      shift
+      ;;
     -h|--help)
       usage
       exit 2
@@ -125,6 +167,24 @@ copy_required "$PLATFORM_EVIDENCE_SUMMARY" "$SUM_DIR/platform_evidence_summary.m
 copy_required "$PLATFORM_EVIDENCE_SUMMARY_JSON" "$SUM_DIR/platform_evidence_summary.json"
 copy_required "$PREVIEW_EVIDENCE_SUMMARY" "$SUM_DIR/preview_evidence_summary.md"
 copy_required "$PREVIEW_EVIDENCE_SUMMARY_JSON" "$SUM_DIR/preview_evidence_summary.json"
+if [[ -n "$RELEASE_REPORT_MD" ]]; then
+  copy_required "$RELEASE_REPORT_MD" "$SUM_DIR/release_report.md"
+fi
+if [[ -n "$RELEASE_REPORT_JSON" ]]; then
+  copy_required "$RELEASE_REPORT_JSON" "$SUM_DIR/release_report.json"
+fi
+if [[ -n "$RELEASE_PUBLISH_MAP_MD" ]]; then
+  copy_required "$RELEASE_PUBLISH_MAP_MD" "$SUM_DIR/release_publish_map.md"
+fi
+if [[ -n "$RELEASE_PUBLISH_MAP_JSON" ]]; then
+  copy_required "$RELEASE_PUBLISH_MAP_JSON" "$SUM_DIR/release_publish_map.json"
+fi
+if [[ -n "$RELEASE_REMOTE_SUMMARY_MD" ]]; then
+  copy_required "$RELEASE_REMOTE_SUMMARY_MD" "$SUM_DIR/release_remote_summary.md"
+fi
+if [[ -n "$RELEASE_REMOTE_SUMMARY_JSON" ]]; then
+  copy_required "$RELEASE_REMOTE_SUMMARY_JSON" "$SUM_DIR/release_remote_summary.json"
+fi
 
 INDEX_MD="$OUT_DIR/release_bundle_index.md"
 INDEX_JSON="$OUT_DIR/release_bundle_index.json"
@@ -148,6 +208,24 @@ BUNDLE_FILES=(
   "summaries/preview_evidence_summary.json"
   "demo.vnpak"
 )
+if [[ -n "$RELEASE_REPORT_MD" ]]; then
+  BUNDLE_FILES+=("summaries/release_report.md")
+fi
+if [[ -n "$RELEASE_REPORT_JSON" ]]; then
+  BUNDLE_FILES+=("summaries/release_report.json")
+fi
+if [[ -n "$RELEASE_PUBLISH_MAP_MD" ]]; then
+  BUNDLE_FILES+=("summaries/release_publish_map.md")
+fi
+if [[ -n "$RELEASE_PUBLISH_MAP_JSON" ]]; then
+  BUNDLE_FILES+=("summaries/release_publish_map.json")
+fi
+if [[ -n "$RELEASE_REMOTE_SUMMARY_MD" ]]; then
+  BUNDLE_FILES+=("summaries/release_remote_summary.md")
+fi
+if [[ -n "$RELEASE_REMOTE_SUMMARY_JSON" ]]; then
+  BUNDLE_FILES+=("summaries/release_remote_summary.json")
+fi
 {
   echo "# Release Bundle"
   echo
@@ -175,6 +253,24 @@ BUNDLE_FILES=(
   echo "7. \`summaries/platform_evidence_summary.json\`"
   echo "8. \`summaries/preview_evidence_summary.md\`"
   echo "9. \`summaries/preview_evidence_summary.json\`"
+  if [[ -n "$RELEASE_REPORT_MD" ]]; then
+    echo "10. \`summaries/release_report.md\`"
+  fi
+  if [[ -n "$RELEASE_REPORT_JSON" ]]; then
+    echo "11. \`summaries/release_report.json\`"
+  fi
+  if [[ -n "$RELEASE_PUBLISH_MAP_MD" ]]; then
+    echo "12. \`summaries/release_publish_map.md\`"
+  fi
+  if [[ -n "$RELEASE_PUBLISH_MAP_JSON" ]]; then
+    echo "13. \`summaries/release_publish_map.json\`"
+  fi
+  if [[ -n "$RELEASE_REMOTE_SUMMARY_MD" ]]; then
+    echo "14. \`summaries/release_remote_summary.md\`"
+  fi
+  if [[ -n "$RELEASE_REMOTE_SUMMARY_JSON" ]]; then
+    echo "15. \`summaries/release_remote_summary.json\`"
+  fi
   echo
   echo "## Assets"
   echo
@@ -212,7 +308,26 @@ BUNDLE_FILES=(
   printf '    "%s",\n' "summaries/platform_evidence_summary.md"
   printf '    "%s",\n' "summaries/platform_evidence_summary.json"
   printf '    "%s",\n' "summaries/preview_evidence_summary.md"
-  printf '    "%s"\n' "summaries/preview_evidence_summary.json"
+  printf '    "%s"' "summaries/preview_evidence_summary.json"
+  if [[ -n "$RELEASE_REPORT_MD" ]]; then
+    printf ',\n    "%s"' "summaries/release_report.md"
+  fi
+  if [[ -n "$RELEASE_REPORT_JSON" ]]; then
+    printf ',\n    "%s"' "summaries/release_report.json"
+  fi
+  if [[ -n "$RELEASE_PUBLISH_MAP_MD" ]]; then
+    printf ',\n    "%s"' "summaries/release_publish_map.md"
+  fi
+  if [[ -n "$RELEASE_PUBLISH_MAP_JSON" ]]; then
+    printf ',\n    "%s"' "summaries/release_publish_map.json"
+  fi
+  if [[ -n "$RELEASE_REMOTE_SUMMARY_MD" ]]; then
+    printf ',\n    "%s"' "summaries/release_remote_summary.md"
+  fi
+  if [[ -n "$RELEASE_REMOTE_SUMMARY_JSON" ]]; then
+    printf ',\n    "%s"' "summaries/release_remote_summary.json"
+  fi
+  printf '\n'
   printf '  ],\n'
   printf '  "assets": [\n'
   printf '    "%s"\n' "demo.vnpak"
