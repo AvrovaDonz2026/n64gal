@@ -31,6 +31,7 @@
 - [ ] `python3 tools/toolchain.py release-platform-evidence --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-preview-evidence`
 - [ ] `python3 tools/toolchain.py release-soak`
+- [ ] `python3 tools/toolchain.py release-preflight --out-dir <dir>`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak --with-bundle`
 - [ ] `python3 tools/toolchain.py release-gate --with-soak --with-export`

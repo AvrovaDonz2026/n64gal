@@ -58,6 +58,7 @@ bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --summary-json-out build_release_soak/demo_soak_summary.json --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-preflight --allow-dirty --skip-cc-suite --out-dir build_release_preflight --soak-frames-per-scene 120 --soak-scenes S0,S1,S2,S3,S10 --remote-release-json tests/fixtures/release_api/github_release_v0.1.0-alpha.json
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
@@ -98,6 +99,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 20. `release-gate --with-export` 可把 contract gate、soak 和 `release-export` 合并成一条正式版前命令
 21. `validate-release-remote-state` 可把 canonical release spec 与 GitHub prerelease JSON 做机检比对，并支持 `--github-repo <owner/repo> --tag <tag>` 或直接从 URL 拉取 release JSON
 22. `release-remote-summary` 可把远端 prerelease 状态收成单一 md/json 摘要，并支持 `--github-repo <owner/repo> --tag <tag>` 或直接从 URL 拉取 release JSON
+23. `release-preflight` 可把 `release-gate --with-soak --with-export` 收成一条本地/CI 都可复用的预检命令
 
 ### release-facing outputs
 
@@ -114,6 +116,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 9. `release-publish-map` -> `build_release_publish/release_publish_map.md` + `build_release_publish/release_publish_map.json`
 10. `release-export` -> `build_release_export/release_export_summary.md` + `build_release_export/release_export_summary.json`
 11. `release-remote-summary` -> `build_release_remote/release_remote_summary.md` + `build_release_remote/release_remote_summary.json`
+12. `release-preflight` -> `build_release_preflight/release_preflight_summary.md` + `build_release_preflight/release_preflight_summary.json`
 
 其中：
 
@@ -126,6 +129,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 7. `release-publish-map` 与 `validate-release-audit` 当前默认都以 `docs/release-publish-v0.1.0-alpha.json` 为基线
 8. `validate-release-remote-state` 当前会校验远端 `tag/html_url/prerelease/assets` 是否与 canonical spec 一致
 9. `release-export` 当前在带 remote 输入时，也会把 `release_remote_summary.{md,json}` 一起收进 final bundle
+10. `release-preflight` 当前会顺序跑 `release-gate --with-soak --with-export`
 
 当前推荐顺序：
 
@@ -145,7 +149,8 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 12. `python3 tools/toolchain.py release-remote-summary --release-json <path> --out-dir <dir>`
 13. `python3 tools/toolchain.py release-remote-summary --release-json-url <url> --out-dir <dir>`
 14. `python3 tools/toolchain.py release-remote-summary --github-repo <owner/repo> --tag <tag> --out-dir <dir>`
-11. `python3 tools/toolchain.py release-gate --with-soak --with-export`
+15. `python3 tools/toolchain.py release-gate --with-soak --with-export`
+16. `python3 tools/toolchain.py release-preflight --out-dir <dir>`
 
 ### validate
 

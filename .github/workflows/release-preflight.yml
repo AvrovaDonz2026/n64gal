@@ -1,0 +1,44 @@
+name: release-preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to validate
+        required: true
+        default: v0.1.0-alpha
+
+permissions:
+  contents: read
+
+jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release preflight
+        run: |
+          python3 tools/toolchain.py release-preflight \
+            --skip-cc-suite \
+            --soak-frames-per-scene 120 \
+            --soak-scenes S0,S1,S2,S3,S10 \
+            --remote-github-repo "${{ github.repository }}" \
+            --remote-tag "${{ inputs.tag }}" \
+            --remote-token-env GITHUB_TOKEN \
+            --out-dir build_release_preflight
+      - name: Publish preflight summary
+        if: always()
+        run: |
+          if [ -f build_release_preflight/release_preflight_summary.md ]; then
+            cat build_release_preflight/release_preflight_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload preflight artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-preflight
+          if-no-files-found: warn
+          path: |
+            build_release_preflight

@@ -216,6 +216,7 @@ fi
 LOG_DIR="$BUILD_DIR/logs"
 TMP_BUILD_DIR="$BUILD_DIR/tmp"
 mkdir -p "$BUILD_DIR" "$LOG_DIR" "$TMP_BUILD_DIR"
+mkdir -p "$(dirname "$SUMMARY_OUT")" "$(dirname "$SUMMARY_JSON_OUT")" "$(dirname "$SOAK_SUMMARY_OUT")" "$(dirname "$SOAK_SUMMARY_JSON_OUT")" "$(dirname "$EXPORT_SUMMARY_OUT")" "$(dirname "$EXPORT_SUMMARY_JSON_OUT")"
 export TMPDIR="$TMP_BUILD_DIR"
 
 run_step() {
@@ -343,6 +344,10 @@ if [[ $WITH_SOAK -ne 0 ]]; then
     soak_cmd+=("${SOAK_ARGS[@]}")
   fi
   run_step "release-soak" "${soak_cmd[@]}"
+fi
+
+if [[ $WITH_BUNDLE -ne 0 || $WITH_EXPORT -ne 0 ]]; then
+  write_summary in_progress
 fi
 
 if [[ $WITH_BUNDLE -ne 0 || $WITH_EXPORT -ne 0 ]]; then

@@ -207,6 +207,21 @@ def main():
         print(f"release-soak runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
+    rc, out, err = run_case(["release-preflight",
+        "--allow-dirty",
+        "--skip-cc-suite",
+        "--out-dir", "tests/integration/toolchain_release_preflight_tmp",
+        "--soak-skip-build",
+        "--soak-skip-pack",
+        "--soak-runner-bin", "build_release_soak/vn_player",
+        "--soak-frames-per-scene", "2",
+        "--soak-scenes", "S0",
+        "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+    ])
+    if rc != 0 or "trace_id=release.preflight.ok" not in out:
+        print(f"release-preflight failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
     rc, out, err = run_case(["release-bundle",
         "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
         "--gate-summary", summary_path,
@@ -383,6 +398,9 @@ def main():
     if os.path.isdir("tests/integration/toolchain_release_bundle_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_bundle_tmp")
+    if os.path.isdir("tests/integration/toolchain_release_preflight_tmp"):
+        import shutil
+        shutil.rmtree("tests/integration/toolchain_release_preflight_tmp")
     if os.path.isdir("tests/integration/toolchain_release_report_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_report_tmp")

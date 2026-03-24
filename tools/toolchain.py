@@ -75,6 +75,7 @@ def print_usage(program: str) -> int:
                 "  release-platform-evidence [--out-dir <path>] [--platform-doc <path>] [--ci-suite-summary <path>] [--summary-out <path>] [--summary-json-out <path>]",
                 "  release-preview-evidence [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>] [--summary-out <path>] [--summary-json-out <path>]",
+                "  release-preflight [--allow-dirty] [--skip-cc-suite] [--out-dir <path>] [--soak-...] [--remote-...]",
                 "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
                 "  release-report [--out-dir <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
                 "  release-publish-map [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>]",
@@ -334,6 +335,10 @@ def command_release_soak(argv) -> int:
     return run_forward(["bash", "scripts/release/run_demo_soak.sh"] + list(argv))
 
 
+def command_release_preflight(argv) -> int:
+    return run_forward(["bash", "scripts/release/run_release_preflight.sh"] + list(argv))
+
+
 def command_release_bundle(argv) -> int:
     return run_forward(["bash", "scripts/release/run_release_bundle.sh"] + list(argv))
 
@@ -534,6 +539,8 @@ def main(argv) -> int:
             return command_release_preview_evidence(args)
         if command == "release-soak":
             return command_release_soak(args)
+        if command == "release-preflight":
+            return command_release_preflight(args)
         if command == "release-bundle":
             return command_release_bundle(args)
         if command == "release-report":

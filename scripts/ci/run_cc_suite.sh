@@ -96,6 +96,7 @@ run_capture "$LOG_DIR/test_templates_layout.log" python3 tests/integration/test_
 run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_release_gate_script.log" python3 tests/integration/test_release_gate_script.py
 run_capture "$LOG_DIR/test_release_soak_script.log" python3 tests/integration/test_release_soak_script.py
+run_capture "$LOG_DIR/test_release_preflight_script.log" python3 tests/integration/test_release_preflight_script.py
 run_capture "$LOG_DIR/test_release_bundle_script.log" python3 tests/integration/test_release_bundle_script.py
 run_capture "$LOG_DIR/test_release_report_script.log" python3 tests/integration/test_release_report_script.py
 run_capture "$LOG_DIR/test_release_publish_map_script.log" python3 tests/integration/test_release_publish_map_script.py

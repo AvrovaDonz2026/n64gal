@@ -1470,6 +1470,7 @@ cmake --build build-wasm
 - [x] 已落 release gate 脚本（`scripts/release/run_release_gate.sh`）
 - [x] 已落 `release-gate` 统一入口（`python3 tools/toolchain.py release-gate`）
 - [x] 已落 demo soak 脚本与统一入口（`scripts/release/run_demo_soak.sh` / `python3 tools/toolchain.py release-soak`）
+- [x] 已落 `release-preflight` 预检入口（`scripts/release/run_release_preflight.sh` / `python3 tools/toolchain.py release-preflight`），用于把 `release-gate --with-soak --with-export` 收成一条本地/CI 预检命令
 - [x] 已落 `release-gate --with-soak` 组合入口，用于把正式版 contract gate 与 soak 留痕合并成一条命令
 - [x] 已落 `release-bundle` 证据打包入口（`scripts/release/run_release_bundle.sh` / `python3 tools/toolchain.py release-bundle`），当前会收口 `gate/soak/ci` 与 `host-sdk/platform/preview` 摘要，并生成 `release_bundle_manifest(.md/.json)` 供外部引用
 - [x] 已落 host SDK 发布级 smoke 摘要入口（`scripts/release/run_host_sdk_smoke.sh` / `python3 tools/toolchain.py release-host-sdk-smoke`）

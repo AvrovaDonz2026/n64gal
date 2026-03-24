@@ -21,7 +21,7 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - `vn_runtime_run(config, result)` 结构化运行入口。
    - Session API：`create/step/is_done/set_choice/inject_input/destroy`。
    - `vn_previewd` 与 `preview protocol v1` 已落地，可供 editor/CI 复用。
-   - `Creator Toolchain` 已形成可执行门禁层：`validate-all`、`release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle`、`release-report`、`release-publish-map` 与 `release-export` 已落地；当前 `1.0.0` 的主要 release contract / API / platform / perf / template / migration 文档面都已有对应 validator 和统一入口，release-facing 证据也开始统一收口到 markdown/json 双摘要与可外部引用的发布映射。
+   - `Creator Toolchain` 已形成可执行门禁层：`validate-all`、`release-gate`、`release-soak`、`release-preflight`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle`、`release-report`、`release-publish-map`、`release-export`、`validate-release-remote-state` 与 `release-remote-summary` 已落地；当前 `1.0.0` 的主要 release contract / API / platform / perf / template / migration 文档面都已有对应 validator 和统一入口，release-facing 证据也开始统一收口到 markdown/json 双摘要、canonical release spec 与远端 prerelease 对齐摘要。
 2. 进行中:
    - Golden 基线收口：`test_runtime_golden` 已固化 `S0/S1/S2/S3/S10 @ 600x800` 标量 CRC；支持的 SIMD 后端按 `mismatch_percent < 1%` 且 `max_channel_diff <= 8` 判定，并在出现差异或 CRC 异常时导出 `expected/actual/diff` PPM 与 `summary.txt`。
    - `ISSUE-008` 已继续落地：`qemu-rvv` revision compare soft gate 已接到 perf workflow；Runtime `VN_RUNTIME_PERF_FRAME_REUSE` 静态帧短路与 `VNRenderOp[]` LRU 命令缓存均已接入，前者在稳定状态下直接复用 framebuffer，后者继续按当前帧回写 `SPRITE/FADE` 动态字段；`Dirty-Tile` 已继续推进到第二阶段：`VN_RUNTIME_PERF_DIRTY_TILE`、`VNRunResult` 统计字段、CLI 开关与内部 dirty planner 已接入 runtime/preview；共享 `renderer_submit_dirty(...)` / `submit_ops_dirty(...)` 契约也已落地，`scalar`、`avx2`、`neon`、`rvv` 都已实现 clip 提交；runtime 现在还会在“已知必整帧”场景同时跳过 planner build 与 full-redraw commit 的 bounds 计算，并在重新回到可增量帧时惰性重建 `prev_bounds`。其中 `rvv` 已按 `qemu-first` 路线补齐 smoke 验证。动态分辨率最小 runtime slice 也已落地：`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`、`--perf-dynamic-resolution=<on|off>`、`VNRunResult.render_width/render_height/dynamic_resolution_*` 与 preview `final_state` 已可观测，当前策略保持默认 `off`，先通过 on/off compare 累积证据再决定是否默认开启。
@@ -294,6 +294,7 @@ bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --summary-json-out build_release_soak/demo_soak_summary.json --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
+python3 tools/toolchain.py release-preflight --allow-dirty --skip-cc-suite --out-dir build_release_preflight --soak-frames-per-scene 120 --soak-scenes S0,S1,S2,S3,S10 --remote-release-json tests/fixtures/release_api/github_release_v0.1.0-alpha.json
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
@@ -323,6 +324,7 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 9. `release-publish-map` -> `build_release_publish/release_publish_map.md` + `build_release_publish/release_publish_map.json`
 10. `release-export` -> `build_release_export/release_export_summary.md` + `build_release_export/release_export_summary.json`
 11. `release-remote-summary` -> `build_release_remote/release_remote_summary.md` + `build_release_remote/release_remote_summary.json`
+12. `release-preflight` -> `build_release_preflight/release_preflight_summary.md` + `build_release_preflight/release_preflight_summary.json`
 
 当前统一入口已经覆盖：
 
@@ -387,7 +389,8 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 14. 若要把本地 canonical spec 和远端 GitHub prerelease 做机检比对，继续跑 `python3 tools/toolchain.py validate-release-remote-state --release-json <path>`；若已能访问 GitHub API，也可直接用 `--github-repo <owner/repo> --tag <tag>` 或 `--release-json-url <url>`
 15. 若要生成远端 prerelease 摘要，继续跑 `python3 tools/toolchain.py release-remote-summary --release-json <path> --out-dir <dir>`；若已能访问 GitHub API，可直接用 `--github-repo <owner/repo> --tag <tag>` 或 `--release-json-url <url>`
 16. `release-export` 当前在带 remote 输入时，会把 `release_remote_summary.{md,json}` 一起收进 final bundle
-17. 若想在 gate 之后直接产出 `bundle + report + publish-map`，继续跑 `python3 tools/toolchain.py release-gate --with-soak --with-export ...`
+17. 若想用一条命令做正式版前预检，继续跑 `python3 tools/toolchain.py release-preflight ...`
+18. 若想在 gate 之后直接产出 `bundle + report + publish-map`，继续跑 `python3 tools/toolchain.py release-gate --with-soak --with-export ...`
 18. `release-report` 当前会显式引用 `release_bundle_manifest.json`，便于后续把证据链直接挂到 release asset
 19. 这样会把 contract gate、`cc` suite、platform/host SDK/preview 证据和 soak 留痕合并成一份可引用摘要
 
