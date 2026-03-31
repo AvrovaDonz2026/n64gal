@@ -90,3 +90,4 @@ const char* vn_error_name(int error_code);
 补充说明：
 
 1. 即使 `preview` 的实现拆到多个源码文件，`trace_id/error_code/error_name` 语义也不应变化
+2. 当前 `preview` 继续拆成 `preview_parse.c / preview_cli.c / preview_report.c` 只影响可维护性，不影响公开错误语义

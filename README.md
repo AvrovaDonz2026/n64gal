@@ -190,6 +190,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 ```bash
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/tools/previewd_main.c \
+  src/tools/preview_parse.c \
   src/tools/preview_cli.c \
   src/tools/preview_report.c \
   src/core/error.c \

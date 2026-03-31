@@ -43,6 +43,7 @@ add_library(vn_core
 target_include_directories(vn_core PUBLIC include)
 
 add_library(vn_preview
+    src/tools/preview_parse.c
     src/tools/preview_cli.c
     src/tools/preview_report.c
 )

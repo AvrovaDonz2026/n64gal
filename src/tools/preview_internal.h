@@ -87,6 +87,10 @@ typedef struct {
 } VNPreviewReport;
 
 void preview_report_init(VNPreviewReport* report);
+int preview_parse_cli(VNPreviewRequest* req,
+                      VNPreviewReport* report,
+                      int argc,
+                      char** argv);
 int preview_write_response(const VNPreviewRequest* req,
                            const VNPreviewReport* report);
 void preview_error(VNPreviewReport* report,

@@ -111,5 +111,5 @@
 
 11. Surface: `preview protocol v1` implementation layout
    - Type: `compat-note`
-   - Summary: `preview_cli.c` 中的 report/JSON 响应逻辑已拆到 `preview_report.c`
+   - Summary: `preview_cli.c` 已继续按职责拆到 `preview_parse.c` + `preview_cli.c` + `preview_report.c`
    - Required action: 这是实现层拆分，不构成新的协议字段变化；外部工具继续只依赖 `preview protocol v1` 的文档化语义

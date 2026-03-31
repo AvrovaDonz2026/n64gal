@@ -33,10 +33,13 @@
 
 当前实现落点：
 
-1. `src/tools/preview_cli.c`
-   - request/CLI 解析
+1. `src/tools/preview_parse.c`
+   - request file / CLI 解析
+   - command 解析与 pack 路径收口
+2. `src/tools/preview_cli.c`
    - command 执行
-2. `src/tools/preview_report.c`
+   - session 驱动
+3. `src/tools/preview_report.c`
    - report/event 聚合
    - JSON 响应输出
 

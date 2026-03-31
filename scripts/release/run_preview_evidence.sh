@@ -120,6 +120,7 @@ COMMON_SRC=(
   src/backend/scalar/scalar_backend.c
 )
 PREVIEW_SRC=(
+  src/tools/preview_parse.c
   src/tools/preview_cli.c
   src/tools/preview_report.c
 )

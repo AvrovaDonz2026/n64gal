@@ -398,6 +398,7 @@ def command_probe_preview(argv) -> int:
         "vn_previewd",
         [
             "src/tools/previewd_main.c",
+            "src/tools/preview_parse.c",
             "src/tools/preview_cli.c",
             "src/tools/preview_report.c",
             "src/core/error.c",

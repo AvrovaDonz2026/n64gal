@@ -79,7 +79,7 @@ if has_changed "include/vn_runtime.h" || has_changed "src/core/runtime_cli.c" ||
   require_docs "runtime" "docs/api/runtime.md"
 fi
 
-if has_changed "include/vn_preview.h" || has_changed "src/tools/preview_cli.c"; then
+if has_changed "include/vn_preview.h" || has_changed "src/tools/preview_parse.c" || has_changed "src/tools/preview_cli.c" || has_changed "src/tools/preview_report.c"; then
   require_docs "preview" "docs/preview-protocol.md" "docs/errors.md"
 fi
 
