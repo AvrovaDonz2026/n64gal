@@ -74,6 +74,7 @@ def main(argv):
         require_contains(runtime_doc, "### `int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_session)`", "runtime_doc.session_create")
         require_contains(runtime_doc, "### `int vn_runtime_session_inject_input(VNRuntimeSession* session, const VNInputEvent* event)`", "runtime_doc.inject_input")
         require_contains(runtime_doc, "`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`", "runtime_doc.dynamic_resolution_flag")
+        require_contains(runtime_doc, "`--load-save=<path>`", "runtime_doc.load_save_cli")
         require_contains(runtime_doc, "`--perf-dynamic-resolution=<on|off>`", "runtime_doc.dynamic_resolution_cli")
         require_contains(runtime_doc, "trace_id=runtime.run.ok", "runtime_doc.run_ok")
         require_contains(runtime_doc, "trace_id=runtime.run.failed", "runtime_doc.run_failed")
@@ -102,6 +103,7 @@ def main(argv):
         require_contains(runtime_cli, "int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot,", "runtime_cli.snapshot_create_impl")
         require_contains(runtime_cli, "int vn_runtime_session_save_to_file(const VNRuntimeSession* session,", "runtime_cli.snapshot_save_file_impl")
         require_contains(runtime_cli, "int vn_runtime_session_load_from_file(const char* path,", "runtime_cli.snapshot_load_file_impl")
+        require_contains(runtime_cli, "--load-save", "runtime_cli.load_save_cli")
         require_contains(runtime_cli, "trace_id=runtime.run.ok", "runtime_cli.run_ok")
         require_contains(runtime_cli, "--perf-dynamic-resolution", "runtime_cli.dynamic_resolution_cli")
 
@@ -114,12 +116,14 @@ def main(argv):
         require_contains(runtime_cli_errors_test, "trace_id=runtime.cli.arg.missing", "runtime_cli_errors_test.arg_missing")
         require_contains(runtime_cli_errors_test, "trace_id=runtime.cli.arg.invalid", "runtime_cli_errors_test.arg_invalid")
         require_contains(runtime_cli_errors_test, "trace_id=runtime.cli.scene.invalid", "runtime_cli_errors_test.scene_invalid")
+        require_contains(runtime_cli_errors_test, "--load-save", "runtime_cli_errors_test.load_save")
         require_contains(runtime_session_test, "vn_runtime_session_capture_snapshot(session, &snapshot);", "runtime_session_test.snapshot_capture")
         require_contains(runtime_session_test, "vn_runtime_session_create_from_snapshot(&snapshot, &restored_session);", "runtime_session_test.snapshot_restore")
         require_contains(runtime_session_test, "vn_runtime_session_save_to_file(session, save_path, 7u, 123u);", "runtime_session_test.snapshot_save_file")
         require_contains(runtime_session_test, "vn_runtime_session_load_from_file(save_path, &file_session);", "runtime_session_test.snapshot_load_file")
 
         require_contains(readme, "Session API：`create/step/is_done/set_choice/inject_input/destroy`。", "readme.session_api")
+        require_contains(readme, "`--load-save=<save.vnsave>`", "readme.load_save_cli")
         require_contains(readme, "`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`", "readme.dynamic_resolution")
         require_contains(toolchain, "python3 tools/toolchain.py validate-runtime-contracts", "toolchain.validate_runtime")
     except ValueError as exc:

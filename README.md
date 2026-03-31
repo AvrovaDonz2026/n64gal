@@ -223,6 +223,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 8. `--trace`
 9. `--keyboard`（Linux TTY / Windows console 调试模式，按 `--dt-ms` 节奏推进）
 10. `--quiet`
+11. `--load-save=<save.vnsave>`（从 runtime session save/load draft 文件恢复继续运行；当前不与 `--scene/--pack/--backend/--frames/...` 混用）
 
 ## 迁移工具（当前最小 save 迁移）
 

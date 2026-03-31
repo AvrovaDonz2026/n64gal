@@ -88,3 +88,8 @@
    - Type: `additive`
    - Summary: 新增 `vn_runtime_session_save_to_file(...)` 与 `vn_runtime_session_load_from_file(...)`，把最小文件级会话恢复接到 `vnsave v1` 外壳上
    - Required action: 若宿主需要最小文件级 quick-save / quick-load，应优先复用这组 API，而不是自行定义另一套临时存档封装
+
+7. Surface: `vn_runtime_run_cli`
+   - Type: `additive`
+   - Summary: 新增 `--load-save=<path>`，允许直接从 runtime session save/load draft 文件恢复继续运行
+   - Required action: CLI 工具和自动化脚本若需要恢复运行，应优先使用 `--load-save`；同时不要把它与 `--scene/--pack/--backend/--frames/...` 之类运行配置混用
