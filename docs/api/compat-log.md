@@ -108,3 +108,8 @@
    - Type: `compat-note`
    - Summary: `runtime_cli.c` 中的 persistence/build-info 逻辑已拆到 `runtime_persist.c`
    - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`
+
+11. Surface: `preview protocol v1` implementation layout
+   - Type: `compat-note`
+   - Summary: `preview_cli.c` 中的 report/JSON 响应逻辑已拆到 `preview_report.c`
+   - Required action: 这是实现层拆分，不构成新的协议字段变化；外部工具继续只依赖 `preview protocol v1` 的文档化语义

@@ -31,6 +31,17 @@
 2. 仓库内测试可直接调用 `vn_preview_run_cli`
 3. 宿主程序若已直接使用 Session API，可把 `preview protocol` 视为更高层的工具协议，而不是必须依赖的 ABI
 
+当前实现落点：
+
+1. `src/tools/preview_cli.c`
+   - request/CLI 解析
+   - command 执行
+2. `src/tools/preview_report.c`
+   - report/event 聚合
+   - JSON 响应输出
+
+这次拆分只影响实现可维护性，不改变 `preview protocol v1` 的字段语义。
+
 ## Transport Model
 
 `v1` 采用单次请求/单次响应模型：

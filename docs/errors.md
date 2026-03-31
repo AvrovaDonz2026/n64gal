@@ -86,3 +86,7 @@ const char* vn_error_name(int error_code);
 
 1. 版本协商新增为公开 surface 后，不需要额外再造一套错误码
 2. 宿主可继续按 `error_code + error_name + trace_id` 统一处理
+
+补充说明：
+
+1. 即使 `preview` 的实现拆到多个源码文件，`trace_id/error_code/error_name` 语义也不应变化
