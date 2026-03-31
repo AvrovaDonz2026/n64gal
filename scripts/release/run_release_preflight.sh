@@ -11,10 +11,11 @@ SUMMARY_OUT=""
 SUMMARY_JSON_OUT=""
 GATE_OUT_DIR=""
 EXTRA_GATE_ARGS=()
+CI_SUITE_SUMMARY=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_preflight.sh [--allow-dirty] [--skip-cc-suite] [--out-dir <dir>] [--summary-out <path>] [--summary-json-out <path>] [--soak-...] [--remote-...]
+usage: scripts/release/run_release_preflight.sh [--allow-dirty] [--skip-cc-suite] [--out-dir <dir>] [--summary-out <path>] [--summary-json-out <path>] [--ci-suite-summary <path>] [--soak-...] [--remote-...]
 EOF
 }
 
@@ -44,6 +45,12 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       SUMMARY_JSON_OUT="$1"
+      shift
+      ;;
+    --ci-suite-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      CI_SUITE_SUMMARY="$1"
       shift
       ;;
     --soak-scenes|--soak-frames-per-scene|--soak-backend|--soak-pack|--soak-resolution|--soak-dt-ms|--soak-scene-duration-sec|--soak-runner-bin|--remote-release-json|--remote-release-json-url|--remote-github-repo|--remote-tag|--remote-api-root|--remote-token-env|--remote-release-spec)
@@ -85,6 +92,10 @@ gate_cmd=(bash scripts/release/run_release_gate.sh
   --summary-out "$GATE_OUT_DIR/release_gate_summary.md"
   --summary-json-out "$GATE_OUT_DIR/release_gate_summary.json"
   --export-out-dir "$OUT_DIR/export")
+
+if [[ -n "$CI_SUITE_SUMMARY" ]]; then
+  gate_cmd+=(--ci-suite-summary "$CI_SUITE_SUMMARY")
+fi
 
 if [[ $ALLOW_DIRTY -ne 0 ]]; then
   gate_cmd+=(--allow-dirty)

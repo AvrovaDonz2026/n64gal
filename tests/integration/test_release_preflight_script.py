@@ -12,6 +12,8 @@ SCRIPT = ["bash", "scripts/release/run_release_preflight.sh"]
 def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_preflight_") as temp_dir:
         out_dir = Path(temp_dir) / "preflight"
+        ci_summary = Path(temp_dir) / "ci_suite_summary.md"
+        ci_summary.write_text("# CI Suite Summary\n\n- Status: `success`\n", encoding="utf-8")
         proc = subprocess.run(
             SCRIPT
             + [
@@ -19,6 +21,8 @@ def main():
                 "--skip-cc-suite",
                 "--out-dir",
                 str(out_dir),
+                "--ci-suite-summary",
+                str(ci_summary),
                 "--soak-frames-per-scene",
                 "2",
                 "--soak-scenes",
