@@ -9,6 +9,7 @@ RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json}"
 RELEASE_JSON=""
 RELEASE_JSON_URL=""
 GITHUB_REPO=""
+INPUT_MODE=""
 TAG_NAME=""
 API_ROOT="${API_ROOT:-https://api.github.com}"
 TOKEN_ENV="${TOKEN_ENV:-GITHUB_TOKEN}"
@@ -128,6 +129,13 @@ if [[ $mode_count -ne 1 ]]; then
   usage
   exit 2
 fi
+if [[ -n "$RELEASE_JSON" ]]; then
+  INPUT_MODE="release_json"
+elif [[ -n "$RELEASE_JSON_URL" ]]; then
+  INPUT_MODE="release_json_url"
+else
+  INPUT_MODE="github_repo"
+fi
 
 mkdir -p "$OUT_DIR"
 if [[ -z "$SUMMARY_OUT" ]]; then
@@ -141,16 +149,16 @@ source_spec_defaults
 if [[ -z "$TAG_NAME" ]]; then
   TAG_NAME="$SPEC_TAG"
 fi
-if [[ -z "$GITHUB_REPO" ]]; then
+if [[ "$INPUT_MODE" == "github_repo" && -z "$GITHUB_REPO" ]]; then
   GITHUB_REPO="$SPEC_REPOSITORY"
 fi
 
-if [[ -n "$RELEASE_JSON_URL" ]]; then
+if [[ "$INPUT_MODE" == "release_json_url" ]]; then
   RELEASE_JSON="$OUT_DIR/release_remote_state.json"
   curl -fsSL "$RELEASE_JSON_URL" -o "$RELEASE_JSON"
 fi
 
-if [[ -n "$GITHUB_REPO" ]]; then
+if [[ "$INPUT_MODE" == "github_repo" ]]; then
   RELEASE_JSON="$OUT_DIR/release_remote_state.json"
   RELEASE_JSON_URL="$API_ROOT/repos/$GITHUB_REPO/releases/tags/$TAG_NAME"
   curl_args=(-fsSL -H "Accept: application/vnd.github+json")

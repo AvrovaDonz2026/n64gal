@@ -58,6 +58,7 @@ def main():
                 "--preview-evidence-summary", str(preview_summary),
                 "--preview-evidence-summary-json", str(preview_summary_json),
                 "--remote-release-json", str(remote_release_json),
+                "--remote-api-root", "https://invalid.invalid",
             ],
             cwd=ROOT,
             capture_output=True,
