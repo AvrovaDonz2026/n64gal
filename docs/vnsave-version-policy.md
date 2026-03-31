@@ -42,6 +42,7 @@
 1. 首次对外公开 `vnsave v1`
 2. `v1.0.0` release note 必须明确写出哪些 `vnsave` 版本被支持
 3. 对未知、过新、损坏或 `pre-1.0` 存档，必须结构化拒绝，不能静默 best-effort 读取
+4. 若 `v1.0.0` 同时公开 runtime-specific session persistence，则必须明确写出“这层只承诺当前 runtime session save/load，不自动等同于通用宿主 save ABI”
 
 ## 5. `post-1.0` 策略
 
@@ -60,6 +61,7 @@
 1. `vnsave v1` 文件头与探测规则的最终实现
 2. `v0 -> v1` 迁移命令
 3. golden 样例与结构化错误输出
+4. runtime-specific payload 与未来更通用 save ABI 的边界说明
 
 ## 7. 当前建议
 

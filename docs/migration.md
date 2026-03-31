@@ -31,6 +31,9 @@
    - 当前已提供 probe + 最小 `v0 -> v1` 离线迁移接口
    - 当前还公开了 `VNSAVE_API_STABILITY = "pre-1.0 unstable"`
    - 仍不等于完整 save/load 承诺
+5. `vn_runtime.h`
+   - 当前已提供 runtime-specific session snapshot / file save-load draft API
+   - 但这层只解决“恢复当前 runtime session”，不等于通用宿主持久化 ABI
 
 ## 3. `vnpak` 迁移边界
 
@@ -57,6 +60,7 @@
 3. 首个正式 `vnsave v1` 承诺不早于 `v1.0.0`
 4. 宿主不应假设 `v0.1.0-alpha` 已承诺历史存档兼容
 5. 当前 `vn_save.h` 只解决“识别/拒绝/最小迁移”，不等于完整 save/load
+6. 当前 runtime-specific quick-save / quick-load 继续通过 `vn_runtime.h` draft API 暴露，不应被误读成 `vn_save.h` 已冻结为完整 save/load 面
 
 因此，对外 release 应明确写：
 
@@ -114,5 +118,6 @@
 
 1. 首次引入正式 `vnsave v1`
 2. 至少把版本编号、探测规则与错误行为写清楚
-3. 详细策略见 [`docs/vnsave-version-policy.md`](./vnsave-version-policy.md)
-4. 最小 probe API 见 [`docs/api/save.md`](./api/save.md)
+3. 若继续保留 runtime-specific session persistence，必须在 release note 里明确写“这是 runtime-scoped save/load，不等于通用宿主 save ABI”
+4. 详细策略见 [`docs/vnsave-version-policy.md`](./vnsave-version-policy.md)
+5. 最小 probe API 见 [`docs/api/save.md`](./api/save.md)

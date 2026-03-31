@@ -36,7 +36,7 @@
 | `error codes` | 公开 `VN_*` + `vn_error_name(int)` | 稳定基础错误语义 | 新错误码可追加，已公开语义不应偷偷改写 |
 | `script bytecode` | `v1` | 继续声明式兼容 | 只保证读取已声明兼容版本 |
 | `vnpak` | 默认写 `v2`，读 `v1/v2` | 明确固定读写边界 | 当前默认输出 `v2` |
-| `vnsave` | `pre-1.0 unstable` | 首次引入 `v1` | 当前只有 probe/reject 规则，没有完整 save/load 承诺 |
+| `vnsave` | `pre-1.0 unstable` | 首次引入 `v1` | 当前已有 probe/migrate 与 runtime-specific session persistence draft；仍没有冻结的通用 save/load 承诺 |
 | `preview protocol` | `v1` | 稳定 `v1` 基面 | 后续仅追加字段 |
 | `tool manifest` | `planned v1` | 固定最小 manifest 面 | 当前以 `extension-manifest.md` 约束字段 |
 

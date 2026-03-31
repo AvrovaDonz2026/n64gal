@@ -70,13 +70,17 @@ def main(argv):
         require_contains(save_doc, "### `const char* vnsave_status_name(vn_u32 status)`", "save_doc.status_name_api")
         require_contains(save_doc, "legacy `v0`", "save_doc.legacy_v0")
         require_contains(save_doc, "`v1`（当前正式目标格式）", "save_doc.v1_format")
+        require_contains(save_doc, "runtime-specific session save/load draft wrapper", "save_doc.runtime_wrapper")
+        require_contains(save_doc, "payload 在 `vn_save.h` 层仍按 opaque bytes 处理", "save_doc.payload_opaque")
 
         require_contains(policy_doc, "`v0.x` 阶段没有对外稳定 `vnsave` 兼容承诺", "policy.pre_1_0")
         require_contains(policy_doc, "`vnsave v1` 的公开承诺不早于 `v1.0.0`", "policy.v1_gate")
         require_contains(policy_doc, "`v1.0.0`：首次引入正式 `vnsave v1`", "policy.v1_summary")
+        require_contains(policy_doc, "runtime-specific session persistence", "policy.runtime_specific")
 
         require_contains(migration_doc, "最小 probe API 见 [`docs/api/save.md`](./api/save.md)", "migration.save_doc")
         require_contains(migration_doc, "`v0 -> v1`", "migration.v0_to_v1")
+        require_contains(migration_doc, "runtime-specific quick-save / quick-load", "migration.runtime_specific")
 
         require_contains(readme, "python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_cmd")
         require_contains(readme, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_build_cmd")

@@ -22,11 +22,12 @@
    - header/version 探测
    - 结构化拒绝
    - 最小 `v0 -> v1` 离线迁移函数
+   - 基于 `vn_runtime.h` 的 runtime-specific session save/load draft wrapper
 2. 当前仍未承诺：
    - 完整 save/load 运行时 ABI
    - 宿主侧长期存档兼容
    - 多版本自动迁移链
-3. `v1.0.0` 前，宿主应把它视为“探测/迁移工具接口”，而不是完整存档系统。
+3. `v1.0.0` 前，宿主应把 `vn_save.h` 视为“探测/迁移工具接口”；runtime-specific session persistence 仍以 `vn_runtime.h` draft API 解释，而不是完整存档系统。
 
 ## 4. 常量与状态
 
@@ -152,6 +153,13 @@
 3. `reserved == 0`
 4. `payload_crc32` 与实际 payload 一致
 
+payload 说明：
+
+1. 当前 `vnsave v1` payload 在 `vn_save.h` 层仍按 opaque bytes 处理
+2. 当前仓库里 `vn_runtime_session_save_to_file(...)` 会把 runtime session snapshot draft 写进这个 payload
+3. 这不等于“所有 `vnsave v1` 文件都必须是 runtime session dump”
+4. 普通 `vnsave` 读者若不理解 payload 语义，仍应只按 header/version/CRC 解释
+
 ## 8. CLI 入口
 
 当前最小迁移工具：
@@ -172,6 +180,7 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 1. 接受 repo 内定义的 legacy `v0`
 2. 产出 `v1`
 3. 对其它输入给出结构化拒绝
+4. runtime-specific 文件级 quick-save / quick-load 继续通过 `vn_runtime_session_save_to_file(...)` / `vn_runtime_session_load_from_file(...)` 暴露，而不是通过 `vn_save.h` 直接承诺完整 save/load ABI
 
 ## 9. 当前限制
 
