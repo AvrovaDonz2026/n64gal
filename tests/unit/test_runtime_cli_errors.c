@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "vn_runtime.h"
+#include "vn_save.h"
 
 static int file_contains(const char* path, const char* needle) {
     FILE* fp;
@@ -25,21 +26,28 @@ static int redirect_stderr_to(const char* path) {
 int main(void) {
     const char* err_path;
     const char* save_path;
+    const char* cli_save_path;
     VNRunConfig cfg;
     VNRuntimeSession* session;
+    VNSaveProbe probe;
     char* argv_missing[2];
     char* argv_invalid[2];
     char* argv_scene[2];
     char* argv_load_missing[2];
     char* argv_load_conflict[3];
     char* argv_load_ok[3];
+    char* argv_save_missing[2];
+    char* argv_save_ok[5];
     int rc;
     vn_u32 i;
 
     err_path = "test_runtime_cli_errors.stderr";
     save_path = "test_runtime_cli_loadsave.vnsave";
+    cli_save_path = "test_runtime_cli_saveout.vnsave";
     (void)remove(err_path);
     (void)remove(save_path);
+    (void)remove(cli_save_path);
+    memset((void*)&probe, 0, sizeof(probe));
 
     session = (VNRuntimeSession*)0;
     vn_run_config_init(&cfg);
@@ -140,6 +148,23 @@ int main(void) {
         return 1;
     }
 
+    argv_save_missing[0] = (char*)"vn_player";
+    argv_save_missing[1] = (char*)"--save-out";
+    if (redirect_stderr_to(err_path) != 0) {
+        return 1;
+    }
+    rc = vn_runtime_run_cli(2, argv_save_missing);
+    (void)fflush(stderr);
+    if (rc != 2) {
+        (void)printf("missing save-out case rc=%d\n", rc);
+        return 1;
+    }
+    if (!file_contains(err_path, "trace_id=runtime.cli.arg.missing") ||
+        !file_contains(err_path, "arg=--save-out")) {
+        (void)printf("missing structured save-out missing output\n");
+        return 1;
+    }
+
     argv_load_conflict[0] = (char*)"vn_player";
     argv_load_conflict[1] = (char*)"--load-save=test_runtime_cli_loadsave.vnsave";
     argv_load_conflict[2] = (char*)"--scene=S0";
@@ -169,8 +194,29 @@ int main(void) {
         return 1;
     }
 
+    argv_save_ok[0] = (char*)"vn_player";
+    argv_save_ok[1] = (char*)"--scene=S2";
+    argv_save_ok[2] = (char*)"--frames=3";
+    argv_save_ok[3] = (char*)"--save-out=test_runtime_cli_saveout.vnsave";
+    argv_save_ok[4] = (char*)"--quiet";
+    rc = vn_runtime_run_cli(5, argv_save_ok);
+    if (rc != 0) {
+        (void)printf("save-out success case rc=%d\n", rc);
+        (void)remove(save_path);
+        (void)remove(cli_save_path);
+        return 1;
+    }
+    rc = vnsave_probe_file(cli_save_path, &probe);
+    if (rc != 0 || probe.version != VNSAVE_VERSION_1) {
+        (void)printf("save-out probe failed rc=%d version=%u\n", rc, (unsigned int)probe.version);
+        (void)remove(save_path);
+        (void)remove(cli_save_path);
+        return 1;
+    }
+
     (void)remove(err_path);
     (void)remove(save_path);
+    (void)remove(cli_save_path);
     (void)printf("test_runtime_cli_errors ok\n");
     return 0;
 }

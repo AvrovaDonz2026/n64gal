@@ -335,19 +335,23 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
    - 直接从 `vn_runtime_session_save_to_file(...)` 生成的文件恢复 session
    - 当前只允许与 `--trace` / `--quiet` 这类输出控制参数组合
    - 若与 `--scene` / `--pack` / `--backend` / `--frames` / `--dt-ms` / `--choice-*` / perf 开关等运行配置混用，返回结构化参数错误
-2. `--hold-end`
+2. `--save-out=<path>`
+   - 在本次 CLI run 结束后，把当前 session 状态写成 runtime session save/load draft 文件
+   - 可用于 normal run，也可与 `--load-save` 组合，形成“读一个 save，继续推进，再写回一个 save”
+   - 当前默认写 `slot_id=0` 与 `timestamp_s=0`
+3. `--hold-end`
    - 对应 `VNRunConfig.hold_on_end=1`
    - 用于场景脚本提前结束时仍持续输出帧采样数据
-3. `--perf-frame-reuse=<on|off>`
+4. `--perf-frame-reuse=<on|off>`
    - 切换 `VN_RUNTIME_PERF_FRAME_REUSE`
    - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
-4. `--perf-op-cache=<on|off>`
+5. `--perf-op-cache=<on|off>`
    - 切换 `VN_RUNTIME_PERF_OP_CACHE`
    - 默认 `on`（来自 `VN_RUNTIME_PERF_DEFAULT_FLAGS`）
-5. `--perf-dirty-tile=<on|off>`
+6. `--perf-dirty-tile=<on|off>`
    - 切换 `VN_RUNTIME_PERF_DIRTY_TILE`
    - 默认 `off`（开启后会尝试 dirty submit；当前 `scalar` / `avx2` / `neon` / `rvv` 都已实现 partial submit）
-6. `--perf-dynamic-resolution=<on|off>`
+7. `--perf-dynamic-resolution=<on|off>`
    - 切换 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`
    - 默认 `off`（开启后允许 runtime 在 `R0/R1/R2` 之间自动升降档；建议配合 `--hold-end` 做长窗口 perf 采样）
 

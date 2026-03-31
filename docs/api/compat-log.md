@@ -93,3 +93,8 @@
    - Type: `additive`
    - Summary: 新增 `--load-save=<path>`，允许直接从 runtime session save/load draft 文件恢复继续运行
    - Required action: CLI 工具和自动化脚本若需要恢复运行，应优先使用 `--load-save`；同时不要把它与 `--scene/--pack/--backend/--frames/...` 之类运行配置混用
+
+8. Surface: `vn_runtime_run_cli`
+   - Type: `additive`
+   - Summary: 新增 `--save-out=<path>`，允许在一次 CLI run 结束后直接写出 runtime session save/load draft 文件
+   - Required action: 若 CLI 需要输出可恢复会话，应优先使用 `--save-out`；若与 `--load-save` 组合，可形成“读一个 save，继续推进，再写回一个 save”的最小工作流

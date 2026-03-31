@@ -520,7 +520,7 @@ int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
     if (session == (const VNRuntimeSession*)0 || out_snapshot == (VNRuntimeSessionSnapshot*)0) {
         return VN_E_INVALID_ARG;
     }
-    if (session->done != VN_FALSE ||
+    if (session->exit_code != 0 ||
         session->injected_has_choice != VN_FALSE ||
         session->injected_trace_toggle_count != 0u ||
         session->injected_quit != VN_FALSE) {
@@ -3000,6 +3000,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
     VNRuntimeSession* session;
     ChoiceFeed choice_feed;
     const char* load_save_path;
+    const char* save_out_path;
     const char* load_save_conflict_arg;
     vn_u32 scene_id;
     vn_u32 rc_u32;
@@ -3011,6 +3012,7 @@ int vn_runtime_run_cli(int argc, char** argv) {
     choice_feed.count = 0u;
     choice_feed.cursor = 0u;
     load_save_path = (const char*)0;
+    save_out_path = (const char*)0;
     load_save_conflict_arg = (const char*)0;
     session = (VNRuntimeSession*)0;
 
@@ -3026,6 +3028,14 @@ int vn_runtime_run_cli(int argc, char** argv) {
             load_save_path = argv[i];
         } else if (strncmp(arg, "--load-save=", 12) == 0) {
             load_save_path = arg + 12;
+        } else if (strcmp(arg, "--save-out") == 0) {
+            if ((i + 1) >= argc) {
+                return runtime_cli_report_missing_value("--save-out");
+            }
+            i += 1;
+            save_out_path = argv[i];
+        } else if (strncmp(arg, "--save-out=", 11) == 0) {
+            save_out_path = arg + 11;
         } else if (strcmp(arg, "--backend") == 0) {
             if ((i + 1) >= argc) {
                 return runtime_cli_report_missing_value("--backend");
@@ -3321,6 +3331,9 @@ int vn_runtime_run_cli(int argc, char** argv) {
         if (rc == VN_OK && session->exit_code != 0) {
             rc = session->exit_code;
         }
+        if (rc == VN_OK && save_out_path != (const char*)0) {
+            rc = vn_runtime_session_save_to_file(session, save_out_path, 0u, 0u);
+        }
         (void)vn_runtime_session_destroy(session);
         if (rc != 0) {
             return runtime_cli_report_error("runtime.run.failed",
@@ -3350,7 +3363,34 @@ int vn_runtime_run_cli(int argc, char** argv) {
                                         2);
     }
 
-    rc = vn_runtime_run(&run_cfg, (VNRunResult*)0);
+    if (save_out_path == (const char*)0) {
+        rc = vn_runtime_run(&run_cfg, (VNRunResult*)0);
+    } else {
+        rc = vn_runtime_session_create(&run_cfg, &session);
+        if (rc == VN_OK) {
+            sleep_between_frames = VN_FALSE;
+            if (run_cfg.keyboard != 0u && run_cfg.dt_ms > 0u) {
+                sleep_between_frames = VN_TRUE;
+            }
+            while (vn_runtime_session_is_done(session) == VN_FALSE) {
+                rc = vn_runtime_session_step(session, (VNRunResult*)0);
+                if (rc != VN_OK) {
+                    break;
+                }
+                if (sleep_between_frames != VN_FALSE &&
+                    vn_runtime_session_is_done(session) == VN_FALSE) {
+                    vn_platform_sleep_ms((unsigned int)run_cfg.dt_ms);
+                }
+            }
+            if (rc == VN_OK && session->exit_code != 0) {
+                rc = session->exit_code;
+            }
+            if (rc == VN_OK) {
+                rc = vn_runtime_session_save_to_file(session, save_out_path, 0u, 0u);
+            }
+            (void)vn_runtime_session_destroy(session);
+        }
+    }
     if (rc != 0) {
         return runtime_cli_report_error("runtime.run.failed",
                                         rc,
