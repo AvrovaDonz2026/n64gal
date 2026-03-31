@@ -98,3 +98,8 @@
    - Type: `additive`
    - Summary: 新增 `--save-out=<path>`，允许在一次 CLI run 结束后直接写出 runtime session save/load draft 文件
    - Required action: 若 CLI 需要输出可恢复会话，应优先使用 `--save-out`；若与 `--load-save` 组合，可形成“读一个 save，继续推进，再写回一个 save”的最小工作流
+
+9. Surface: `vn_runtime_run_cli`
+   - Type: `additive`
+   - Summary: 新增 `--save-slot=<n>` 与 `--save-timestamp=<n>`，允许在 CLI 输出 save 文件时显式写入 `vnsave` 头里的 `slot_id/timestamp_s`
+   - Required action: 若 CLI 需要可控 save 元数据，应通过这两个 flag 与 `--save-out` 组合使用；若未提供 `--save-out`，不应单独传入这两个参数

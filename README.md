@@ -225,6 +225,8 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 10. `--quiet`
 11. `--load-save=<save.vnsave>`（从 runtime session save/load draft 文件恢复继续运行；当前不与 `--scene/--pack/--backend/--frames/...` 混用）
 12. `--save-out=<save.vnsave>`（在本次 CLI run 结束后写出 runtime session save/load draft 文件；可与 `--load-save` 组合）
+13. `--save-slot=<N>`（配合 `--save-out` 写入 `vnsave` header 的 `slot_id`）
+14. `--save-timestamp=<N>`（配合 `--save-out` 写入 `vnsave` header 的 `timestamp_s`）
 
 ## 迁移工具（当前最小 save 迁移）
 

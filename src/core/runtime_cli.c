@@ -2168,6 +2168,22 @@ static int parse_u32_range(const char* text, long min_value, long max_value, vn_
     return VN_OK;
 }
 
+static int parse_u32_any(const char* text, vn_u32* out_value) {
+    unsigned long value;
+    char* end_ptr;
+
+    if (text == (const char*)0 || out_value == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+
+    value = strtoul(text, &end_ptr, 10);
+    if (end_ptr == text || *end_ptr != '\0' || value > 0xFFFFFFFFul) {
+        return VN_E_FORMAT;
+    }
+    *out_value = (vn_u32)value;
+    return VN_OK;
+}
+
 static int parse_resolution(const char* text, vn_u16* out_w, vn_u16* out_h) {
     const char* x_ptr;
     long w;
@@ -3002,6 +3018,9 @@ int vn_runtime_run_cli(int argc, char** argv) {
     const char* load_save_path;
     const char* save_out_path;
     const char* load_save_conflict_arg;
+    const char* save_metadata_arg;
+    vn_u32 save_slot_id;
+    vn_u32 save_timestamp_s;
     vn_u32 scene_id;
     vn_u32 rc_u32;
     int i;
@@ -3014,6 +3033,9 @@ int vn_runtime_run_cli(int argc, char** argv) {
     load_save_path = (const char*)0;
     save_out_path = (const char*)0;
     load_save_conflict_arg = (const char*)0;
+    save_metadata_arg = (const char*)0;
+    save_slot_id = 0u;
+    save_timestamp_s = 0u;
     session = (VNRuntimeSession*)0;
 
     for (i = 1; i < argc; ++i) {
@@ -3036,6 +3058,46 @@ int vn_runtime_run_cli(int argc, char** argv) {
             save_out_path = argv[i];
         } else if (strncmp(arg, "--save-out=", 11) == 0) {
             save_out_path = arg + 11;
+        } else if (strcmp(arg, "--save-slot") == 0) {
+            if ((i + 1) >= argc) {
+                return runtime_cli_report_missing_value("--save-slot");
+            }
+            i += 1;
+            rc = parse_u32_any(argv[i], &save_slot_id);
+            if (rc != VN_OK) {
+                return runtime_cli_report_invalid_value("--save-slot", argv[i]);
+            }
+            if (save_metadata_arg == (const char*)0) {
+                save_metadata_arg = "--save-slot";
+            }
+        } else if (strncmp(arg, "--save-slot=", 12) == 0) {
+            rc = parse_u32_any(arg + 12, &save_slot_id);
+            if (rc != VN_OK) {
+                return runtime_cli_report_invalid_value("--save-slot", arg + 12);
+            }
+            if (save_metadata_arg == (const char*)0) {
+                save_metadata_arg = "--save-slot";
+            }
+        } else if (strcmp(arg, "--save-timestamp") == 0) {
+            if ((i + 1) >= argc) {
+                return runtime_cli_report_missing_value("--save-timestamp");
+            }
+            i += 1;
+            rc = parse_u32_any(argv[i], &save_timestamp_s);
+            if (rc != VN_OK) {
+                return runtime_cli_report_invalid_value("--save-timestamp", argv[i]);
+            }
+            if (save_metadata_arg == (const char*)0) {
+                save_metadata_arg = "--save-timestamp";
+            }
+        } else if (strncmp(arg, "--save-timestamp=", 17) == 0) {
+            rc = parse_u32_any(arg + 17, &save_timestamp_s);
+            if (rc != VN_OK) {
+                return runtime_cli_report_invalid_value("--save-timestamp", arg + 17);
+            }
+            if (save_metadata_arg == (const char*)0) {
+                save_metadata_arg = "--save-timestamp";
+            }
         } else if (strcmp(arg, "--backend") == 0) {
             if ((i + 1) >= argc) {
                 return runtime_cli_report_missing_value("--backend");
@@ -3332,7 +3394,10 @@ int vn_runtime_run_cli(int argc, char** argv) {
             rc = session->exit_code;
         }
         if (rc == VN_OK && save_out_path != (const char*)0) {
-            rc = vn_runtime_session_save_to_file(session, save_out_path, 0u, 0u);
+            rc = vn_runtime_session_save_to_file(session,
+                                                save_out_path,
+                                                save_slot_id,
+                                                save_timestamp_s);
         }
         (void)vn_runtime_session_destroy(session);
         if (rc != 0) {
@@ -3344,6 +3409,10 @@ int vn_runtime_run_cli(int argc, char** argv) {
                                             1);
         }
         return 0;
+    }
+
+    if (save_out_path == (const char*)0 && save_metadata_arg != (const char*)0) {
+        return runtime_cli_report_invalid_combo(save_metadata_arg, "--save-out");
     }
 
     run_cfg.choice_seq_count = choice_feed.count;
@@ -3386,7 +3455,10 @@ int vn_runtime_run_cli(int argc, char** argv) {
                 rc = session->exit_code;
             }
             if (rc == VN_OK) {
-                rc = vn_runtime_session_save_to_file(session, save_out_path, 0u, 0u);
+                rc = vn_runtime_session_save_to_file(session,
+                                                    save_out_path,
+                                                    save_slot_id,
+                                                    save_timestamp_s);
             }
             (void)vn_runtime_session_destroy(session);
         }
