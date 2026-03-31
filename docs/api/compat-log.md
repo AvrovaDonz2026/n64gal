@@ -103,3 +103,8 @@
    - Type: `additive`
    - Summary: 新增 `--save-slot=<n>` 与 `--save-timestamp=<n>`，允许在 CLI 输出 save 文件时显式写入 `vnsave` 头里的 `slot_id/timestamp_s`
    - Required action: 若 CLI 需要可控 save 元数据，应通过这两个 flag 与 `--save-out` 组合使用；若未提供 `--save-out`，不应单独传入这两个参数
+
+10. Surface: `vn_runtime` implementation layout
+   - Type: `compat-note`
+   - Summary: `runtime_cli.c` 中的 persistence/build-info 逻辑已拆到 `runtime_persist.c`
+   - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`

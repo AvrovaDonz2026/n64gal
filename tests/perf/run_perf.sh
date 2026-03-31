@@ -185,6 +185,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     src/core/pack.c
     src/core/platform.c
     src/core/runtime_cli.c
+    src/core/runtime_persist.c
   )
   append_source_if_exists src/core/dynamic_resolution.c
   COMPILE_CMD+=(

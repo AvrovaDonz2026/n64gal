@@ -171,10 +171,14 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/pack.c \
   src/core/platform.c \
   src/core/runtime_cli.c \
+  src/core/runtime_persist.c \
+  src/core/dynamic_resolution.c \
   src/frontend/render_ops.c \
   src/frontend/dirty_tiles.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
+  src/backend/avx2/avx2_fill_fade.c \
+  src/backend/avx2/avx2_textured.c \
   src/backend/neon/neon_backend.c \
   src/backend/rvv/rvv_backend.c \
   src/backend/scalar/scalar_backend.c \
@@ -195,10 +199,14 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/pack.c \
   src/core/platform.c \
   src/core/runtime_cli.c \
+  src/core/runtime_persist.c \
+  src/core/dynamic_resolution.c \
   src/frontend/render_ops.c \
   src/frontend/dirty_tiles.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
+  src/backend/avx2/avx2_fill_fade.c \
+  src/backend/avx2/avx2_textured.c \
   src/backend/neon/neon_backend.c \
   src/backend/rvv/rvv_backend.c \
   src/backend/scalar/scalar_backend.c \

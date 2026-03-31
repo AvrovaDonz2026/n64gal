@@ -18,6 +18,7 @@ COMMON_SRC=(
   src/core/pack.c
   src/core/platform.c
   src/core/runtime_cli.c
+  src/core/runtime_persist.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c

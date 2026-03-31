@@ -32,6 +32,21 @@
 3. 动态分辨率当前已落地 runtime 最小 slice：`VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`、`--perf-dynamic-resolution=<on|off>`、以及 `VNRunResult.render_width/render_height/dynamic_resolution_*` 已可直接使用。
 4. `dirty tile` 与 `dynamic resolution` 当前都默认 `off`；先以可观测、可回退、可做 perf compare 为第一目标，再决定是否提升为默认路径。
 
+## 2.3 当前实现落点
+
+当前 runtime 实现已按职责拆成两层：
+
+1. `src/core/runtime_cli.c`
+   - Session 驱动
+   - CLI 参数解析
+   - 输入/键盘/Fade/渲染提交流程
+2. `src/core/runtime_persist.c`
+   - build info 查询
+   - snapshot encode/decode
+   - file save/load wrapper
+
+这次拆分的目标是降低单文件维护压力，不改变当前公开 API 语义。
+
 ## 3. 结构体
 
 ### `VNRuntimeBuildInfo`
