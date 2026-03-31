@@ -49,6 +49,7 @@ int main(void) {
     VNRuntimeSession* restored_session;
     VNRuntimeSession* file_session;
     VNRuntimeSessionSnapshot snapshot;
+    VNInputEvent input;
     VNSaveProbe probe;
     int rc;
     vn_u32 guard;
@@ -63,6 +64,7 @@ int main(void) {
     memset((void*)&restored_res, 0, sizeof(restored_res));
     memset((void*)&file_expected_res, 0, sizeof(file_expected_res));
     memset((void*)&snapshot, 0, sizeof(snapshot));
+    memset((void*)&input, 0, sizeof(input));
     memset((void*)&probe, 0, sizeof(probe));
     save_path = "test_runtime_session_snapshot.vnsave";
     (void)remove(save_path);
