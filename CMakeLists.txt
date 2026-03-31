@@ -44,6 +44,7 @@ target_include_directories(vn_core PUBLIC include)
 
 add_library(vn_preview
     src/tools/preview_cli.c
+    src/tools/preview_report.c
 )
 target_link_libraries(vn_preview PUBLIC vn_core)
 target_include_directories(vn_preview PUBLIC include)

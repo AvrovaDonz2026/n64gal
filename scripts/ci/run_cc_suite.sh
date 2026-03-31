@@ -137,6 +137,7 @@ COMMON_SRC=(
 )
 PREVIEW_SRC=(
   src/tools/preview_cli.c
+  src/tools/preview_report.c
 )
 CFLAGS=(
   -std=c89

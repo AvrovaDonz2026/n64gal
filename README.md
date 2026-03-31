@@ -191,6 +191,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/tools/previewd_main.c \
   src/tools/preview_cli.c \
+  src/tools/preview_report.c \
   src/core/error.c \
   src/core/backend_registry.c \
   src/core/renderer.c \
