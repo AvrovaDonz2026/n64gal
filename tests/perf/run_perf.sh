@@ -180,6 +180,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     src/core/error.c
     src/core/backend_registry.c
     src/core/renderer.c
+    src/core/save.c
     src/core/vm.c
     src/core/pack.c
     src/core/platform.c
