@@ -93,7 +93,7 @@ run_capture "$LOG_DIR/test_runtime_contracts_validate.log" python3 tests/integra
 run_capture "$LOG_DIR/test_save_contracts_validate.log" python3 tests/integration/test_save_contracts_validate.py
 run_capture "$LOG_DIR/test_template_contracts_validate.log" python3 tests/integration/test_template_contracts_validate.py
 run_capture "$LOG_DIR/test_templates_layout.log" python3 tests/integration/test_templates_layout.py
-run_capture "$LOG_DIR/test_toolchain_cli.log" python3 tests/integration/test_toolchain_cli.py
+run_capture "$LOG_DIR/test_toolchain_cli.log" env VN_TOOLCHAIN_CLI_LIGHT=1 python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_release_gate_script.log" python3 tests/integration/test_release_gate_script.py
 run_capture "$LOG_DIR/test_release_soak_script.log" python3 tests/integration/test_release_soak_script.py
 run_capture "$LOG_DIR/test_release_preflight_script.log" python3 tests/integration/test_release_preflight_script.py

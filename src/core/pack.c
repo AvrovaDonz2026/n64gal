@@ -10,9 +10,6 @@
 #define VNPAK_MAGIC_2 ((vn_u8)'P')
 #define VNPAK_MAGIC_3 ((vn_u8)'K')
 
-#define VNPAK_VERSION_1 1u
-#define VNPAK_VERSION_2 2u
-
 #define VNPAK_HEADER_SIZE    8u
 #define VNPAK_ENTRY_SIZE_V1 14u
 #define VNPAK_ENTRY_SIZE_V2 18u

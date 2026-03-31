@@ -75,8 +75,10 @@ def main(argv):
         require_contains(release_alpha, "`JIT`；当前仍是文档化实验方向，不是 release blocker。", "release_alpha.jit_boundary")
         require_contains(release_gap, "把 `vnsave` 版本策略继续从“文档规则”推进到“实现与错误契约”", "release_gap.vnsave_path")
 
-        require_contains(readme, "./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_cmd")
+        require_contains(readme, "python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_cmd")
+        require_contains(readme, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_build_cmd")
         require_contains(toolchain, "python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "toolchain.migrate_cmd")
+        require_contains(toolchain, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "toolchain.migrate_build_cmd")
         require_contains(toolchain, "python3 tools/toolchain.py validate-migration-contracts", "toolchain.validate_migration")
 
         require_contains(issue, "提供 `vnsave v0 -> v1` 迁移命令", "issue.migrate_done")

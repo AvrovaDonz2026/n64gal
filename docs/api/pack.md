@@ -82,6 +82,14 @@
 
 ## 5. `vnpak` 格式版本
 
+当前公开常量：
+
+1. `VNPAK_VERSION_1`
+2. `VNPAK_VERSION_2`
+3. `VNPAK_READ_MIN_VERSION`
+4. `VNPAK_READ_MAX_VERSION`
+5. `VNPAK_WRITE_DEFAULT_VERSION`
+
 ### v1（兼容）
 
 1. 头：8 字节（magic/version/count）
@@ -91,6 +99,13 @@
 
 1. 头：8 字节（magic/version/count）
 2. entry：18 字节（追加 `crc32`）
+
+当前运行时版本协商约定：
+
+1. `VNPAK_READ_MIN_VERSION = 1`
+2. `VNPAK_READ_MAX_VERSION = 2`
+3. `VNPAK_WRITE_DEFAULT_VERSION = 2`
+4. 宿主和工具若不想只靠文档推断，也可通过 `vn_runtime_query_build_info(...)` 读取这组范围
 
 ## 6. 图像格式与 Flags
 

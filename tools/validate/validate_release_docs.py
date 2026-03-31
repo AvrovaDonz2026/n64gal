@@ -57,6 +57,7 @@ def main(argv):
         alpha_checklist = read_text(root, "docs/release-checklist-v0.1.0-alpha.md")
         mvp_gap = read_text(root, "docs/release-gap-v0.1.0-mvp.md")
         roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
+        triage_v1 = read_text(root, "docs/release-triage-v1.0.0.md")
         checklist_v1 = read_text(root, "docs/release-checklist-v1.0.0.md")
         release_publish_spec = read_text(root, "docs/release-publish-v0.1.0-alpha.json")
     except FileNotFoundError as exc:
@@ -71,6 +72,7 @@ def main(argv):
         require_contains(readme, "docs/release-evidence-v0.1.0-alpha.md", "readme.release_evidence_link")
         require_contains(readme, "docs/release-gap-v0.1.0-mvp.md", "readme.mvp_gap_link")
         require_contains(readme, "docs/release-checklist-v1.0.0.md", "readme.v1_checklist_link")
+        require_contains(readme, "docs/release-triage-v1.0.0.md", "readme.v1_triage_link")
 
         require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
         require_contains(issue, "`v0.1.0-mvp`", "issue.mvp_target")
@@ -109,6 +111,11 @@ def main(argv):
         require_contains(mvp_gap, "`v1.0.0` 范围已明确排除 `RVV/riscv64 native`", "mvp_gap.rvv_boundary")
 
         require_contains(roadmap, "`v1.0.0` **先不包含 RVV / riscv64 native 承诺**", "roadmap.rvv_boundary")
+        require_contains(roadmap, "docs/release-triage-v1.0.0.md", "roadmap.v1_triage_link")
+        require_contains(triage_v1, "## 2. Must Have", "triage.must_have")
+        require_contains(triage_v1, "## 3. Nice To Have", "triage.nice_to_have")
+        require_contains(triage_v1, "## 4. Post-1.0", "triage.post_1_0")
+        require_contains(triage_v1, "freeze the public contract", "triage.summary")
         require_contains(checklist_v1, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist_v1.rvv_boundary")
         require_contains(release_publish_spec, "\"repository\": \"AvrovaDonz2026/n64gal\"", "release_publish_spec.repository")
         require_contains(release_publish_spec, "\"tag\": \"v0.1.0-alpha\"", "release_publish_spec.tag")

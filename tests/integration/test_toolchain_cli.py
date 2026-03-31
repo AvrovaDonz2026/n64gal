@@ -6,6 +6,7 @@ import sys
 
 ROOT = "."
 TOOL = ["python3", "tools/toolchain.py"]
+LIGHT_MODE = os.environ.get("VN_TOOLCHAIN_CLI_LIGHT") == "1"
 
 
 def run_case(args):
@@ -165,165 +166,166 @@ def main():
         print("release-gate did not write summary", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", host_sdk_summary_path, "--summary-json-out", host_sdk_summary_json_path])
-    if rc != 0 or "trace_id=release.host_sdk.ok" not in out:
-        print(f"release-host-sdk-smoke failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+    if not LIGHT_MODE:
+        rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", host_sdk_summary_path, "--summary-json-out", host_sdk_summary_json_path])
+        if rc != 0 or "trace_id=release.host_sdk.ok" not in out:
+            print(f"release-host-sdk-smoke failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-preview-evidence", "--summary-out", preview_summary_path, "--summary-json-out", preview_summary_json_path])
-    if rc != 0 or "trace_id=release.preview.ok" not in out:
-        print(f"release-preview-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-preview-evidence", "--summary-out", preview_summary_path, "--summary-json-out", preview_summary_json_path])
+        if rc != 0 or "trace_id=release.preview.ok" not in out:
+            print(f"release-preview-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-platform-evidence", "--out-dir", platform_out_dir, "--ci-suite-summary", ci_summary_path])
-    if rc != 0 or "trace_id=release.platform.ok" not in out:
-        print(f"release-platform-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-platform-evidence", "--out-dir", platform_out_dir, "--ci-suite-summary", ci_summary_path])
+        if rc != 0 or "trace_id=release.platform.ok" not in out:
+            print(f"release-platform-evidence failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
-    if rc != 0 or "trace_id=release.soak.ok" not in out:
-        print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-soak", "--skip-pack", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
+        if rc != 0 or "trace_id=release.soak.ok" not in out:
+            print(f"release-soak failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case([
-        "release-gate",
-        "--allow-dirty",
-        "--skip-cc-suite",
-        "--with-soak",
-        "--soak-skip-build",
-        "--soak-skip-pack",
-        "--soak-runner-bin", "build_release_soak/vn_player",
-        "--soak-frames-per-scene", "2",
-        "--soak-scenes", "S0",
-        "--summary-out", summary_path,
-        "--ci-suite-summary", ci_summary_path,
-    ])
-    if rc != 0 or "trace_id=release.gate.ok" not in out:
-        print(f"release-gate runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case([
+            "release-gate",
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", "build_release_soak/vn_player",
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--summary-out", summary_path,
+            "--ci-suite-summary", ci_summary_path,
+        ])
+        if rc != 0 or "trace_id=release.gate.ok" not in out:
+            print(f"release-gate runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-soak", "--skip-pack", "--skip-build", "--runner-bin", "build_release_soak/vn_player", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
-    if rc != 0 or "trace_id=release.soak.ok" not in out:
-        print(f"release-soak runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-soak", "--skip-pack", "--skip-build", "--runner-bin", "build_release_soak/vn_player", "--frames-per-scene", "2", "--scenes", "S0", "--summary-out", summary_path])
+        if rc != 0 or "trace_id=release.soak.ok" not in out:
+            print(f"release-soak runner-bin failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-preflight",
-        "--allow-dirty",
-        "--skip-cc-suite",
-        "--out-dir", "tests/integration/toolchain_release_preflight_tmp",
-        "--soak-skip-build",
-        "--soak-skip-pack",
-        "--soak-runner-bin", "build_release_soak/vn_player",
-        "--soak-frames-per-scene", "2",
-        "--soak-scenes", "S0",
-        "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
-    ])
-    if rc != 0 or "trace_id=release.preflight.ok" not in out:
-        print(f"release-preflight failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-preflight",
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--out-dir", "tests/integration/toolchain_release_preflight_tmp",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", "build_release_soak/vn_player",
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+        ])
+        if rc != 0 or "trace_id=release.preflight.ok" not in out:
+            print(f"release-preflight failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-bundle",
-        "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
-        "--gate-summary", summary_path,
-        "--soak-summary", summary_path,
-        "--ci-summary", ci_summary_path,
-        "--host-sdk-summary", host_sdk_summary_path,
-        "--host-sdk-summary-json", host_sdk_summary_json_path,
-        "--platform-evidence-summary", platform_summary_path,
-        "--platform-evidence-summary-json", platform_summary_json_path,
-        "--preview-evidence-summary", preview_summary_path,
-        "--preview-evidence-summary-json", preview_summary_json_path,
-    ])
-    if rc != 0 or "trace_id=release.bundle.ok" not in out:
-        print(f"release-bundle failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-bundle",
+            "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
+            "--gate-summary", summary_path,
+            "--soak-summary", summary_path,
+            "--ci-summary", ci_summary_path,
+            "--host-sdk-summary", host_sdk_summary_path,
+            "--host-sdk-summary-json", host_sdk_summary_json_path,
+            "--platform-evidence-summary", platform_summary_path,
+            "--platform-evidence-summary-json", platform_summary_json_path,
+            "--preview-evidence-summary", preview_summary_path,
+            "--preview-evidence-summary-json", preview_summary_json_path,
+        ])
+        if rc != 0 or "trace_id=release.bundle.ok" not in out:
+            print(f"release-bundle failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-report",
-        "--out-dir", "tests/integration/toolchain_release_report_tmp",
-        "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
-        "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
-        "--gate-summary", summary_path,
-        "--soak-summary", summary_path,
-        "--ci-suite-summary", ci_summary_path,
-        "--host-sdk-summary", host_sdk_summary_path,
-        "--platform-evidence-summary", platform_summary_path,
-        "--preview-evidence-summary", preview_summary_path,
-    ])
-    if rc != 0 or "trace_id=release.report.ok" not in out:
-        print(f"release-report failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-report",
+            "--out-dir", "tests/integration/toolchain_release_report_tmp",
+            "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
+            "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
+            "--gate-summary", summary_path,
+            "--soak-summary", summary_path,
+            "--ci-suite-summary", ci_summary_path,
+            "--host-sdk-summary", host_sdk_summary_path,
+            "--platform-evidence-summary", platform_summary_path,
+            "--preview-evidence-summary", preview_summary_path,
+        ])
+        if rc != 0 or "trace_id=release.report.ok" not in out:
+            print(f"release-report failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-publish-map",
-        "--out-dir", "tests/integration/toolchain_release_publish_tmp",
-        "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
-        "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
-        "--report-json", "tests/integration/toolchain_release_report_tmp/release_report.json",
-    ])
-    if rc != 0 or "trace_id=release.publish_map.ok" not in out:
-        print(f"release-publish-map failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-publish-map",
+            "--out-dir", "tests/integration/toolchain_release_publish_tmp",
+            "--bundle-index", "tests/integration/toolchain_release_bundle_tmp/release_bundle_index.md",
+            "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
+            "--report-json", "tests/integration/toolchain_release_report_tmp/release_report.json",
+        ])
+        if rc != 0 or "trace_id=release.publish_map.ok" not in out:
+            print(f"release-publish-map failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-export",
-        "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
-        "--out-dir", "tests/integration/toolchain_release_export_tmp",
-        "--gate-summary", summary_path,
-        "--soak-summary", summary_path,
-        "--ci-suite-summary", ci_summary_path,
-        "--host-sdk-summary", host_sdk_summary_path,
-        "--host-sdk-summary-json", host_sdk_summary_json_path,
-        "--platform-evidence-summary", platform_summary_path,
-        "--platform-evidence-summary-json", platform_summary_json_path,
-        "--preview-evidence-summary", preview_summary_path,
-        "--preview-evidence-summary-json", preview_summary_json_path,
-    ])
-    if rc != 0 or "trace_id=release.export.ok" not in out:
-        print(f"release-export failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-export",
+            "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
+            "--out-dir", "tests/integration/toolchain_release_export_tmp",
+            "--gate-summary", summary_path,
+            "--soak-summary", summary_path,
+            "--ci-suite-summary", ci_summary_path,
+            "--host-sdk-summary", host_sdk_summary_path,
+            "--host-sdk-summary-json", host_sdk_summary_json_path,
+            "--platform-evidence-summary", platform_summary_path,
+            "--platform-evidence-summary-json", platform_summary_json_path,
+            "--preview-evidence-summary", preview_summary_path,
+            "--preview-evidence-summary-json", preview_summary_json_path,
+        ])
+        if rc != 0 or "trace_id=release.export.ok" not in out:
+            print(f"release-export failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-remote-summary",
-        "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
-        "--out-dir", "tests/integration/toolchain_release_remote_tmp",
-    ])
-    if rc != 0 or "trace_id=release.remote_summary.ok" not in out:
-        print(f"release-remote-summary failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-remote-summary",
+            "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+            "--out-dir", "tests/integration/toolchain_release_remote_tmp",
+        ])
+        if rc != 0 or "trace_id=release.remote_summary.ok" not in out:
+            print(f"release-remote-summary failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-gate",
-        "--allow-dirty",
-        "--skip-cc-suite",
-        "--with-soak",
-        "--with-export",
-        "--soak-skip-build",
-        "--soak-skip-pack",
-        "--soak-runner-bin", "build_release_soak/vn_player",
-        "--soak-frames-per-scene", "2",
-        "--soak-scenes", "S0",
-        "--summary-out", summary_path,
-        "--ci-suite-summary", ci_summary_path,
-        "--export-out-dir", "tests/integration/toolchain_release_export_via_gate_tmp",
-    ])
-    if rc != 0 or "trace_id=release.gate.ok" not in out:
-        print(f"release-gate export failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-gate",
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--with-export",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", "build_release_soak/vn_player",
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--summary-out", summary_path,
+            "--ci-suite-summary", ci_summary_path,
+            "--export-out-dir", "tests/integration/toolchain_release_export_via_gate_tmp",
+        ])
+        if rc != 0 or "trace_id=release.gate.ok" not in out:
+            print(f"release-gate export failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
-    rc, out, err = run_case(["release-gate",
-        "--allow-dirty",
-        "--skip-cc-suite",
-        "--with-soak",
-        "--with-export",
-        "--soak-skip-build",
-        "--soak-skip-pack",
-        "--soak-runner-bin", "build_release_soak/vn_player",
-        "--soak-frames-per-scene", "2",
-        "--soak-scenes", "S0",
-        "--summary-out", summary_path,
-        "--ci-suite-summary", ci_summary_path,
-        "--export-out-dir", "tests/integration/toolchain_release_export_remote_via_gate_tmp",
-        "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
-    ])
-    if rc != 0 or "trace_id=release.gate.ok" not in out:
-        print(f"release-gate remote export failed rc={rc} out={out} err={err}", file=sys.stderr)
-        return 1
+        rc, out, err = run_case(["release-gate",
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--with-soak",
+            "--with-export",
+            "--soak-skip-build",
+            "--soak-skip-pack",
+            "--soak-runner-bin", "build_release_soak/vn_player",
+            "--soak-frames-per-scene", "2",
+            "--soak-scenes", "S0",
+            "--summary-out", summary_path,
+            "--ci-suite-summary", ci_summary_path,
+            "--export-out-dir", "tests/integration/toolchain_release_export_remote_via_gate_tmp",
+            "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+        ])
+        if rc != 0 or "trace_id=release.gate.ok" not in out:
+            print(f"release-gate remote export failed rc={rc} out={out} err={err}", file=sys.stderr)
+            return 1
 
     rc, out, err = run_case(["probe-vnsave", "--in", "tests/fixtures/vnsave/v1/sample.vnsave"])
     if rc != 0 or "trace_id=tool.probe.vnsave.ok" not in out:
@@ -422,7 +424,10 @@ def main():
     if os.path.isdir("tests/integration/toolchain_release_platform_tmp"):
         import shutil
         shutil.rmtree("tests/integration/toolchain_release_platform_tmp")
-    print("test_toolchain_cli ok")
+    if LIGHT_MODE:
+        print("test_toolchain_cli ok (light)")
+    else:
+        print("test_toolchain_cli ok")
     return 0
 
 

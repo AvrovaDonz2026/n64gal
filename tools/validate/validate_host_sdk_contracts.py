@@ -57,6 +57,7 @@ def main(argv):
         compat = read_text(root, "docs/compat-matrix.md")
         readme = read_text(root, "README.md")
         toolchain = read_text(root, "docs/toolchain.md")
+        example_readme = read_text(root, "examples/host-embed/README.md")
         require_file(root, "examples/host-embed/session_loop.c")
         require_file(root, "examples/host-embed/linux_tty_loop.c")
         require_file(root, "examples/host-embed/windows_console_loop.c")
@@ -74,6 +75,11 @@ def main(argv):
         require_contains(host_sdk, "| `backend abi` | `runtime-internal v1-draft` |", "host_sdk.backend_abi")
         require_contains(host_sdk, "| `vnsave` | `pre-1.0 unstable` |", "host_sdk.vnsave")
         require_contains(host_sdk, "| `preview protocol` | `v1` |", "host_sdk.preview_protocol")
+        require_contains(host_sdk, "vn_runtime_query_build_info(...)", "host_sdk.build_info_query")
+        require_contains(host_sdk, "vn_runtime_session_capture_snapshot", "host_sdk.snapshot_capture")
+        require_contains(host_sdk, "vn_runtime_session_create_from_snapshot", "host_sdk.snapshot_restore")
+        require_contains(host_sdk, "vn_runtime_session_save_to_file", "host_sdk.snapshot_save_file")
+        require_contains(host_sdk, "vn_runtime_session_load_from_file", "host_sdk.snapshot_load_file")
         require_contains(host_sdk, "Linux TTY:", "host_sdk.example_linux")
         require_contains(host_sdk, "Windows Console:", "host_sdk.example_windows")
         require_contains(host_sdk, "trace_id + error_code + error_name", "host_sdk.machine_readable")
@@ -85,6 +91,12 @@ def main(argv):
 
         require_contains(readme, "tools/toolchain.py validate-host-sdk-contracts", "readme.toolchain_validate_host_sdk")
         require_contains(toolchain, "python3 tools/toolchain.py validate-host-sdk-contracts", "toolchain.validate_host_sdk")
+
+        require_contains(example_readme, "src/core/platform.c", "example_readme.platform")
+        require_contains(example_readme, "src/core/dynamic_resolution.c", "example_readme.dynamic_resolution")
+        require_contains(example_readme, "src/frontend/dirty_tiles.c", "example_readme.dirty_tiles")
+        require_contains(example_readme, "src/backend/avx2/avx2_fill_fade.c", "example_readme.avx2_fill_fade")
+        require_contains(example_readme, "src/backend/avx2/avx2_textured.c", "example_readme.avx2_textured")
     except ValueError as exc:
         return error("tool.validate.host_sdk_contracts.format", VN_E_FORMAT, str(exc), "host sdk contract drift detected")
 

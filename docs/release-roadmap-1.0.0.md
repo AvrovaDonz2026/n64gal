@@ -73,3 +73,5 @@
 1. 先收口 `x64/arm64 Linux+Windows`
 2. 再收口文档、迁移、版本边界
 3. `RVV/riscv64` 保持继续开发，但不再作为 `1.0.0` 阻塞项
+
+若要把这些动作继续拆成 `Must Have / Nice To Have / Post-1.0`，当前执行分层见 [`docs/release-triage-v1.0.0.md`](./release-triage-v1.0.0.md)。

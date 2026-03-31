@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "vn_runtime.h"
 
@@ -43,7 +44,48 @@ int main(void) {
     VNRunResult cache_res;
     VNRunResult dirty_res;
     VNRunResult s10_res;
+    VNRuntimeBuildInfo build_info;
     int rc;
+
+    memset((void*)&build_info, 0, sizeof(build_info));
+    vn_runtime_query_build_info(&build_info);
+    if (build_info.runtime_api_version == (const char*)0 ||
+        strcmp(build_info.runtime_api_version, VN_RUNTIME_API_VERSION) != 0) {
+        (void)fprintf(stderr, "runtime api version mismatch\n");
+        return 1;
+    }
+    if (build_info.runtime_api_stability == (const char*)0 ||
+        strcmp(build_info.runtime_api_stability, VN_RUNTIME_API_STABILITY) != 0) {
+        (void)fprintf(stderr, "runtime api stability mismatch\n");
+        return 1;
+    }
+    if (build_info.preview_protocol_version == (const char*)0 ||
+        strcmp(build_info.preview_protocol_version, "v1") != 0) {
+        (void)fprintf(stderr, "preview protocol version mismatch\n");
+        return 1;
+    }
+    if (build_info.vnpak_read_min_version != 1u ||
+        build_info.vnpak_read_max_version != 2u ||
+        build_info.vnpak_write_default_version != 2u) {
+        (void)fprintf(stderr,
+                      "unexpected vnpak version range min=%u max=%u write=%u\n",
+                      (unsigned int)build_info.vnpak_read_min_version,
+                      (unsigned int)build_info.vnpak_read_max_version,
+                      (unsigned int)build_info.vnpak_write_default_version);
+        return 1;
+    }
+    if (build_info.vnsave_latest_version != 0x00010000u ||
+        build_info.vnsave_api_stability == (const char*)0 ||
+        strcmp(build_info.vnsave_api_stability, "pre-1.0 unstable") != 0) {
+        (void)fprintf(stderr, "unexpected vnsave build info\n");
+        return 1;
+    }
+    if (build_info.host_os == (const char*)0 ||
+        build_info.host_arch == (const char*)0 ||
+        build_info.host_compiler == (const char*)0) {
+        (void)fprintf(stderr, "missing host build info\n");
+        return 1;
+    }
 
     vn_run_config_init(&cfg);
     cfg.scene_name = "S2";

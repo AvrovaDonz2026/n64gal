@@ -29,6 +29,7 @@
    - 当前不存在
 4. `vn_save.h`
    - 当前已提供 probe + 最小 `v0 -> v1` 离线迁移接口
+   - 当前还公开了 `VNSAVE_API_STABILITY = "pre-1.0 unstable"`
    - 仍不等于完整 save/load 承诺
 
 ## 3. `vnpak` 迁移边界

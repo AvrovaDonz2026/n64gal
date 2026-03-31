@@ -56,3 +56,35 @@
    - Type: `compat-note`
    - Summary: `v0.x` 不承诺 save 兼容；`v1.0.0` 才允许首次公开 `vnsave v1`
    - Required action: release note 必须明确写出支持/迁移/拒绝策略
+
+### 2026-03-31 / `pre-v1.0.0`
+
+1. Surface: `vn_runtime.h`
+   - Type: `additive`
+   - Summary: 新增 `VNRuntimeBuildInfo` 与 `vn_runtime_query_build_info(...)`，把 runtime/preview/pack/save/host 的版本协商从纯文档推进成可查询公开面
+   - Required action: 宿主与工具若需要协商当前 build 边界，应优先读取该 API，而不是只依赖 README
+
+2. Surface: `vn_pack.h`
+   - Type: `additive`
+   - Summary: 新增 `VNPAK_VERSION_1/2`、`VNPAK_READ_MIN_VERSION`、`VNPAK_READ_MAX_VERSION` 与 `VNPAK_WRITE_DEFAULT_VERSION`
+   - Required action: 运行时版本协商或宿主诊断不再需要私自复制 `vnpak` 版本常量
+
+3. Surface: `vn_preview.h`
+   - Type: `additive`
+   - Summary: 新增 `VN_PREVIEW_PROTOCOL_VERSION`
+   - Required action: 预览工具可直接复用公开协议版本常量
+
+4. Surface: `vn_save.h`
+   - Type: `additive`
+   - Summary: 新增 `VNSAVE_API_STABILITY`
+   - Required action: 宿主可直接读取当前 save surface 的稳定级别，不再只靠 release 文档推断
+
+5. Surface: `vn_runtime.h`
+   - Type: `additive`
+   - Summary: 新增 `VNRuntimeSessionSnapshot`、`vn_runtime_session_capture_snapshot(...)` 与 `vn_runtime_session_create_from_snapshot(...)`，公开最小会话恢复 ABI
+   - Required action: 宿主若要实现 quick-save / quick-load 原型，应优先通过 snapshot API 捕获/恢复 live session，而不是直接读取内部 `VNState`
+
+6. Surface: `vn_runtime.h`
+   - Type: `additive`
+   - Summary: 新增 `vn_runtime_session_save_to_file(...)` 与 `vn_runtime_session_load_from_file(...)`，把最小文件级会话恢复接到 `vnsave v1` 外壳上
+   - Required action: 若宿主需要最小文件级 quick-save / quick-load，应优先复用这组 API，而不是自行定义另一套临时存档封装

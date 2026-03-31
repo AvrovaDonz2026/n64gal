@@ -34,6 +34,52 @@
 
 ## 3. 结构体
 
+### `VNRuntimeBuildInfo`
+
+用于把“版本协商/构建协商”从纯文档推进成可查询公开面。
+
+关键字段：
+
+1. `runtime_api_version`
+2. `runtime_api_stability`
+3. `preview_protocol_version`
+4. `vnpak_read_min_version`, `vnpak_read_max_version`, `vnpak_write_default_version`
+5. `vnsave_latest_version`, `vnsave_api_stability`
+6. `host_os`, `host_arch`, `host_compiler`
+
+当前用途：
+
+1. 宿主在运行时确认当前 build 的公开版本边界
+2. 工具或 smoke 测试读取当前 host/build 元信息
+3. 避免第三方宿主只能靠 README/文档猜测当前 runtime 口径
+
+### `VNRuntimeSessionSnapshot`
+
+用于捕获一个“可恢复”的 live session 快照，并在后续重新创建 session。
+
+当前设计边界：
+
+1. 这是 in-memory snapshot API，不是最终文件级 save/load 格式
+2. 它的目标是先把“可恢复会话”从纯内部状态推进成公开 runtime ABI
+3. dirty planner、frame reuse、op cache 等 perf 缓存不会被保留；恢复后允许从干净状态重新建立
+4. 当前只面向 live session；已结束 session、带待消费 injected input 的 session 不保证可捕获
+
+关键字段：
+
+1. `pack_path`, `backend_name`, `scene_id`
+2. `base_width/base_height`, `frames_limit/frames_executed`, `dt_ms`
+3. `trace`, `emit_logs`, `hold_on_end`, `perf_flags`, `keyboard_enabled`
+4. `default_choice_index`, `choice_feed_items[]`, `choice_feed_count`, `choice_feed_cursor`
+5. `dynamic_resolution_tier`, `dynamic_resolution_switches`
+6. `vm_*` 系列字段
+7. `fade_*` 系列字段
+
+当前语义：
+
+1. VM 执行状态、fade 状态、choice feed 与 dynres tier 会被保留
+2. framebuffer、dirty planner、op cache、frame reuse 统计与 pending injected input 不会保留
+3. 恢复后下一帧的用户可见语义应与未中断继续推进一致，但 perf 计数可重新累计
+
 ### `VNRunConfig`
 
 运行输入配置。
@@ -43,9 +89,11 @@
 1. `pack_path`
    - 资源包路径（默认 `assets/demo/demo.vnpak`）
 2. `scene_name`
-   - 场景名：`S0` / `S1` / `S2` / `S3` / `S10`
+   - 当前接受固定场景名：`S0` / `S1` / `S2` / `S3` / `S10`
+   - 这是当前代码里显式解析的符号集合，不是任意 pack 内字符串；未知值会被拒绝
 3. `backend_name`
-   - `"auto"` / `"scalar"` / `"avx2"` / `"neon"` / `"rvv"`
+   - `"auto"` / `"scalar"` / `"avx2"` / `"avx2_asm"` / `"neon"` / `"rvv"`
+   - 其中 `avx2_asm` 当前是实验性 force-only 变体
 4. `width`, `height`
    - 输出分辨率，默认 `600x800`
 5. `frames`, `dt_ms`
@@ -124,6 +172,84 @@
 ### `void vn_run_config_init(VNRunConfig* cfg)`
 
 初始化默认配置，建议总是先调用。
+
+### `void vn_runtime_query_build_info(VNRuntimeBuildInfo* out_info)`
+
+填充当前 build 的公开协商信息。
+
+当前保证：
+
+1. `runtime_api_version` 当前为 `v1-draft`
+2. `runtime_api_stability` 当前为 `public v1-draft (pre-1.0)`
+3. `preview_protocol_version` 当前为 `v1`
+4. `vnpak` 当前公开读范围为 `v1..v2`，默认写 `v2`
+5. `vnsave_latest_version` 当前为 `VNSAVE_VERSION_1`
+6. `vnsave_api_stability` 当前为 `pre-1.0 unstable`
+7. `host_os/host_arch/host_compiler` 来自当前 build 平台探测结果
+
+### `int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session, VNRuntimeSessionSnapshot* out_snapshot)`
+
+捕获当前 live session 的可恢复快照。
+
+当前约束：
+
+1. 空指针返回 `VN_E_INVALID_ARG`
+2. 已结束 session 返回 `VN_E_UNSUPPORTED`
+3. 若当前 session 还带有待消费 injected input，也返回 `VN_E_UNSUPPORTED`
+4. 若路径/状态超出当前 snapshot 能力范围，则返回格式或容量错误
+
+当前用途：
+
+1. 宿主做内存级 quick-save / quick-load 原型
+2. 后续 `vnsave` 文件级 save/load API 的上游状态捕获层
+
+### `int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot, VNRuntimeSession** out_session)`
+
+从 snapshot 直接重新创建一个 session。
+
+当前行为：
+
+1. 会重新打开 `pack`、重载脚本、初始化 VM/renderer
+2. 然后恢复 VM、fade、choice feed、frame 进度与 dynres tier
+3. dirty planner、frame reuse、op cache 会按恢复后的尺寸和空缓存重新初始化
+
+当前限制：
+
+1. snapshot 必须包含可解析的 `scene_id`
+2. `pack_path/backend_name` 必须是当前支持的公开字符串
+3. 当前是最小恢复 API，不承诺保留所有 perf 累计统计
+
+### `int vn_runtime_session_save_to_file(const VNRuntimeSession* session, const char* path, vn_u32 slot_id, vn_u32 timestamp_s)`
+
+把当前 live session 写成一个 `vnsave v1` 文件。
+
+当前行为：
+
+1. 顶层继续复用 `vnsave v1` 头
+2. payload 当前写入 runtime snapshot 二进制块
+3. `slot_id`、`scene_id`、`script_pc`、`timestamp_s` 会同时写入 `vnsave` 头
+4. payload CRC32 按现有 `vnsave v1` 规则写回 header
+
+当前限制：
+
+1. 只支持保存 live session
+2. 若 session 带有待消费 injected input，返回 `VN_E_UNSUPPORTED`
+3. 当前仍是 `v0.x` draft runtime ABI，不等于已经冻结长期 save/load 兼容承诺
+
+### `int vn_runtime_session_load_from_file(const char* path, VNRuntimeSession** out_session)`
+
+从 `vn_runtime_session_save_to_file(...)` 生成的文件恢复一个 session。
+
+当前行为：
+
+1. 先复用 `vnsave_probe_file(...)` 验证外层 `vnsave v1` 头与 CRC
+2. 再解析 runtime snapshot payload
+3. 最后通过 `vn_runtime_session_create_from_snapshot(...)` 恢复 session
+
+当前限制：
+
+1. 只接受当前 runtime snapshot payload 版本
+2. 对普通 `vnsave v1` 但 payload 不是 runtime snapshot 的文件，返回格式或不支持错误
 
 ### `int vn_runtime_run(const VNRunConfig* cfg, VNRunResult* out_result)`
 

@@ -78,14 +78,18 @@ def main(argv):
         require_contains(migration_doc, "最小 probe API 见 [`docs/api/save.md`](./api/save.md)", "migration.save_doc")
         require_contains(migration_doc, "`v0 -> v1`", "migration.v0_to_v1")
 
-        require_contains(readme, "./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_cmd")
-        require_contains(readme, "./tools/probe/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave", "readme.probe_cmd")
+        require_contains(readme, "python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_cmd")
+        require_contains(readme, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "readme.migrate_build_cmd")
+        require_contains(readme, "python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave", "readme.probe_cmd")
+        require_contains(readme, "./build/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave", "readme.probe_build_cmd")
         require_contains(readme, "docs/api/save.md", "readme.save_doc")
         require_contains(readme, "docs/vnsave-version-policy.md", "readme.save_policy")
 
         require_contains(toolchain, "python3 tools/toolchain.py validate-save-contracts", "toolchain.validate_save")
         require_contains(toolchain, "python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave", "toolchain.probe_vnsave")
         require_contains(toolchain, "python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "toolchain.migrate_vnsave")
+        require_contains(toolchain, "./build/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave", "toolchain.probe_build")
+        require_contains(toolchain, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "toolchain.migrate_build")
 
         require_contains(save_header, "#define VNSAVE_VERSION_1 0x00010000u", "save_header.version")
         require_contains(save_header, "#define VNSAVE_STATUS_PRE_1_0 3u", "save_header.status")

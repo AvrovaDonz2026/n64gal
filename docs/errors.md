@@ -70,3 +70,19 @@ const char* vn_error_name(int error_code);
 1. `trace_id` 用于稳定归类，不应用自然语言 message 代替
 2. 同一类错误应尽量复用同一个 `trace_id`
 3. 详细上下文继续通过 `error_code/error_name/message` 和附加字段表达
+
+## 7. 公开版本协商相关错误
+
+当前公开面里，以下“版本不匹配”场景继续统一落到已有错误码：
+
+1. `preview protocol` 版本不支持
+   - 返回 `VN_E_UNSUPPORTED`
+2. `vnsave` 为 `pre-1.0` / 更高未来版本
+   - 返回 `VN_E_UNSUPPORTED`
+3. `vnpak` 版本超出当前声明兼容范围
+   - 返回 `VN_E_FORMAT`
+
+这意味着：
+
+1. 版本协商新增为公开 surface 后，不需要额外再造一套错误码
+2. 宿主可继续按 `error_code + error_name + trace_id` 统一处理

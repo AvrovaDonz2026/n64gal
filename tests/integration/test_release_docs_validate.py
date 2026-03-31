@@ -42,6 +42,7 @@ def main():
         shutil.copy2(ROOT / "docs" / "release-checklist-v0.1.0-alpha.md", temp_root / "docs" / "release-checklist-v0.1.0-alpha.md")
         shutil.copy2(ROOT / "docs" / "release-gap-v0.1.0-mvp.md", temp_root / "docs" / "release-gap-v0.1.0-mvp.md")
         shutil.copy2(ROOT / "docs" / "release-roadmap-1.0.0.md", temp_root / "docs" / "release-roadmap-1.0.0.md")
+        shutil.copy2(ROOT / "docs" / "release-triage-v1.0.0.md", temp_root / "docs" / "release-triage-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-checklist-v1.0.0.md", temp_root / "docs" / "release-checklist-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-publish-v0.1.0-alpha.json", temp_root / "docs" / "release-publish-v0.1.0-alpha.json")
 

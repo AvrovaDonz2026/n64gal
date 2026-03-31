@@ -3,6 +3,7 @@
 
 #include "vn_types.h"
 
+#define VNSAVE_API_STABILITY "pre-1.0 unstable"
 #define VNSAVE_VERSION_1 0x00010000u
 #define VNSAVE_HEADER_SIZE_V0 16u
 #define VNSAVE_HEADER_SIZE_V1 32u

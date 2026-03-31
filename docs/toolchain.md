@@ -215,30 +215,36 @@ python3 tools/validate/validate_template_contracts.py
 
 当前已落地：
 
-1. `tools/migrate/vnsave_migrate`
+1. 统一入口：`python3 tools/toolchain.py migrate-vnsave ...`
+2. CMake 构建产物：`build/vnsave_migrate`
+3. 源码入口：`tools/migrate/vnsave_migrate.c`
 
 示例：
 
 ```bash
-./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
 
 ### probe
 
 当前已落地：
 
-1. `tools/probe/vnsave_probe`
-2. `tools/probe/trace_summary.py`
-3. `tools/probe/preview_summary.py`
-4. `tools/probe/perf_summary.py`
-5. `tools/probe/perf_compare_summary.py`
-6. `tools/probe/kernel_bench_summary.py`
-7. `tools/probe/kernel_compare_summary.py`
+1. 统一入口：`python3 tools/toolchain.py probe-vnsave ...`
+2. CMake 构建产物：`build/vnsave_probe`
+3. 源码入口：`tools/probe/vnsave_probe.c`
+4. `tools/probe/trace_summary.py`
+5. `tools/probe/preview_summary.py`
+6. `tools/probe/perf_summary.py`
+7. `tools/probe/perf_compare_summary.py`
+8. `tools/probe/kernel_bench_summary.py`
+9. `tools/probe/kernel_compare_summary.py`
 
 示例：
 
 ```bash
-./tools/probe/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
+python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
+./build/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
 ```
 
 输出约定：

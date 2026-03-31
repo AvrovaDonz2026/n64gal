@@ -9,6 +9,32 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
 
 当前代码以“库优先”方式组织：核心能力通过 `vn_runtime.h` 暴露，预览协议入口通过 `vn_preview.h` 暴露，`vn_player` 仅作为可选 CLI 包装。
 
+## 代码优先说明
+
+这个仓库当前应按“代码与测试优先”理解：文档可能阶段性落后于实现。
+
+若文档、README 与实现冲突，请优先以这些位置为准：
+
+1. `include/*.h` 的公开头文件
+2. `examples/host-embed/*` 的最小接入示例
+3. `tests/unit/test_runtime_api.c` 与 `tests/unit/test_runtime_session.c`
+4. `tests/integration/test_preview_protocol.c`
+5. `tools/toolchain.py`
+
+当前代码里已经稳定落地并有回归覆盖的主路径包括：
+
+1. `vn_runtime_run(...)`
+2. Session API：`create/step/is_done/set_choice/inject_input/destroy`
+3. Session snapshot API：`capture_snapshot/create_from_snapshot`
+4. Session file save/load API：`save_to_file/load_from_file`
+5. `vn_previewd` / `vn_preview_run_cli(...)`
+6. `migrate-vnsave`
+7. `probe-vnsave`
+
+当前 `vn_runtime.h` 也已经提供 `vn_runtime_query_build_info(...)`，可直接查询当前 build 的 runtime/preview/pack/save 版本边界与 host 元信息。
+
+当前 `scene_name` 也不是任意字符串，而是代码里明确解析的固定集合：`S0/S1/S2/S3/S10`；未知值会被拒绝。
+
 ## 项目状态（2026-03-15）
 
 - 当前对外版本状态：`v0.1.0-alpha` 已发布
@@ -31,6 +57,8 @@ N64GAL 是一个面向 Galgame/VN 的实验性引擎原型，核心目标是：
    - 输入抽象层进一步统一（键盘输入与脚本化输入）。
 
 详细路线图见 [issue.md](./issue.md) 与 [dream.md](./dream.md)。`Dirty-Tile` 设计/API 现状与当前第二阶段实现状态见 [docs/api/dirty-tile-draft.md](./docs/api/dirty-tile-draft.md)。当前已入库的 perf 证据见 [docs/perf-rvv-2026-03-06.md](./docs/perf-rvv-2026-03-06.md)、[docs/perf-dirty-2026-03-07.md](./docs/perf-dirty-2026-03-07.md)、[docs/perf-dynres-2026-03-07.md](./docs/perf-dynres-2026-03-07.md)、[docs/perf-windows-x64-2026-03-07.md](./docs/perf-windows-x64-2026-03-07.md) 与 [docs/perf-x64-hosts-2026-03-09.md](./docs/perf-x64-hosts-2026-03-09.md)。当前 `linux-x64` perf smoke / dirty compare 已统一收口到 `S1,S3,S10`；其中 `S10` 作为更重的 perf sample，用于补足主线路径压力。`S0` 在 shipped `frame reuse + op cache` 路径上会被压到约 `0.001ms`，因此只保留在全量 sweep 与 `qemu-rvv` bring-up smoke 中。关于是否引入 `JIT`，当前项目立场已单独写成 [`docs/jit-strategy.md`](./docs/jit-strategy.md)：短期不把它作为主线阻塞项，只接受“`x64-only + VM-only + 默认关闭`”的实验路线。首个对外预发布版本说明见 [`docs/release-v0.1.0-alpha.md`](./docs/release-v0.1.0-alpha.md)，测试与性能证据汇总见 [`docs/release-evidence-v0.1.0-alpha.md`](./docs/release-evidence-v0.1.0-alpha.md)，`v0.1.0-mvp` 当前差距见 [`docs/release-gap-v0.1.0-mvp.md`](./docs/release-gap-v0.1.0-mvp.md)，版本变更摘要见 [`CHANGELOG.md`](./CHANGELOG.md)，`1.0.0` 范围决策见 [`docs/release-roadmap-1.0.0.md`](./docs/release-roadmap-1.0.0.md)，正式版 checklist 见 [`docs/release-checklist-v1.0.0.md`](./docs/release-checklist-v1.0.0.md)，兼容矩阵见 [`docs/compat-matrix.md`](./docs/compat-matrix.md)，生态治理见 [`docs/extension-manifest.md`](./docs/extension-manifest.md) 与 [`docs/ecosystem-governance.md`](./docs/ecosystem-governance.md)，公共错误面见 [`docs/errors.md`](./docs/errors.md)，`vnsave` 版本策略见 [`docs/vnsave-version-policy.md`](./docs/vnsave-version-policy.md)。首个对外发布映射规格见 [`docs/release-publish-v0.1.0-alpha.json`](./docs/release-publish-v0.1.0-alpha.json)。当前 GitHub prerelease：[`v0.1.0-alpha`](https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha)。本地正式版 gate 当前也已有统一入口：`python3 tools/toolchain.py validate-all`、`python3 tools/toolchain.py release-gate`、`python3 tools/toolchain.py release-host-sdk-smoke`、`python3 tools/toolchain.py release-platform-evidence`、`python3 tools/toolchain.py release-preview-evidence`、`python3 tools/toolchain.py release-soak`、`python3 tools/toolchain.py release-bundle`、`python3 tools/toolchain.py release-report`、`python3 tools/toolchain.py release-publish-map`、`python3 tools/toolchain.py release-export`、`python3 tools/toolchain.py validate-release-remote-state` 与 `python3 tools/toolchain.py release-remote-summary`。
+
+若只想快速判断“首个 `v1.0.0` 还差什么”，当前执行分层见 [`docs/release-triage-v1.0.0.md`](./docs/release-triage-v1.0.0.md)。
 
 ## 目标平台矩阵
 
@@ -201,8 +229,15 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 当前已提供最小 `vnsave` 离线迁移入口：
 
 ```bash
-./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
+
+说明：
+
+1. `python3 tools/toolchain.py migrate-vnsave ...` 是推荐入口，会自动编译 helper
+2. `./build/vnsave_migrate` 对应 CMake 构建产物
+3. `tools/migrate/vnsave_migrate.c` 是源码入口，不是仓库内现成可执行文件
 
 当前范围：
 
@@ -225,8 +260,15 @@ python3 tools/validate/validate_manifest.py tests/fixtures/tool_manifest/valid/v
 ## 探测工具（当前最小 vnsave probe）
 
 ```bash
-./tools/probe/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
+python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
+./build/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
 ```
+
+说明：
+
+1. `python3 tools/toolchain.py probe-vnsave ...` 是推荐入口，会自动编译 helper
+2. `./build/vnsave_probe` 对应 CMake 构建产物
+3. `tools/probe/vnsave_probe.c` 是源码入口，不是仓库内现成可执行文件
 
 当前范围：
 

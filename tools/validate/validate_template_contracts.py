@@ -98,6 +98,11 @@ def main(argv):
 
         require_contains(host_readme, "./templates/minimal-vn/tools/build_assets.sh", "host.readme.depends_minimal")
         require_contains(host_readme, "templates/host-embed/src/session_loop.c", "host.readme.session_loop")
+        require_contains(host_readme, "src/core/platform.c", "host.readme.platform")
+        require_contains(host_readme, "src/core/dynamic_resolution.c", "host.readme.dynamic_resolution")
+        require_contains(host_readme, "src/frontend/dirty_tiles.c", "host.readme.dirty_tiles")
+        require_contains(host_readme, "src/backend/avx2/avx2_fill_fade.c", "host.readme.avx2_fill_fade")
+        require_contains(host_readme, "src/backend/avx2/avx2_textured.c", "host.readme.avx2_textured")
         require_contains(host_meta, "\"template_version\": 1", "host.meta.version")
         require_contains(host_meta, "\"template_name\": \"host-embed\"", "host.meta.name")
 

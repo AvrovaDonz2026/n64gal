@@ -3,6 +3,12 @@
 
 #include "vn_types.h"
 
+#define VNPAK_VERSION_1 1u
+#define VNPAK_VERSION_2 2u
+#define VNPAK_READ_MIN_VERSION VNPAK_VERSION_1
+#define VNPAK_READ_MAX_VERSION VNPAK_VERSION_2
+#define VNPAK_WRITE_DEFAULT_VERSION VNPAK_VERSION_2
+
 typedef struct {
     vn_u8 type;
     vn_u8 flags;

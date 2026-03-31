@@ -32,11 +32,13 @@
 
 ### 版本与头大小
 
-1. `VNSAVE_VERSION_1`
+1. `VNSAVE_API_STABILITY`
+   - 当前值：`pre-1.0 unstable`
+2. `VNSAVE_VERSION_1`
    - 当前值：`0x00010000`
-2. `VNSAVE_HEADER_SIZE_V0`
+3. `VNSAVE_HEADER_SIZE_V0`
    - 当前值：`16`
-3. `VNSAVE_HEADER_SIZE_V1`
+4. `VNSAVE_HEADER_SIZE_V1`
    - 当前值：`32`
 
 ### 探测状态
@@ -69,6 +71,7 @@
 1. `status` 提供结构化探测结果。
 2. `error_code` 继续复用公共 `VN_*` 错误码。
 3. 宿主应优先按 `error_code + status` 判断，而不是依赖文本字符串。
+4. 若宿主需要在运行时读取当前 build 的 save 版本边界，也可通过 `vn_runtime_query_build_info(...)` 获取 `vnsave_latest_version + vnsave_api_stability`。
 
 ## 6. API
 
@@ -154,8 +157,15 @@
 当前最小迁移工具：
 
 ```bash
-./tools/migrate/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
+./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ```
+
+说明：
+
+1. 推荐优先走 `tools/toolchain.py`，会自动编译 helper
+2. 若已经完成 CMake 构建，也可直接运行 `build/vnsave_migrate`
+3. `tools/migrate/vnsave_migrate.c` 是源码入口，不是仓库内预置二进制
 
 当前只承诺：
 
