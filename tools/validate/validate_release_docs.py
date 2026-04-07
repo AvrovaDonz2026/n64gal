@@ -54,12 +54,16 @@ def main(argv):
         release_note = read_text(root, "docs/release-v0.1.0-alpha.md")
         release_evidence = read_text(root, "docs/release-evidence-v0.1.0-alpha.md")
         release_package = read_text(root, "docs/release-package-v0.1.0-alpha.md")
+        release_note_v1 = read_text(root, "docs/release-v1.0.0.md")
+        release_evidence_v1 = read_text(root, "docs/release-evidence-v1.0.0.md")
+        release_package_v1 = read_text(root, "docs/release-package-v1.0.0.md")
         alpha_checklist = read_text(root, "docs/release-checklist-v0.1.0-alpha.md")
         mvp_gap = read_text(root, "docs/release-gap-v0.1.0-mvp.md")
         roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
         triage_v1 = read_text(root, "docs/release-triage-v1.0.0.md")
         checklist_v1 = read_text(root, "docs/release-checklist-v1.0.0.md")
         release_publish_spec = read_text(root, "docs/release-publish-v0.1.0-alpha.json")
+        release_publish_spec_v1 = read_text(root, "docs/release-publish-v1.0.0.json")
     except FileNotFoundError as exc:
         return error("tool.validate.release_docs.io", VN_E_IO, str(exc), "required release document missing")
     except OSError:
@@ -103,6 +107,16 @@ def main(argv):
         require_contains(release_package, "`docs/migration.md`", "release_package.migration")
         require_contains(release_package, "`release_publish_map(.md/.json)`", "release_package.publish_map")
 
+        require_contains(release_note_v1, "`v1.0.0`", "release_note_v1.version")
+        require_contains(release_note_v1, "`runtime-session-only`", "release_note_v1.save_scope")
+        require_contains(release_note_v1, "`RVV/riscv64 native`", "release_note_v1.rvv_boundary")
+
+        require_contains(release_evidence_v1, "`runtime-session-only`", "release_evidence_v1.save_scope")
+        require_contains(release_evidence_v1, "`ci-matrix`", "release_evidence_v1.ci_matrix")
+
+        require_contains(release_package_v1, "`docs/release-v1.0.0.md`", "release_package_v1.release_note")
+        require_contains(release_package_v1, "`docs/release-publish-v1.0.0.json`", "release_package_v1.release_spec")
+
         require_contains(alpha_checklist, "`v0.1.0-alpha` 不是 ABI/格式冻结版本", "alpha_checklist.not_frozen")
         require_contains(alpha_checklist, "`riscv64 native` 不在当前发布级承诺范围", "alpha_checklist.rvv_boundary")
         require_contains(alpha_checklist, "`JIT` 不在当前发布范围", "alpha_checklist.jit")
@@ -124,6 +138,10 @@ def main(argv):
         require_contains(release_publish_spec, "\"release_note\": \"docs/release-v0.1.0-alpha.md\"", "release_publish_spec.release_note")
         require_contains(release_publish_spec, "\"name\": \"demo.vnpak\"", "release_publish_spec.asset_name")
         require_contains(release_publish_spec, "\"path\": \"assets/demo/demo.vnpak\"", "release_publish_spec.asset")
+
+        require_contains(release_publish_spec_v1, "\"tag\": \"v1.0.0\"", "release_publish_spec_v1.tag")
+        require_contains(release_publish_spec_v1, "\"prerelease\": false", "release_publish_spec_v1.prerelease")
+        require_contains(release_publish_spec_v1, "\"release_note\": \"docs/release-v1.0.0.md\"", "release_publish_spec_v1.release_note")
     except ValueError as exc:
         return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "release document drift detected")
 

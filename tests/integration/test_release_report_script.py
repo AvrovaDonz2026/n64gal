@@ -12,6 +12,7 @@ SCRIPT = ["bash", "scripts/release/run_release_report.sh"]
 def main():
     out_dir = ROOT / "tests" / "integration" / "release_report_tmp"
     report_json = out_dir / "release_report.json"
+    release_spec = ROOT / "tests" / "integration" / "release_report_spec.json"
     bundle_index = ROOT / "tests" / "integration" / "release_report_bundle.md"
     bundle_manifest = ROOT / "tests" / "integration" / "release_report_bundle_manifest.json"
     gate_summary = ROOT / "tests" / "integration" / "release_report_gate.md"
@@ -20,25 +21,36 @@ def main():
     host_sdk_summary = ROOT / "tests" / "integration" / "release_report_host_sdk.md"
     platform_summary = ROOT / "tests" / "integration" / "release_report_platform.md"
     preview_summary = ROOT / "tests" / "integration" / "release_report_preview.md"
+    release_note = ROOT / "tests" / "integration" / "release-v1.0.0.md"
+    release_evidence = ROOT / "tests" / "integration" / "release-evidence-v1.0.0.md"
+    release_package = ROOT / "tests" / "integration" / "release-package-v1.0.0.md"
 
     if out_dir.exists():
         import shutil
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
+    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary, release_spec, release_note, release_evidence, release_package):
         try:
             path.unlink()
         except FileNotFoundError:
             pass
         if path.suffix == ".json":
-            path.write_text('{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1}]}\n', encoding="utf-8")
+            if path == release_spec:
+                path.write_text(
+                    '{"version":"v1.0.0","tag":"v1.0.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0","release_note":"%s","asset":{"path":"assets/demo/demo.vnpak"}}\n'
+                    % release_note.relative_to(ROOT),
+                    encoding="utf-8",
+                )
+            else:
+                path.write_text('{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1}]}\n', encoding="utf-8")
         else:
             path.write_text(f"# {path.name}\n", encoding="utf-8")
 
     proc = subprocess.run(
         SCRIPT + [
             "--out-dir", str(out_dir),
+            "--release-spec", str(release_spec),
             "--bundle-index", str(bundle_index),
             "--bundle-manifest", str(bundle_manifest),
             "--gate-summary", str(gate_summary),
@@ -71,19 +83,27 @@ def main():
     if "# Release Report" not in report_text:
         print("release report header missing", file=sys.stderr)
         return 1
-        if "docs/perf-report.md" not in report_text:
-            print("release report missing perf doc index", file=sys.stderr)
-            return 1
-        if str(bundle_manifest) not in report_text:
-            print("release report missing bundle manifest reference", file=sys.stderr)
-            return 1
+    if "docs/perf-report.md" not in report_text:
+        print("release report missing perf doc index", file=sys.stderr)
+        return 1
+    if str(bundle_manifest) not in report_text:
+        print("release report missing bundle manifest reference", file=sys.stderr)
+        return 1
+    if str(release_spec) not in report_text or str(release_note) not in report_text or str(release_evidence) not in report_text:
+        print("release report missing spec-driven release doc references", file=sys.stderr)
+        return 1
     if str(host_sdk_summary) not in report_text or str(platform_summary) not in report_text or str(preview_summary) not in report_text:
             print("release report missing release-facing evidence references", file=sys.stderr)
             return 1
 
+    report_json_text = report_json.read_text(encoding="utf-8")
+    if '"release_spec":' not in report_json_text or '"release_note":' not in report_json_text or '"release_evidence":' not in report_json_text:
+        print("release report json missing spec-driven release doc fields", file=sys.stderr)
+        return 1
+
     import shutil
     shutil.rmtree(out_dir)
-    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary):
+    for path in (bundle_index, bundle_manifest, gate_summary, soak_summary, ci_summary, host_sdk_summary, platform_summary, preview_summary, release_spec, release_note, release_evidence, release_package):
         path.unlink()
 
     print("test_release_report_script ok")

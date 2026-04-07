@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_report}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json}"
 BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_index.md}"
 BUNDLE_MANIFEST=""
 GATE_SUMMARY="${GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
@@ -18,7 +19,7 @@ REPORT_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
+usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--release-spec <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
 EOF
 }
 
@@ -28,6 +29,12 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       OUT_DIR="$1"
+      shift
+      ;;
+    --release-spec)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_SPEC="$1"
       shift
       ;;
     --bundle-index)
@@ -122,6 +129,7 @@ require_file() {
 
 require_file "$BUNDLE_INDEX"
 require_file "$BUNDLE_MANIFEST"
+require_file "$RELEASE_SPEC"
 require_file "$GATE_SUMMARY"
 require_file "$SOAK_SUMMARY"
 require_file "$CI_SUITE_SUMMARY"
@@ -129,11 +137,48 @@ require_file "$HOST_SDK_SUMMARY"
 require_file "$PLATFORM_EVIDENCE_SUMMARY"
 require_file "$PREVIEW_EVIDENCE_SUMMARY"
 
+eval "$(
+python3 - "$RELEASE_SPEC" <<'PY'
+import json
+import os
+import shlex
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+version = str(payload.get("version", ""))
+release_note = str(payload.get("release_note", ""))
+note_dir = os.path.dirname(release_note)
+note_base = os.path.basename(release_note)
+suffix = ""
+if note_base.startswith("release-") and note_base.endswith(".md"):
+    suffix = note_base[len("release-"):-3]
+elif version:
+    suffix = version
+
+fields = {
+    "SPEC_RELEASE_NOTE": release_note,
+    "SPEC_RELEASE_EVIDENCE": os.path.join(note_dir, f"release-evidence-{suffix}.md") if suffix else "",
+    "SPEC_RELEASE_PACKAGE": os.path.join(note_dir, f"release-package-{suffix}.md") if suffix else "",
+}
+
+for key, value in fields.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+)"
+
+require_file "$SPEC_RELEASE_NOTE"
+require_file "$SPEC_RELEASE_EVIDENCE"
+require_file "$SPEC_RELEASE_PACKAGE"
+
 {
   echo "# Release Report"
   echo
   echo "- Head: \`$(git rev-parse --short HEAD)\`"
   echo "- Branch: \`$(git branch --show-current)\`"
+  echo "- Release spec: \`$RELEASE_SPEC\`"
   echo "- Bundle index: \`$BUNDLE_INDEX\`"
   echo "- Bundle manifest: \`$BUNDLE_MANIFEST\`"
   echo "- Gate summary: \`$GATE_SUMMARY\`"
@@ -153,7 +198,9 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   echo "6. Host SDK smoke summary"
   echo "7. Platform evidence summary"
   echo "8. Preview evidence summary"
-  echo "9. Release note / evidence / package docs"
+  echo "9. Release note: \`$SPEC_RELEASE_NOTE\`"
+  echo "10. Release evidence: \`$SPEC_RELEASE_EVIDENCE\`"
+  echo "11. Release package: \`$SPEC_RELEASE_PACKAGE\`"
   echo
   echo "## Perf Evidence Docs"
   echo
@@ -174,6 +221,7 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   printf '{\n'
   printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
   printf '  "branch": "%s",\n' "$(git branch --show-current)"
+  printf '  "release_spec": "%s",\n' "$RELEASE_SPEC"
   printf '  "report_md": "%s",\n' "$REPORT_OUT"
   printf '  "bundle_index": "%s",\n' "$BUNDLE_INDEX"
   printf '  "bundle_manifest": "%s",\n' "$BUNDLE_MANIFEST"
@@ -182,7 +230,10 @@ require_file "$PREVIEW_EVIDENCE_SUMMARY"
   printf '  "ci_suite_summary": "%s",\n' "$CI_SUITE_SUMMARY"
   printf '  "host_sdk_summary": "%s",\n' "$HOST_SDK_SUMMARY"
   printf '  "platform_evidence_summary": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY"
-  printf '  "preview_evidence_summary": "%s"\n' "$PREVIEW_EVIDENCE_SUMMARY"
+  printf '  "preview_evidence_summary": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY"
+  printf '  "release_note": "%s",\n' "$SPEC_RELEASE_NOTE"
+  printf '  "release_evidence": "%s",\n' "$SPEC_RELEASE_EVIDENCE"
+  printf '  "release_package": "%s"\n' "$SPEC_RELEASE_PACKAGE"
   printf '}\n'
 } >"$REPORT_JSON_OUT"
 

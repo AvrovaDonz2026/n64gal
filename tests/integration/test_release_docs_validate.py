@@ -39,12 +39,16 @@ def main():
         shutil.copy2(ROOT / "docs" / "release-v0.1.0-alpha.md", temp_root / "docs" / "release-v0.1.0-alpha.md")
         shutil.copy2(ROOT / "docs" / "release-evidence-v0.1.0-alpha.md", temp_root / "docs" / "release-evidence-v0.1.0-alpha.md")
         shutil.copy2(ROOT / "docs" / "release-package-v0.1.0-alpha.md", temp_root / "docs" / "release-package-v0.1.0-alpha.md")
+        shutil.copy2(ROOT / "docs" / "release-v1.0.0.md", temp_root / "docs" / "release-v1.0.0.md")
+        shutil.copy2(ROOT / "docs" / "release-evidence-v1.0.0.md", temp_root / "docs" / "release-evidence-v1.0.0.md")
+        shutil.copy2(ROOT / "docs" / "release-package-v1.0.0.md", temp_root / "docs" / "release-package-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-checklist-v0.1.0-alpha.md", temp_root / "docs" / "release-checklist-v0.1.0-alpha.md")
         shutil.copy2(ROOT / "docs" / "release-gap-v0.1.0-mvp.md", temp_root / "docs" / "release-gap-v0.1.0-mvp.md")
         shutil.copy2(ROOT / "docs" / "release-roadmap-1.0.0.md", temp_root / "docs" / "release-roadmap-1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-triage-v1.0.0.md", temp_root / "docs" / "release-triage-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-checklist-v1.0.0.md", temp_root / "docs" / "release-checklist-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-publish-v0.1.0-alpha.json", temp_root / "docs" / "release-publish-v0.1.0-alpha.json")
+        shutil.copy2(ROOT / "docs" / "release-publish-v1.0.0.json", temp_root / "docs" / "release-publish-v1.0.0.json")
 
         broken = (temp_root / "docs" / "release-v0.1.0-alpha.md").read_text(encoding="utf-8")
         broken = broken.replace("`JIT`；当前仍是文档化实验方向，不是 release blocker。",

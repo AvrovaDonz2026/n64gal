@@ -255,6 +255,7 @@ run_step "release-bundle" \
 run_step "release-report" \
   bash scripts/release/run_release_report.sh \
   --out-dir "$REPORT_DIR" \
+  --release-spec "$RELEASE_SPEC" \
   --bundle-index "$BUNDLE_DIR/release_bundle_index.md" \
   --bundle-manifest "$BUNDLE_DIR/release_bundle_manifest.json" \
   --gate-summary "$GATE_SUMMARY" \

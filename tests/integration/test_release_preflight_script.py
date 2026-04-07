@@ -13,7 +13,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_preflight_") as temp_dir:
         out_dir = Path(temp_dir) / "preflight"
         ci_summary = Path(temp_dir) / "ci_suite_summary.md"
+        release_spec = Path(temp_dir) / "release_spec.json"
+        release_note = Path(temp_dir) / "release-v1.0.0.md"
+        release_evidence = Path(temp_dir) / "release-evidence-v1.0.0.md"
+        release_package = Path(temp_dir) / "release-package-v1.0.0.md"
         ci_summary.write_text("# CI Suite Summary\n\n- Status: `success`\n", encoding="utf-8")
+        release_note.write_text("# N64GAL v1.0.0\n", encoding="utf-8")
+        release_evidence.write_text("# Release Evidence: v1.0.0\n", encoding="utf-8")
+        release_package.write_text("# Release Package Plan: v1.0.0\n", encoding="utf-8")
+        release_spec.write_text(
+            '{"version":"v1.0.0","tag":"v1.0.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0","release_note":"%s","asset":{"path":"%s"}}\n'
+            % (release_note, ROOT / "assets" / "demo" / "demo.vnpak"),
+            encoding="utf-8",
+        )
         proc = subprocess.run(
             SCRIPT
             + [
@@ -21,6 +33,8 @@ def main():
                 "--skip-cc-suite",
                 "--out-dir",
                 str(out_dir),
+                "--remote-release-spec",
+                str(release_spec),
                 "--ci-suite-summary",
                 str(ci_summary),
                 "--soak-frames-per-scene",
@@ -45,6 +59,10 @@ def main():
             return 1
         if not (out_dir / "export" / "bundle" / "summaries" / "release_remote_summary.json").exists():
             print("release preflight export missing remote summary", file=sys.stderr)
+            return 1
+        bundle_index = (out_dir / "export" / "bundle" / "release_bundle_index.md").read_text(encoding="utf-8")
+        if "`docs/release-v1.0.0.md`" not in bundle_index:
+            print("release preflight bundle index missing v1.0.0 note", file=sys.stderr)
             return 1
 
     print("test_release_preflight_script ok")
