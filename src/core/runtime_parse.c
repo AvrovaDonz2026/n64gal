@@ -350,7 +350,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
 
         arg = argv[i];
         if (strcmp(arg, "--load-save") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--load-save", &value);
@@ -361,7 +361,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
         } else if (strncmp(arg, "--load-save=", 12) == 0) {
             options->load_save_path = arg + 12;
         } else if (strcmp(arg, "--save-out") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--save-out", &value);
@@ -372,7 +372,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
         } else if (strncmp(arg, "--save-out=", 11) == 0) {
             options->save_out_path = arg + 11;
         } else if (strcmp(arg, "--save-slot") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--save-slot", &value);
@@ -393,7 +393,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             }
             runtime_cli_mark_save_metadata(options, "--save-slot");
         } else if (strcmp(arg, "--save-timestamp") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--save-timestamp", &value);
@@ -414,7 +414,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             }
             runtime_cli_mark_save_metadata(options, "--save-timestamp");
         } else if (strcmp(arg, "--backend") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--backend", &value);
@@ -427,7 +427,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             options->run_cfg.backend_name = arg + 10;
             runtime_cli_mark_load_conflict(options, "--backend");
         } else if (strcmp(arg, "--resolution") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--resolution", &value);
@@ -448,7 +448,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             }
             runtime_cli_mark_load_conflict(options, "--resolution");
         } else if (strcmp(arg, "--scene") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--scene", &value);
@@ -461,7 +461,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             options->run_cfg.scene_name = arg + 8;
             runtime_cli_mark_load_conflict(options, "--scene");
         } else if (strcmp(arg, "--pack") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--pack", &value);
@@ -474,7 +474,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             options->run_cfg.pack_path = arg + 7;
             runtime_cli_mark_load_conflict(options, "--pack");
         } else if (strcmp(arg, "--choice-index") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             vn_u32 parsed;
             int rc;
 
@@ -499,7 +499,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             options->run_cfg.choice_index = (vn_u8)(parsed & 0xFFu);
             runtime_cli_mark_load_conflict(options, "--choice-index");
         } else if (strcmp(arg, "--choice-seq") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--choice-seq", &value);
@@ -520,7 +520,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             }
             runtime_cli_mark_load_conflict(options, "--choice-seq");
         } else if (strcmp(arg, "--frames") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--frames", &value);
@@ -541,7 +541,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             }
             runtime_cli_mark_load_conflict(options, "--frames");
         } else if (strcmp(arg, "--dt-ms") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int rc;
 
             rc = runtime_cli_take_next_value(argc, argv, &i, "--dt-ms", &value);
@@ -570,7 +570,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             options->run_cfg.hold_on_end = 1u;
             runtime_cli_mark_load_conflict(options, "--hold-end");
         } else if (strcmp(arg, "--perf-op-cache") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int enabled;
             int rc;
 
@@ -595,7 +595,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             runtime_parse_perf_flag_set(&options->run_cfg.perf_flags, VN_RUNTIME_PERF_OP_CACHE, enabled);
             runtime_cli_mark_load_conflict(options, "--perf-op-cache");
         } else if (strcmp(arg, "--perf-dirty-tile") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int enabled;
             int rc;
 
@@ -620,7 +620,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             runtime_parse_perf_flag_set(&options->run_cfg.perf_flags, VN_RUNTIME_PERF_DIRTY_TILE, enabled);
             runtime_cli_mark_load_conflict(options, "--perf-dirty-tile");
         } else if (strcmp(arg, "--perf-dynamic-resolution") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int enabled;
             int rc;
 
@@ -645,7 +645,7 @@ int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** arg
             runtime_parse_perf_flag_set(&options->run_cfg.perf_flags, VN_RUNTIME_PERF_DYNAMIC_RESOLUTION, enabled);
             runtime_cli_mark_load_conflict(options, "--perf-dynamic-resolution");
         } else if (strcmp(arg, "--perf-frame-reuse") == 0) {
-            const char* value;
+            const char* value = (const char*)0;
             int enabled;
             int rc;
 
