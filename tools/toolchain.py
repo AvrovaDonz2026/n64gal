@@ -413,6 +413,7 @@ def command_probe_preview(argv) -> int:
             "src/core/runtime_parse.c",
             "src/core/runtime_persist.c",
             "src/core/runtime_session_support.c",
+            "src/core/runtime_session_loop.c",
             "src/core/dynamic_resolution.c",
             "src/frontend/render_ops.c",
             "src/frontend/dirty_tiles.c",

@@ -83,7 +83,7 @@ docs/           API / perf / release / migration / governance
 
 当前实现层也已按职责拆开：
 
-1. Runtime：`runtime_input.c + runtime_parse.c + runtime_cli.c + runtime_persist.c + runtime_session_support.c`
+1. Runtime：`runtime_input.c + runtime_parse.c + runtime_cli.c + runtime_session_support.c + runtime_session_loop.c + runtime_persist.c`
 2. Preview：`preview_parse.c + preview_cli.c + preview_report.c`
 
 ## 快速开始
@@ -126,6 +126,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/runtime_parse.c \
   src/core/runtime_persist.c \
   src/core/runtime_session_support.c \
+  src/core/runtime_session_loop.c \
   src/core/dynamic_resolution.c \
   src/frontend/render_ops.c \
   src/frontend/dirty_tiles.c \

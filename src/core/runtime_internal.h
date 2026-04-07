@@ -168,13 +168,36 @@ void runtime_result_write(const VNRuntimeSession* session, VNRunResult* out_resu
 void runtime_session_cleanup(VNRuntimeSession* session);
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade);
 void runtime_render_cache_invalidate(VNRuntimeSession* session);
+void runtime_dirty_stats_reset(VNRuntimeSession* session);
 void runtime_dirty_planner_reconfigure(VNRuntimeSession* session,
                                        vn_u16 width,
                                        vn_u16 height);
 int runtime_renderer_reconfigure(VNRuntimeSession* session,
                                  vn_u16 width,
                                  vn_u16 height);
+int runtime_dynamic_resolution_maybe_switch(VNRuntimeSession* session, double frame_ms);
+void runtime_prepare_dirty_plan(VNRuntimeSession* session,
+                                const VNRenderOp* ops,
+                                vn_u32 op_count);
+void runtime_commit_dirty_plan(VNRuntimeSession* session,
+                               const VNRenderOp* ops,
+                               vn_u32 op_count);
+void runtime_submit_render_ops(VNRuntimeSession* session,
+                               const VNRenderOp* ops,
+                               vn_u32 op_count);
+int runtime_prepare_frame_reuse(VNRuntimeSession* session,
+                                const VNRuntimeState* state,
+                                RenderOpCacheKey* out_key,
+                                int* out_hit);
+void runtime_commit_frame_reuse(VNRuntimeSession* session,
+                                const RenderOpCacheKey* key_data);
+int runtime_build_render_ops_cached(VNRuntimeSession* session,
+                                    const VNRuntimeState* state,
+                                    VNRenderOp* out_ops,
+                                    vn_u32* io_op_count,
+                                    int* out_cache_hit);
 vn_u32 runtime_supported_perf_flags(void);
 void runtime_result_publish(const VNRuntimeSession* session);
+void runtime_result_reset(void);
 
 #endif

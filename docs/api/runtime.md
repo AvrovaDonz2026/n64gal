@@ -34,7 +34,7 @@
 
 ## 2.3 当前实现落点
 
-当前 runtime 实现已按职责拆成五层：
+当前 runtime 实现已按职责拆成六层：
 
 1. `src/core/runtime_cli.c`
    - Session 驱动
@@ -51,7 +51,10 @@
 4. `src/core/runtime_session_support.c`
    - scene script 装载
    - runtime state 同步与 session cleanup
-5. `src/core/runtime_persist.c`
+5. `src/core/runtime_session_loop.c`
+   - session step 主循环
+   - trace / summary / result publish
+6. `src/core/runtime_persist.c`
    - build info 查询
    - snapshot encode/decode
    - file save/load wrapper
