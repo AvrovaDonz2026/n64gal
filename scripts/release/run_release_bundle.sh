@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_bundle}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json}"
 RELEASE_GATE_SUMMARY="${RELEASE_GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 DEMO_SOAK_SUMMARY="${DEMO_SOAK_SUMMARY:-$ROOT_DIR/build_release_gate/demo_soak_summary.md}"
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
@@ -23,7 +24,7 @@ RELEASE_REMOTE_SUMMARY_JSON=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>] [--report-md <path>] [--report-json <path>] [--publish-map-md <path>] [--publish-map-json <path>] [--remote-summary-md <path>] [--remote-summary-json <path>]
+usage: scripts/release/run_release_bundle.sh [--out-dir <dir>] [--release-spec <path>] [--release-gate-summary <path>|--gate-summary <path>] [--demo-soak-summary <path>|--soak-summary <path>] [--ci-suite-summary <path>|--ci-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>] [--report-md <path>] [--report-json <path>] [--publish-map-md <path>] [--publish-map-json <path>] [--remote-summary-md <path>] [--remote-summary-json <path>]
 EOF
 }
 
@@ -33,6 +34,12 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       OUT_DIR="$1"
+      shift
+      ;;
+    --release-spec)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      RELEASE_SPEC="$1"
       shift
       ;;
     --release-gate-summary|--gate-summary)
@@ -141,6 +148,43 @@ DOC_DIR="$OUT_DIR/docs"
 SUM_DIR="$OUT_DIR/summaries"
 mkdir -p "$DOC_DIR" "$SUM_DIR"
 
+eval "$(
+python3 - "$RELEASE_SPEC" <<'PY'
+import json
+import os
+import shlex
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+version = str(payload.get("version", ""))
+release_note = str(payload.get("release_note", ""))
+asset = payload.get("asset", {})
+asset_path = str(asset.get("path", ""))
+
+note_dir = os.path.dirname(release_note)
+note_base = os.path.basename(release_note)
+suffix = ""
+if note_base.startswith("release-") and note_base.endswith(".md"):
+    suffix = note_base[len("release-"):-3]
+elif version:
+    suffix = version
+
+fields = {
+    "SPEC_VERSION": version,
+    "SPEC_RELEASE_NOTE": release_note,
+    "SPEC_RELEASE_EVIDENCE": os.path.join(note_dir, f"release-evidence-{suffix}.md") if suffix else "",
+    "SPEC_RELEASE_PACKAGE": os.path.join(note_dir, f"release-package-{suffix}.md") if suffix else "",
+    "SPEC_ASSET_PATH": asset_path,
+}
+
+for key, value in fields.items():
+    print(f"{key}={shlex.quote(value)}")
+PY
+)"
+
 copy_required() {
   local src="$1"
   local dst="$2"
@@ -151,13 +195,13 @@ copy_required() {
   cp "$src" "$dst"
 }
 
-copy_required "docs/release-v0.1.0-alpha.md" "$DOC_DIR/release-v0.1.0-alpha.md"
-copy_required "docs/release-evidence-v0.1.0-alpha.md" "$DOC_DIR/release-evidence-v0.1.0-alpha.md"
-copy_required "docs/release-package-v0.1.0-alpha.md" "$DOC_DIR/release-package-v0.1.0-alpha.md"
+copy_required "$SPEC_RELEASE_NOTE" "$DOC_DIR/$(basename "$SPEC_RELEASE_NOTE")"
+copy_required "$SPEC_RELEASE_EVIDENCE" "$DOC_DIR/$(basename "$SPEC_RELEASE_EVIDENCE")"
+copy_required "$SPEC_RELEASE_PACKAGE" "$DOC_DIR/$(basename "$SPEC_RELEASE_PACKAGE")"
 copy_required "docs/release-checklist-v1.0.0.md" "$DOC_DIR/release-checklist-v1.0.0.md"
 copy_required "README.md" "$OUT_DIR/README.md"
 copy_required "CHANGELOG.md" "$OUT_DIR/CHANGELOG.md"
-copy_required "assets/demo/demo.vnpak" "$OUT_DIR/demo.vnpak"
+copy_required "$SPEC_ASSET_PATH" "$OUT_DIR/$(basename "$SPEC_ASSET_PATH")"
 copy_required "$RELEASE_GATE_SUMMARY" "$SUM_DIR/release_gate_summary.md"
 copy_required "$DEMO_SOAK_SUMMARY" "$SUM_DIR/demo_soak_summary.md"
 copy_required "$CI_SUITE_SUMMARY" "$SUM_DIR/ci_suite_summary.md"
@@ -191,9 +235,9 @@ INDEX_JSON="$OUT_DIR/release_bundle_index.json"
 MANIFEST_MD="$OUT_DIR/release_bundle_manifest.md"
 MANIFEST_JSON="$OUT_DIR/release_bundle_manifest.json"
 BUNDLE_FILES=(
-  "docs/release-v0.1.0-alpha.md"
-  "docs/release-evidence-v0.1.0-alpha.md"
-  "docs/release-package-v0.1.0-alpha.md"
+  "docs/$(basename "$SPEC_RELEASE_NOTE")"
+  "docs/$(basename "$SPEC_RELEASE_EVIDENCE")"
+  "docs/$(basename "$SPEC_RELEASE_PACKAGE")"
   "docs/release-checklist-v1.0.0.md"
   "README.md"
   "CHANGELOG.md"
@@ -206,7 +250,7 @@ BUNDLE_FILES=(
   "summaries/platform_evidence_summary.json"
   "summaries/preview_evidence_summary.md"
   "summaries/preview_evidence_summary.json"
-  "demo.vnpak"
+  "$(basename "$SPEC_ASSET_PATH")"
 )
 if [[ -n "$RELEASE_REPORT_MD" ]]; then
   BUNDLE_FILES+=("summaries/release_report.md")
@@ -235,9 +279,9 @@ fi
   echo
   echo "## Docs"
   echo
-  echo "1. \`docs/release-v0.1.0-alpha.md\`"
-  echo "2. \`docs/release-evidence-v0.1.0-alpha.md\`"
-  echo "3. \`docs/release-package-v0.1.0-alpha.md\`"
+  echo "1. \`docs/$(basename "$SPEC_RELEASE_NOTE")\`"
+  echo "2. \`docs/$(basename "$SPEC_RELEASE_EVIDENCE")\`"
+  echo "3. \`docs/$(basename "$SPEC_RELEASE_PACKAGE")\`"
   echo "4. \`docs/release-checklist-v1.0.0.md\`"
   echo "5. \`README.md\`"
   echo "6. \`CHANGELOG.md\`"
@@ -274,7 +318,7 @@ fi
   echo
   echo "## Assets"
   echo
-  echo "1. \`demo.vnpak\`"
+  echo "1. \`$(basename "$SPEC_ASSET_PATH")\`"
   echo
   echo "## Manifests"
   echo
@@ -292,9 +336,9 @@ fi
   printf '  "manifest_json": "%s",\n' "$MANIFEST_JSON"
   printf '  "external_reference_ready": true,\n'
   printf '  "docs": [\n'
-  printf '    "%s",\n' "docs/release-v0.1.0-alpha.md"
-  printf '    "%s",\n' "docs/release-evidence-v0.1.0-alpha.md"
-  printf '    "%s",\n' "docs/release-package-v0.1.0-alpha.md"
+  printf '    "%s",\n' "docs/$(basename "$SPEC_RELEASE_NOTE")"
+  printf '    "%s",\n' "docs/$(basename "$SPEC_RELEASE_EVIDENCE")"
+  printf '    "%s",\n' "docs/$(basename "$SPEC_RELEASE_PACKAGE")"
   printf '    "%s",\n' "docs/release-checklist-v1.0.0.md"
   printf '    "%s",\n' "README.md"
   printf '    "%s"\n' "CHANGELOG.md"
@@ -330,7 +374,7 @@ fi
   printf '\n'
   printf '  ],\n'
   printf '  "assets": [\n'
-  printf '    "%s"\n' "demo.vnpak"
+  printf '    "%s"\n' "$(basename "$SPEC_ASSET_PATH")"
   printf '  ]\n'
   printf '}\n'
 } >"$INDEX_JSON"

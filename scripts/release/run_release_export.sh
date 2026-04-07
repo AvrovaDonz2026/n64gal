@@ -241,6 +241,7 @@ run_step() {
 run_step "release-bundle" \
   bash scripts/release/run_release_bundle.sh \
   --out-dir "$BUNDLE_DIR" \
+  --release-spec "$RELEASE_SPEC" \
   --gate-summary "$GATE_SUMMARY" \
   --soak-summary "$SOAK_SUMMARY" \
   --ci-summary "$CI_SUITE_SUMMARY" \
@@ -298,6 +299,7 @@ fi
 
 final_bundle_cmd=(bash scripts/release/run_release_bundle.sh
   --out-dir "$BUNDLE_DIR"
+  --release-spec "$RELEASE_SPEC"
   --gate-summary "$GATE_SUMMARY"
   --soak-summary "$SOAK_SUMMARY"
   --ci-summary "$CI_SUITE_SUMMARY"

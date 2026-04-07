@@ -17,6 +17,7 @@ def write_text(path: Path, text: str):
 def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_bundle_") as temp_dir:
         out_dir = Path(temp_dir) / "bundle"
+        release_spec = Path(temp_dir) / "release_spec.json"
         gate_summary = Path(temp_dir) / "release_gate_summary.md"
         soak_summary = Path(temp_dir) / "demo_soak_summary.md"
         ci_summary = Path(temp_dir) / "ci_suite_summary.md"
@@ -32,7 +33,15 @@ def main():
         publish_map_json = Path(temp_dir) / "release_publish_map.json"
         remote_summary_md = Path(temp_dir) / "release_remote_summary.md"
         remote_summary_json = Path(temp_dir) / "release_remote_summary.json"
+        release_note = Path(temp_dir) / "release-v1.0.0.md"
+        release_evidence = Path(temp_dir) / "release-evidence-v1.0.0.md"
+        release_package = Path(temp_dir) / "release-package-v1.0.0.md"
 
+        write_text(
+            release_spec,
+            '{"version":"v1.0.0","tag":"v1.0.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0","release_note":"%s","asset":{"path":"%s"}}\n'
+            % (release_note, ROOT / "assets" / "demo" / "demo.vnpak"),
+        )
         write_text(gate_summary, "# Release Gate Summary\n\n- Status: `success`\n")
         write_text(soak_summary, "# Demo Soak Summary\n\n- Status: `success`\n")
         write_text(ci_summary, "# CI Suite Summary\n\n- Status: `success`\n")
@@ -48,10 +57,14 @@ def main():
         write_text(publish_map_json, "{\n  \"tag\": \"v0.1.0-alpha\"\n}\n")
         write_text(remote_summary_md, "# Release Remote Summary\n")
         write_text(remote_summary_json, "{\n  \"tag\": \"v0.1.0-alpha\"\n}\n")
+        write_text(release_note, "# N64GAL v1.0.0\n")
+        write_text(release_evidence, "# Release Evidence: v1.0.0\n")
+        write_text(release_package, "# Release Package Plan: v1.0.0\n")
 
         proc = subprocess.run(
             SCRIPT + [
                 "--out-dir", str(out_dir),
+                "--release-spec", str(release_spec),
                 "--release-gate-summary", str(gate_summary),
                 "--demo-soak-summary", str(soak_summary),
                 "--ci-suite-summary", str(ci_summary),
@@ -124,6 +137,9 @@ def main():
         manifest_text = manifest_path.read_text(encoding="utf-8")
         if "release_bundle_manifest.json" not in index_text or "`demo.vnpak`" not in manifest_text:
             print("release bundle manifest contents missing", file=sys.stderr)
+            return 1
+        if "`docs/release-v1.0.0.md`" not in index_text or "`docs/release-evidence-v1.0.0.md`" not in index_text:
+            print("release bundle index missing versioned release docs", file=sys.stderr)
             return 1
         manifest_json_text = manifest_json_path.read_text(encoding="utf-8")
         if '"path":"demo.vnpak"' not in manifest_json_text or '"sha256":"' not in manifest_json_text:

@@ -357,7 +357,7 @@ if [[ $WITH_BUNDLE -ne 0 || $WITH_EXPORT -ne 0 ]]; then
 fi
 
 if [[ $WITH_BUNDLE -ne 0 ]]; then
-  bundle_cmd=(bash scripts/release/run_release_bundle.sh --out-dir "$BUNDLE_OUT" --gate-summary "$SUMMARY_OUT")
+  bundle_cmd=(bash scripts/release/run_release_bundle.sh --out-dir "$BUNDLE_OUT" --release-spec "$EXPORT_RELEASE_SPEC" --gate-summary "$SUMMARY_OUT")
   if [[ $WITH_SOAK -ne 0 ]]; then
     bundle_cmd+=(--soak-summary "$SOAK_SUMMARY_OUT")
   fi
