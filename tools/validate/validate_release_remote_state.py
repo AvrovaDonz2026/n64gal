@@ -32,7 +32,7 @@ def read_json(path: Path):
 
 
 def main(argv):
-    release_spec = Path("docs/release-publish-v0.1.0-alpha.json")
+    release_spec = Path("docs/release-publish-v1.0.0.json")
     release_json = None
     release_json_url = ""
     github_repo = ""

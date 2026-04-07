@@ -25,7 +25,8 @@ def run_case(args):
 
 def main():
     fixture = "tests/fixtures/release_api/github_release_v0.1.0-alpha.json"
-    rc, out, err = run_case(["--release-json", fixture])
+    alpha_spec = "docs/release-publish-v0.1.0-alpha.json"
+    rc, out, err = run_case(["--release-spec", alpha_spec, "--release-json", fixture])
     if rc != 0:
         print(f"release remote validate failed rc={rc} stderr={err}", file=sys.stderr)
         return 1
@@ -39,7 +40,7 @@ def main():
             '{"tag_name":"v0.1.0-alpha","html_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha","draft":false,"prerelease":true,"assets":[]}\n',
             encoding="utf-8",
         )
-        rc, out, err = run_case(["--release-json", str(broken)])
+        rc, out, err = run_case(["--release-spec", alpha_spec, "--release-json", str(broken)])
         if rc == 0:
             print("broken remote release should fail", file=sys.stderr)
             return 1
@@ -60,7 +61,7 @@ def main():
             thread.start()
             try:
                 url = f"http://127.0.0.1:{server.server_address[1]}/github_release_v0.1.0-alpha.json"
-                rc, out, err = run_case(["--release-json-url", url])
+                rc, out, err = run_case(["--release-spec", alpha_spec, "--release-json-url", url])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -89,7 +90,7 @@ def main():
             thread.start()
             try:
                 api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                rc, out, err = run_case(["--tag", "v0.1.0-alpha", "--api-root", api_root, "--github-repo", "AvrovaDonz2026/n64gal"])
+                rc, out, err = run_case(["--release-spec", alpha_spec, "--tag", "v0.1.0-alpha", "--api-root", api_root, "--github-repo", "AvrovaDonz2026/n64gal"])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -118,7 +119,7 @@ def main():
             thread.start()
             try:
                 api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                rc, out, err = run_case(["--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root])
+                rc, out, err = run_case(["--release-spec", alpha_spec, "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root])
             finally:
                 server.shutdown()
                 server.server_close()
