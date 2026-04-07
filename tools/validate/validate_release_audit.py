@@ -35,6 +35,13 @@ def require_contains(text: str, needle: str, field: str):
         raise ValueError(field)
 
 
+def require_contains_any(text: str, needles, field: str):
+    for needle in needles:
+        if needle in text:
+            return
+    raise ValueError(field)
+
+
 def worktree_dirty(root: Path) -> int:
     status = (root / ".git")
     if not status.exists():
@@ -49,6 +56,27 @@ def worktree_dirty(root: Path) -> int:
     if proc.returncode != 0:
         raise RuntimeError("git status failed")
     return 1 if proc.stdout.strip() else 0
+
+
+def release_doc_paths_from_spec(spec_payload):
+    release_note = spec_payload.get("release_note", "")
+    version = str(spec_payload.get("version", ""))
+    note_path = Path(release_note)
+    note_name = note_path.name
+    suffix = ""
+    if note_name.startswith("release-") and note_name.endswith(".md"):
+        suffix = note_name[len("release-"):-3]
+    elif version:
+        suffix = version
+    return (
+        release_note,
+        str(note_path.with_name(f"release-evidence-{suffix}.md")),
+        str(note_path.with_name(f"release-package-{suffix}.md")),
+    )
+
+
+def basename(path_text: str) -> str:
+    return Path(path_text).name
 
 
 def main(argv):
@@ -126,25 +154,47 @@ def main(argv):
         readme = read_text(root, "README.md")
         issue = read_text(root, "issue.md")
         changelog = read_text(root, "CHANGELOG.md")
-        release_note = read_text(root, "docs/release-v0.1.0-alpha.md")
-        release_evidence = read_text(root, "docs/release-evidence-v0.1.0-alpha.md")
-        release_package = read_text(root, "docs/release-package-v0.1.0-alpha.md")
         checklist = read_text(root, "docs/release-checklist-v1.0.0.md")
         release_spec_text = read_text(root, release_spec)
+        release_spec_payload = json.loads(release_spec_text)
+        release_note_rel, release_evidence_rel, release_package_rel = release_doc_paths_from_spec(release_spec_payload)
+        release_note = read_text(root, release_note_rel)
+        release_evidence = read_text(root, release_evidence_rel)
+        release_package = read_text(root, release_package_rel)
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release audit file missing")
     except OSError:
         return error("tool.validate.release_audit.io", VN_E_IO, "root", "failed reading release audit files")
+    except ValueError:
+        return error("tool.validate.release_audit.format", VN_E_FORMAT, "release_spec", "invalid release spec json")
 
     try:
+        spec_tag = str(release_spec_payload.get("tag", ""))
+        spec_release_url = str(release_spec_payload.get("release_url", ""))
+        spec_release_note = str(release_spec_payload.get("release_note", ""))
+        asset = release_spec_payload.get("asset")
+        if not isinstance(asset, dict):
+            raise ValueError("release_spec.asset")
+        spec_asset_path = str(asset.get("path", ""))
+
         if not (root / "assets" / "demo" / "demo.vnpak").exists():
             raise FileNotFoundError("assets/demo/demo.vnpak")
-        require_contains(readme, "v0.1.0-alpha", "readme.version")
-        require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
-        require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
-        require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
-        require_contains(release_evidence, "`demo.vnpak`", "release_evidence.asset")
-        require_contains(release_package, "`assets/demo/demo.vnpak`", "release_package.asset")
+        if spec_tag == "v0.1.0-alpha":
+            require_contains(readme, "v0.1.0-alpha", "readme.version")
+            require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
+            require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
+            require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
+        else:
+            require_contains(release_note, "`v1.0.0`", "release_note_v1.version")
+            require_contains(release_note, "`runtime-session-only`", "release_note_v1.save_scope")
+            require_contains(release_evidence, "`ci-matrix`", "release_evidence_v1.ci_matrix")
+            require_contains(release_package, "`docs/release-publish-v1.0.0.json`", "release_package_v1.release_spec")
+        require_contains_any(
+            release_evidence,
+            [f"`{basename(spec_asset_path)}`", f"`{spec_asset_path}`"],
+            "release_evidence.asset",
+        )
+        require_contains(release_package, f"`{spec_asset_path}`", "release_package.asset")
         require_contains(checklist, "`python3 tools/toolchain.py validate-all`", "checklist.validate_all")
         require_contains(checklist, "`python3 tools/toolchain.py release-gate`", "checklist.release_gate")
 
@@ -161,8 +211,8 @@ def main(argv):
             bundle_manifest_path = root / bundle_manifest
             if not bundle_manifest_path.exists():
                 raise FileNotFoundError(bundle_manifest)
-            payload = json.loads(bundle_manifest_path.read_text(encoding="utf-8"))
-            files = payload.get("files")
+            bundle_payload = json.loads(bundle_manifest_path.read_text(encoding="utf-8"))
+            files = bundle_payload.get("files")
             if not isinstance(files, list) or not files:
                 raise ValueError("bundle_manifest.files")
             demo_entry = None
@@ -178,31 +228,27 @@ def main(argv):
             publish_map_path = root / publish_map
             if not publish_map_path.exists():
                 raise FileNotFoundError(publish_map)
-            payload = json.loads(publish_map_path.read_text(encoding="utf-8"))
-            if payload.get("tag") != "v0.1.0-alpha":
+            publish_payload = json.loads(publish_map_path.read_text(encoding="utf-8"))
+            if publish_payload.get("tag") != spec_tag:
                 raise ValueError("publish_map.tag")
-            if "releases/tag/v0.1.0-alpha" not in payload.get("release_url", ""):
+            if publish_payload.get("release_url") != spec_release_url:
                 raise ValueError("publish_map.release_url")
-            asset = payload.get("asset")
-            if not isinstance(asset, dict):
+            publish_asset = publish_payload.get("asset")
+            if not isinstance(publish_asset, dict):
                 raise ValueError("publish_map.asset")
-            if not asset.get("path", "").endswith("assets/demo/demo.vnpak"):
+            if not publish_asset.get("path", "").endswith(spec_asset_path):
                 raise ValueError("publish_map.asset_path")
-            if not asset.get("sha256") or int(asset.get("bytes", 0)) <= 0:
+            if not publish_asset.get("sha256") or int(publish_asset.get("bytes", 0)) <= 0:
                 raise ValueError("publish_map.asset_fields")
-            if payload.get("release_spec") and payload.get("release_spec") != str(release_spec):
+            if publish_payload.get("release_spec") and publish_payload.get("release_spec") != str(release_spec):
                 raise ValueError("publish_map.release_spec")
-        payload = json.loads(release_spec_text)
-        if payload.get("tag") != "v0.1.0-alpha":
+        if release_spec_payload.get("tag") != spec_tag:
             raise ValueError("release_spec.tag")
-        if "releases/tag/v0.1.0-alpha" not in payload.get("release_url", ""):
+        if release_spec_payload.get("release_url") != spec_release_url:
             raise ValueError("release_spec.release_url")
-        if payload.get("release_note") != "docs/release-v0.1.0-alpha.md":
+        if release_spec_payload.get("release_note") != spec_release_note:
             raise ValueError("release_spec.release_note")
-        asset = payload.get("asset")
-        if not isinstance(asset, dict):
-            raise ValueError("release_spec.asset")
-        if asset.get("path") != "assets/demo/demo.vnpak":
+        if asset.get("path") != spec_asset_path:
             raise ValueError("release_spec.asset_path")
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release artifact missing")

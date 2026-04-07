@@ -39,6 +39,7 @@
 3. `docs/release-package-v1.0.0.md`
 4. `docs/release-checklist-v1.0.0.md`
 5. `docs/release-triage-v1.0.0.md`
+6. `assets/demo/demo.vnpak`
 
 ## Current Verified CI Evidence
 
