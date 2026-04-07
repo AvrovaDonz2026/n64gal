@@ -1,12 +1,12 @@
 # Release Package Plan: v1.0.0
 
-## 1. 目标
+## Goal
 
-这份文档定义首个正式版 `v1.0.0` 的目标包内容骨架。
+这份文档定义首个正式版 `v1.0.0` 的目标包内容和当前打包边界，避免正式发布时仍然沿用 `v0.1.0-alpha` 的物料命名和目录假设。
 
-## 2. 当前建议包内容
+## Target Package Contents
 
-正式版至少应包含：
+正式版当前建议至少包含：
 
 1. 源码快照
 2. `README.md`
@@ -14,19 +14,33 @@
 4. `assets/demo/demo.vnpak`
 5. `docs/release-v1.0.0.md`
 6. `docs/release-evidence-v1.0.0.md`
-7. `docs/compat-matrix.md`
-8. `docs/vnsave-version-policy.md`
-9. `docs/migration.md`
-10. `release_bundle_manifest(.md/.json)`
-11. `release_publish_map(.md/.json)`
-12. `docs/release-publish-v1.0.0.json`
+7. `docs/release-package-v1.0.0.md`
+8. `docs/release-publish-v1.0.0.json`
+9. `docs/compat-matrix.md`
+10. `docs/vnsave-version-policy.md`
+11. `docs/migration.md`
+12. `release_bundle_manifest(.md/.json)`
+13. `release_publish_map(.md/.json)`
+14. `release_report(.md/.json)`
 
-## 3. 当前状态
+## Current Packaging Rule
 
-这份文件目前是正式版 package 骨架，还不是最终发布清单。
+正式版 package 当前应按 `release-spec` 驱动解释：
 
-## 4. 发布前仍需确认
+1. `release note` 来自 `docs/release-publish-v1.0.0.json`
+2. `release evidence` 与 `release package` 文件名应由 spec 对应版本推导
+3. 资产路径当前默认是 `assets/demo/demo.vnpak`
+4. `bundle / export / report / publish-map / remote-summary` 必须围绕同一份 spec 工作
 
-1. 正式版 spec 与 release note 是否一致
-2. `demo.vnpak` 是否仍是最终发布资产
-3. `bundle / report / publish-map / remote-summary` 是否都已对齐 `v1.0.0`
+## Current Status
+
+当前这份文件已经从骨架推进到可用包内容计划，但仍不是最终发版清单。
+
+## Pre-Release Checks Still Required
+
+正式发布前仍需确认：
+
+1. `docs/release-publish-v1.0.0.json` 与 release note / asset / publish map 完全一致
+2. `demo.vnpak` 仍是最终发布资产，或在 spec 中显式替换
+3. `release-bundle` / `release-export` / `release-report` / `release-remote-summary` 都已对齐 `v1.0.0`
+4. 最终包内容与 `docs/release-checklist-v1.0.0.md` 不冲突
