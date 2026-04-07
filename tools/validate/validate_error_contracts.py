@@ -53,7 +53,7 @@ def main(argv):
         error_impl = read_text(root, "src/core/error.c")
         error_test = read_text(root, "tests/unit/test_error_codes.c")
         preview_cli = read_text(root, "src/tools/preview_cli.c")
-        runtime_cli = read_text(root, "src/core/runtime_cli.c")
+        runtime_parse = read_text(root, "src/core/runtime_parse.c")
         readme = read_text(root, "README.md")
         toolchain = read_text(root, "docs/toolchain.md")
     except FileNotFoundError as exc:
@@ -81,7 +81,7 @@ def main(argv):
         require_contains(error_test, 'expect_name(-999, "VN_E_UNKNOWN")', "error_test.unknown")
 
         require_contains(preview_cli, "vn_error_name(", "preview_cli.uses_public_error_name")
-        require_contains(runtime_cli, "vn_error_name(", "runtime_cli.uses_public_error_name")
+        require_contains(runtime_parse, "vn_error_name(", "runtime_parse.uses_public_error_name")
 
         require_contains(readme, "docs/errors.md", "readme.errors_doc")
         require_contains(toolchain, "python3 tools/toolchain.py validate-error-contracts", "toolchain.validate_error")

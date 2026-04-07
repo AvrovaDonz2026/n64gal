@@ -26,9 +26,10 @@
    - 注册函数声明
    - 初始化顺序
    - force fallback 语义
-5. `src/core/runtime_cli.c`
+5. `src/core/runtime_parse.c` + `src/core/runtime_cli.c`
    - `--backend=<name>` 解析
-6. `src/tools/preview_cli.c`
+   - runtime CLI 执行路径
+6. `src/tools/preview_parse.c` + `src/tools/preview_cli.c`
    - preview usage / request backend 名称
 7. `src/backend/<arch>/...`
    - 真正的后端实现

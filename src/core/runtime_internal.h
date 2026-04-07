@@ -67,6 +67,17 @@ typedef struct {
     vn_u32 op_count;
 } RenderOpCacheEntry;
 
+typedef struct {
+    VNRunConfig run_cfg;
+    ChoiceFeed choice_feed;
+    const char* load_save_path;
+    const char* save_out_path;
+    const char* load_save_conflict_arg;
+    const char* save_metadata_arg;
+    vn_u32 save_slot_id;
+    vn_u32 save_timestamp_s;
+} VNRuntimeCliOptions;
+
 struct VNRuntimeSession {
     RendererConfig renderer_cfg;
     VNRuntimeState state;
@@ -119,7 +130,19 @@ struct VNRuntimeSession {
     int summary_emitted;
 };
 
+void runtime_cli_options_init(VNRuntimeCliOptions* options);
+int runtime_cli_parse_options(VNRuntimeCliOptions* options, int argc, char** argv);
+int runtime_cli_report_error(const char* trace_id,
+                             int error_code,
+                             const char* message,
+                             const char* arg_name,
+                             const char* arg_value,
+                             int exit_code);
+int runtime_cli_report_missing_value(const char* arg_name);
+int runtime_cli_report_invalid_value(const char* arg_name, const char* arg_value);
+int runtime_cli_report_invalid_combo(const char* arg_name, const char* arg_value);
 vn_u32 parse_backend_flag(const char* value);
+int parse_scene_id(const char* value, vn_u32* out_scene_id);
 const char* scene_name_from_id(vn_u32 scene_id);
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade);
 void runtime_render_cache_invalidate(VNRuntimeSession* session);

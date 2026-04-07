@@ -43,7 +43,7 @@ def main():
         shutil.copy2(ROOT / "include" / "vn_error.h", temp_root / "include" / "vn_error.h")
         shutil.copy2(ROOT / "src" / "core" / "error.c", temp_root / "src" / "core" / "error.c")
         shutil.copy2(ROOT / "src" / "tools" / "preview_cli.c", temp_root / "src" / "tools" / "preview_cli.c")
-        shutil.copy2(ROOT / "src" / "core" / "runtime_cli.c", temp_root / "src" / "core" / "runtime_cli.c")
+        shutil.copy2(ROOT / "src" / "core" / "runtime_parse.c", temp_root / "src" / "core" / "runtime_parse.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_error_codes.c", temp_root / "tests" / "unit" / "test_error_codes.c")
 
         broken = (temp_root / "docs" / "errors.md").read_text(encoding="utf-8")

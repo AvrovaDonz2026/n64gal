@@ -75,7 +75,7 @@ require_docs() {
 
 printf "[api-doc-sync] diff source: %s\n" "$diff_source"
 
-if has_changed "include/vn_runtime.h" || has_changed "src/core/runtime_cli.c" || has_changed "src/core/runtime_persist.c"; then
+if has_changed "include/vn_runtime.h" || has_changed "src/core/runtime_cli.c" || has_changed "src/core/runtime_parse.c" || has_changed "src/core/runtime_persist.c"; then
   require_docs "runtime" "docs/api/runtime.md"
 fi
 
