@@ -109,6 +109,7 @@ run_capture "$LOG_DIR/test_trace_summary.log" python3 tests/integration/test_tra
 run_capture "$LOG_DIR/test_preview_summary.log" python3 tests/integration/test_preview_summary.py
 run_capture "$LOG_DIR/test_perf_summary.log" python3 tests/integration/test_perf_summary.py
 run_capture "$LOG_DIR/test_perf_compare_summary.log" python3 tests/integration/test_perf_compare_summary.py
+run_capture "$LOG_DIR/test_perf_build_smoke.log" python3 tests/integration/test_perf_build_smoke.py
 run_capture "$LOG_DIR/test_kernel_bench_summary.log" python3 tests/integration/test_kernel_bench_summary.py
 run_capture "$LOG_DIR/test_kernel_compare_summary.log" python3 tests/integration/test_kernel_compare_summary.py
 run_capture "$LOG_DIR/build_demo_scripts.log" ./tools/scriptc/build_demo_scripts.sh
@@ -123,6 +124,7 @@ COMMON_SRC=(
   src/core/pack.c
   src/core/platform.c
   src/core/runtime_cli.c
+  src/core/runtime_input.c
   src/core/runtime_parse.c
   src/core/runtime_persist.c
   src/core/dynamic_resolution.c

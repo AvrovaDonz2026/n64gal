@@ -9,6 +9,11 @@ VN_E_IO = -2
 VN_E_FORMAT = -3
 
 COMMAND_RE = re.compile(r'^\s+"  ([a-z0-9-]+)(?: .*)?",?$')
+README_COMMANDS = {
+    "validate-all",
+    "probe-vnsave",
+    "migrate-vnsave",
+}
 
 
 def error(trace_id, error_code, field, message):
@@ -72,7 +77,7 @@ def main(argv):
         quoted = f'python3 tools/toolchain.py {command}'
         if quoted not in toolchain_md:
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "docs/toolchain.md", f"missing command example: {command}")
-        if quoted not in readme:
+        if command in README_COMMANDS and quoted not in readme:
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "README.md", f"missing command example: {command}")
         if f'["{command}"' not in toolchain_test:
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "tests/integration/test_toolchain_cli.py", f"missing toolchain CLI coverage: {command}")

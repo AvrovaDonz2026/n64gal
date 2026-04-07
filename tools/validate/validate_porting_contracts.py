@@ -71,6 +71,7 @@ def main(argv):
         require_contains(porting, "`src/core/backend_registry.c`", "porting.registry")
         require_contains(porting, "`src/core/renderer.c`", "porting.renderer")
         require_contains(porting, "`src/core/runtime_cli.c`", "porting.runtime_cli")
+        require_contains(porting, "`src/core/runtime_input.c`", "porting.runtime_input")
         require_contains(porting, "`src/core/runtime_parse.c`", "porting.runtime_parse")
         require_contains(porting, "`src/tools/preview_cli.c`", "porting.preview_cli")
         require_contains(porting, "`src/tools/preview_parse.c`", "porting.preview_parse")

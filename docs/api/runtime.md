@@ -34,17 +34,21 @@
 
 ## 2.3 当前实现落点
 
-当前 runtime 实现已按职责拆成三层：
+当前 runtime 实现已按职责拆成四层：
 
 1. `src/core/runtime_cli.c`
    - Session 驱动
    - 输入/键盘/Fade/渲染提交流程
    - `load-save / fresh-session` 两条 CLI 执行分流
-2. `src/core/runtime_parse.c`
+2. `src/core/runtime_input.c`
+   - keyboard 输入轮询与按键映射
+   - injected input 合并
+   - fade player 状态推进
+3. `src/core/runtime_parse.c`
    - CLI 参数解析
    - scene/backend 字符串映射
    - CLI structured error 输出
-3. `src/core/runtime_persist.c`
+4. `src/core/runtime_persist.c`
    - build info 查询
    - snapshot encode/decode
    - file save/load wrapper

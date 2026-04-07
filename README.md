@@ -9,6 +9,14 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 3. 跨架构主线：`x64/avx2`、`arm64/neon`、`riscv64/rvv(qemu-first)`。
 4. 可验证：runtime / preview / pack / save / toolchain 都有测试和 validator。
 
+当前公开预发布版本仍是 `v0.1.0-alpha`。
+
+## 版本状态
+
+- 当前对外版本状态：`v0.1.0-alpha` 已发布
+- 当前后续目标：`v0.1.0-mvp`
+- 当前 `v1.0.0` 范围决策：先不包含 RVV / riscv64 native 承诺
+
 ## 当前范围
 
 当前仓库已经稳定落地并有回归覆盖的主路径：
@@ -20,6 +28,9 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 5. `vnsave` 的 `probe` / `migrate`
 6. `tools/toolchain.py validate-all`
 
+Session API：`create/step/is_done/set_choice/inject_input/destroy`。
+
+Runtime 当前也已公开 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，但默认仍保持 `off`。
 当前场景名不是任意字符串，而是固定集合：`S0/S1/S2/S3/S10`。
 
 首个 `v1.0.0` 当前只承诺：
@@ -39,7 +50,10 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 3. `JIT`
 4. `SSE2` / `x64 no-AVX2` 优化路径
 
+首个 `v1.0.0` 正式版当前只承诺前四项；`riscv64 + Linux` 继续保留在长期路线图中，但按 `post-1.0` 处理。
+
 详细发布边界见 [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md) 和 [docs/compat-matrix.md](./docs/compat-matrix.md)。
+更多发布背景见 [docs/release-v0.1.0-alpha.md](./docs/release-v0.1.0-alpha.md)、[docs/release-evidence-v0.1.0-alpha.md](./docs/release-evidence-v0.1.0-alpha.md)、[docs/release-gap-v0.1.0-mvp.md](./docs/release-gap-v0.1.0-mvp.md)、[docs/release-checklist-v1.0.0.md](./docs/release-checklist-v1.0.0.md) 和 [docs/release-triage-v1.0.0.md](./docs/release-triage-v1.0.0.md)。
 
 ## 代码优先
 
@@ -67,9 +81,9 @@ templates/      最小内容模板与宿主模板
 docs/           API / perf / release / migration / governance
 ```
 
-当前实现层也已经按职责拆开：
+当前实现层也已按职责拆开：
 
-1. Runtime：`runtime_parse.c + runtime_cli.c + runtime_persist.c`
+1. Runtime：`runtime_input.c + runtime_parse.c + runtime_cli.c + runtime_persist.c`
 2. Preview：`preview_parse.c + preview_cli.c + preview_report.c`
 
 ## 快速开始
@@ -108,6 +122,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/pack.c \
   src/core/platform.c \
   src/core/runtime_cli.c \
+  src/core/runtime_input.c \
   src/core/runtime_parse.c \
   src/core/runtime_persist.c \
   src/core/dynamic_resolution.c \
@@ -228,6 +243,7 @@ int run_session(void) {
 python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py validate-all
+python3 tools/toolchain.py validate-release-audit --allow-dirty
 ```
 
 如果已经用 CMake 构建，也可以直接运行：
@@ -236,6 +252,14 @@ python3 tools/toolchain.py validate-all
 ./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave
 ./build/vnsave_probe --in tests/fixtures/vnsave/v1/sample.vnsave
 ```
+
+## 模板
+
+当前模板入口：
+
+1. `templates/minimal-vn/`
+2. `templates/host-embed/`
+3. [docs/project-layout.md](./docs/project-layout.md)
 
 ## 质量门禁
 
@@ -248,6 +272,19 @@ python3 tools/toolchain.py validate-all
 ctest --test-dir build --output-on-failure
 ```
 
+如果要直接走 toolchain / probe 入口，最小示例：
+
+```bash
+python3 tools/toolchain.py validate-host-sdk-contracts
+python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
+python3 tools/toolchain.py probe-perf-summary tests/fixtures/perf_summary/sample_perf_summary.csv
+python3 tools/toolchain.py probe-perf-compare tests/fixtures/perf_compare/sample_perf_compare.csv
+python3 tools/toolchain.py probe-kernel-bench tests/fixtures/kernel_bench/sample_kernel_bench.csv
+python3 tools/toolchain.py probe-kernel-compare tests/fixtures/kernel_compare/sample_kernel_compare.csv
+```
+
+另外，本地 correctness 套件现在也会额外做一条 optimized perf build smoke，用来提前发现 `-O2 -DNDEBUG -Werror` 下的 native perf 构建回归。
+
 perf 工具：
 
 ```bash
@@ -257,14 +294,28 @@ perf 工具：
 
 ## 进一步阅读
 
-1. API：`docs/api/*`
+1. API 索引： [`docs/api/README.md`](./docs/api/README.md)
 2. Runtime： [docs/api/runtime.md](./docs/api/runtime.md)
 3. Backend： [docs/api/backend.md](./docs/api/backend.md)
-4. Save： [docs/api/save.md](./docs/api/save.md)
-5. Perf： [docs/perf-report.md](./docs/perf-report.md)
-6. Release： [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md)
-7. 兼容矩阵： [docs/compat-matrix.md](./docs/compat-matrix.md)
-8. 宿主接入： [docs/host-sdk.md](./docs/host-sdk.md)
-9. 项目跟踪： [issue.md](./issue.md)
+4. Pack： [docs/api/pack.md](./docs/api/pack.md)
+5. Save： [docs/api/save.md](./docs/api/save.md)
+6. Save 版本策略： [docs/vnsave-version-policy.md](./docs/vnsave-version-policy.md)
+7. Perf： [docs/perf-report.md](./docs/perf-report.md)
+8. Release： [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md)
+9. Backend 移植： [docs/backend-porting.md](./docs/backend-porting.md)
+10. 兼容矩阵： [`docs/platform-matrix.md`](./docs/platform-matrix.md) / [docs/compat-matrix.md](./docs/compat-matrix.md)
+11. 生态扩展： [docs/extension-manifest.md](./docs/extension-manifest.md)
+12. 生态治理： [docs/ecosystem-governance.md](./docs/ecosystem-governance.md)
+13. 错误与日志： [docs/errors.md](./docs/errors.md)
+14. 宿主接入： [docs/host-sdk.md](./docs/host-sdk.md)
+15. 项目跟踪： [issue.md](./issue.md)
+
+如需看版本发布和 `1.0.0` 收口细节，直接读：
+
+1. [docs/release-v0.1.0-alpha.md](./docs/release-v0.1.0-alpha.md)
+2. [docs/release-evidence-v0.1.0-alpha.md](./docs/release-evidence-v0.1.0-alpha.md)
+3. [docs/release-gap-v0.1.0-mvp.md](./docs/release-gap-v0.1.0-mvp.md)
+4. [docs/release-checklist-v1.0.0.md](./docs/release-checklist-v1.0.0.md)
+5. [docs/release-triage-v1.0.0.md](./docs/release-triage-v1.0.0.md)
 
 `README` 只保留入口信息；里程碑、候选路线、长篇进度和细粒度 backlog 统一留在 [issue.md](./issue.md)。

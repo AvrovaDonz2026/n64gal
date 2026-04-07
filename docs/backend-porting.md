@@ -26,7 +26,7 @@
    - 注册函数声明
    - 初始化顺序
    - force fallback 语义
-5. `src/core/runtime_parse.c` + `src/core/runtime_cli.c`
+5. `src/core/runtime_input.c` + `src/core/runtime_parse.c` + `src/core/runtime_cli.c`
    - `--backend=<name>` 解析
    - runtime CLI 执行路径
 6. `src/tools/preview_parse.c` + `src/tools/preview_cli.c`

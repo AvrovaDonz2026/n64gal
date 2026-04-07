@@ -17,6 +17,7 @@ MAX_PASSES=2048
 PERF_CC="${CC:-cc}"
 PERF_RUNNER_BIN="${VN_PERF_RUNNER_BIN:-/tmp/n64gal_perf_runner}"
 SKIP_BUILD="${VN_PERF_SKIP_BUILD:-0}"
+BUILD_ONLY="${VN_PERF_BUILD_ONLY:-0}"
 PERF_RUNNER_PREFIX="${VN_PERF_RUNNER_PREFIX:-}"
 PERF_CFLAGS="${VN_PERF_CFLAGS:-}"
 PERF_LDFLAGS="${VN_PERF_LDFLAGS:-}"
@@ -50,6 +51,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-build)
       SKIP_BUILD=1
+      shift 1
+      ;;
+    --build-only)
+      BUILD_ONLY=1
       shift 1
       ;;
     --scenes)
@@ -137,6 +142,10 @@ if ! [[ "$SKIP_BUILD" =~ ^[01]$ ]]; then
   echo "skip-build must be 0 or 1" >&2
   exit 2
 fi
+if ! [[ "$BUILD_ONLY" =~ ^[01]$ ]]; then
+  echo "build-only must be 0 or 1" >&2
+  exit 2
+fi
 
 if [[ -n "$FRAMES_OVERRIDE" ]]; then
   FRAMES="$FRAMES_OVERRIDE"
@@ -150,13 +159,6 @@ fi
 
 WARMUP_MS=$(( WARMUP_SEC * 1000 ))
 TOTAL_MS=$(( DURATION_SEC * 1000 ))
-
-mkdir -p "$OUT_DIR"
-
-HOST_CPU="$(vn_perf_detect_host_cpu)"
-printf "%s\n" "$HOST_CPU" > "$OUT_DIR/perf_host_cpu.txt"
-
-"$SOURCE_ROOT/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
 
 if [[ "$SKIP_BUILD" -eq 0 ]]; then
   mkdir -p "$(dirname "$PERF_RUNNER_BIN")"
@@ -185,6 +187,7 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     src/core/pack.c
     src/core/platform.c
     src/core/runtime_cli.c
+    src/core/runtime_input.c
     src/core/runtime_parse.c
     src/core/runtime_persist.c
   )
@@ -219,6 +222,17 @@ else
     exit 2
   fi
 fi
+
+if [[ "$BUILD_ONLY" -eq 1 ]]; then
+  exit 0
+fi
+
+mkdir -p "$OUT_DIR"
+
+HOST_CPU="$(vn_perf_detect_host_cpu)"
+printf "%s\n" "$HOST_CPU" > "$OUT_DIR/perf_host_cpu.txt"
+
+"$SOURCE_ROOT/tools/packer/make_demo_pack.sh" >/tmp/vn_make_pack.out
 
 SUMMARY_CSV="$OUT_DIR/perf_summary.csv"
 {

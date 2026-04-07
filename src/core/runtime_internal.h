@@ -144,6 +144,22 @@ int runtime_cli_report_invalid_combo(const char* arg_name, const char* arg_value
 vn_u32 parse_backend_flag(const char* value);
 int parse_scene_id(const char* value, vn_u32* out_scene_id);
 const char* scene_name_from_id(vn_u32 scene_id);
+void keyboard_init(KeyboardInput* kb);
+int keyboard_enable(KeyboardInput* kb);
+void keyboard_disable(KeyboardInput* kb);
+void keyboard_poll(KeyboardInput* kb,
+                   vn_u8* out_choice,
+                   int* out_has_choice,
+                   int* out_toggle_trace,
+                   int* out_quit);
+int runtime_session_inject_key_code(VNRuntimeSession* session, vn_u32 key_code);
+void runtime_session_merge_injected_input(VNRuntimeSession* session,
+                                          vn_u8* io_choice,
+                                          int* io_has_choice,
+                                          int* io_toggle_trace,
+                                          int* io_quit);
+void fade_player_init(FadePlayer* fade);
+void fade_player_step(FadePlayer* fade, const VNState* vm, vn_u32 dt_ms);
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade);
 void runtime_render_cache_invalidate(VNRuntimeSession* session);
 void runtime_dirty_planner_reconfigure(VNRuntimeSession* session,
