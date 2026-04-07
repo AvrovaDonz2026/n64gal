@@ -160,6 +160,12 @@ void runtime_session_merge_injected_input(VNRuntimeSession* session,
                                           int* io_quit);
 void fade_player_init(FadePlayer* fade);
 void fade_player_step(FadePlayer* fade, const VNState* vm, vn_u32 dt_ms);
+int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32* out_size);
+void state_reset_frame_events(VNRuntimeState* state);
+void state_from_vm(VNRuntimeState* state, VNState* vm);
+void state_init_defaults(VNRuntimeState* state);
+void runtime_result_write(const VNRuntimeSession* session, VNRunResult* out_result);
+void runtime_session_cleanup(VNRuntimeSession* session);
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade);
 void runtime_render_cache_invalidate(VNRuntimeSession* session);
 void runtime_dirty_planner_reconfigure(VNRuntimeSession* session,

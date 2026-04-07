@@ -106,8 +106,8 @@
 
 10. Surface: `vn_runtime` implementation layout
    - Type: `compat-note`
-   - Summary: `runtime` 实现已继续按职责拆到 `runtime_input.c` + `runtime_parse.c` + `runtime_cli.c` + `runtime_persist.c`
-   - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`，但任何手写编译入口都必须把 `runtime_input.c` 与 `runtime_parse.c` 一起编进去
+   - Summary: `runtime` 实现已继续按职责拆到 `runtime_input.c` + `runtime_parse.c` + `runtime_cli.c` + `runtime_session_support.c` + `runtime_persist.c`
+   - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`，但任何手写编译入口都必须把 `runtime_input.c`、`runtime_parse.c` 与 `runtime_session_support.c` 一起编进去
 
 11. Surface: `preview protocol v1` implementation layout
    - Type: `compat-note`

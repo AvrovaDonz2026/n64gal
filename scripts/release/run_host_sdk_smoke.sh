@@ -77,6 +77,7 @@ COMMON_SRC=(
   src/core/runtime_input.c
   src/core/runtime_parse.c
   src/core/runtime_persist.c
+  src/core/runtime_session_support.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c

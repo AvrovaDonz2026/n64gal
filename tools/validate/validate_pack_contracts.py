@@ -51,6 +51,7 @@ def main(argv):
         pack_doc = read_text(root, "docs/api/pack.md")
         pack_header = read_text(root, "include/vn_pack.h")
         runtime_cli = read_text(root, "src/core/runtime_cli.c")
+        runtime_session_support = read_text(root, "src/core/runtime_session_support.c")
         pack_test = read_text(root, "tests/unit/test_vnpak.c")
         readme = read_text(root, "README.md")
         toolchain = read_text(root, "docs/toolchain.md")
@@ -73,8 +74,8 @@ def main(argv):
         require_contains(pack_header, "void vnpak_close(VNPak* pak);", "pack_header.close_api")
 
         require_contains(runtime_cli, "vnpak_open(", "runtime_cli.open_pack")
-        require_contains(runtime_cli, "vnpak_read_resource(", "runtime_cli.read_pack")
-        require_contains(runtime_cli, "vnpak_close(", "runtime_cli.close_pack")
+        require_contains(runtime_session_support, "vnpak_read_resource(", "runtime_session_support.read_pack")
+        require_contains(runtime_session_support, "vnpak_close(", "runtime_session_support.close_pack")
 
         require_contains(pack_test, "write_demo_pack_v1", "pack_test.v1")
         require_contains(pack_test, "write_demo_pack_v2", "pack_test.v2")

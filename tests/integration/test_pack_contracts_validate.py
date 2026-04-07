@@ -41,6 +41,7 @@ def main():
         shutil.copy2(ROOT / "docs" / "api" / "pack.md", temp_root / "docs" / "api" / "pack.md")
         shutil.copy2(ROOT / "include" / "vn_pack.h", temp_root / "include" / "vn_pack.h")
         shutil.copy2(ROOT / "src" / "core" / "runtime_cli.c", temp_root / "src" / "core" / "runtime_cli.c")
+        shutil.copy2(ROOT / "src" / "core" / "runtime_session_support.c", temp_root / "src" / "core" / "runtime_session_support.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_vnpak.c", temp_root / "tests" / "unit" / "test_vnpak.c")
 
         broken = (temp_root / "docs" / "api" / "pack.md").read_text(encoding="utf-8")
