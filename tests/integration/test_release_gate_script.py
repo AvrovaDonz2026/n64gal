@@ -23,6 +23,8 @@ def main():
     bundle_dir = ROOT / "tests" / "integration" / "release_gate_bundle_tmp"
     export_dir = ROOT / "tests" / "integration" / "release_gate_export_tmp"
     remote_fixture = ROOT / "tests" / "fixtures" / "release_api" / "github_release_v0.1.0-alpha.json"
+    release_spec = ROOT / "docs" / "release-publish-v0.1.0-alpha.json"
+    release_spec_v1 = ROOT / "docs" / "release-publish-v1.0.0.json"
     for path in (
         summary_path,
         summary_json_path,
@@ -140,6 +142,7 @@ def main():
             "--summary-out", str(summary_path_runner),
             "--summary-json-out", str(summary_json_path_runner),
             "--ci-suite-summary", str(ci_summary_path),
+            "--release-spec", str(release_spec),
             "--bundle-out-dir", str(bundle_dir),
         ],
         cwd=ROOT,
@@ -167,6 +170,7 @@ def main():
             "--summary-out", str(summary_path_runner),
             "--summary-json-out", str(summary_json_path_runner),
             "--ci-suite-summary", str(ci_summary_path),
+            "--release-spec", str(release_spec),
             "--export-out-dir", str(export_dir),
         ],
         cwd=ROOT,
@@ -194,6 +198,7 @@ def main():
             "--summary-out", str(summary_path_runner),
             "--summary-json-out", str(summary_json_path_runner),
             "--ci-suite-summary", str(ci_summary_path),
+            "--release-spec", str(release_spec),
             "--export-out-dir", str(export_dir),
             "--remote-release-json", str(remote_fixture),
         ],
@@ -206,6 +211,22 @@ def main():
         return 1
     if not (export_dir / "remote" / "release_remote_summary.json").exists():
         print("release gate remote export summary missing", file=sys.stderr)
+        return 1
+
+    proc = subprocess.run(
+        SCRIPT + [
+            "--allow-dirty",
+            "--skip-cc-suite",
+            "--release-spec", str(release_spec_v1),
+            "--summary-out", str(summary_path_runner),
+            "--summary-json-out", str(summary_json_path_runner),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        print(f"release gate v1 spec failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
         return 1
 
     summary_path.unlink()

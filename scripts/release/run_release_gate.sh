@@ -39,7 +39,7 @@ EXPORT_REMOTE_TOKEN_ENV=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--with-soak] [--with-bundle] [--with-export] [--summary-out <path>] [--summary-json-out <path>] [--ci-suite-summary <path>] [--soak-...] [--bundle-...] [--export-...] [--remote-...]
+usage: scripts/release/run_release_gate.sh [--allow-dirty] [--skip-cc-suite] [--with-soak] [--with-bundle] [--with-export] [--release-spec <path>] [--summary-out <path>] [--summary-json-out <path>] [--ci-suite-summary <path>] [--soak-...] [--bundle-...] [--export-...] [--remote-...]
 EOF
 }
 
@@ -63,6 +63,12 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-export)
       WITH_EXPORT=1
+      shift
+      ;;
+    --release-spec)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      EXPORT_RELEASE_SPEC="$1"
       shift
       ;;
     --summary-out)
@@ -184,7 +190,7 @@ if [[ -z "$EXPORT_SUMMARY_JSON_OUT" ]]; then
   EXPORT_SUMMARY_JSON_OUT="$EXPORT_OUT_DIR/release_export_summary.json"
 fi
 if [[ -z "$EXPORT_RELEASE_SPEC" ]]; then
-  EXPORT_RELEASE_SPEC="$ROOT_DIR/docs/release-publish-v0.1.0-alpha.json"
+  EXPORT_RELEASE_SPEC="$ROOT_DIR/docs/release-publish-v1.0.0.json"
 fi
 if [[ -z "$CI_SUITE_SUMMARY" ]]; then
   CI_SUITE_SUMMARY="$ROOT_DIR/build_ci_cc/ci_suite_summary.md"

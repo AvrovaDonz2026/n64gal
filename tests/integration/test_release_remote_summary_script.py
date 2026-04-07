@@ -21,8 +21,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix="n64gal_release_remote_summary_") as temp_dir:
         out_dir = Path(temp_dir) / "remote"
         fixture = ROOT / "tests" / "fixtures" / "release_api" / "github_release_v0.1.0-alpha.json"
+        release_spec = ROOT / "docs" / "release-publish-v0.1.0-alpha.json"
         proc = subprocess.run(
-            SCRIPT + ["--release-json", str(fixture), "--out-dir", str(out_dir)],
+            SCRIPT + ["--release-spec", str(release_spec), "--release-json", str(fixture), "--out-dir", str(out_dir)],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -56,7 +57,7 @@ def main():
                 url = f"http://127.0.0.1:{server.server_address[1]}/github_release_v0.1.0-alpha.json"
                 out_dir = temp_root / "remote_url"
                 proc = subprocess.run(
-                    SCRIPT + ["--release-json-url", url, "--out-dir", str(out_dir)],
+                    SCRIPT + ["--release-spec", str(release_spec), "--release-json-url", url, "--out-dir", str(out_dir)],
                     cwd=ROOT,
                     capture_output=True,
                     text=True,
@@ -95,7 +96,7 @@ def main():
                 api_root = f"http://127.0.0.1:{server.server_address[1]}"
                 out_dir = temp_root / "remote_api"
                 proc = subprocess.run(
-                    SCRIPT + ["--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root, "--out-dir", str(out_dir)],
+                    SCRIPT + ["--release-spec", str(release_spec), "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root, "--out-dir", str(out_dir)],
                     cwd=ROOT,
                     capture_output=True,
                     text=True,
