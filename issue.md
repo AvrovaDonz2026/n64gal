@@ -3,7 +3,7 @@
 基于 [`dream.md`](./dream.md) `v1.6-executable-c89-single-api` 整理。  
 目标：将白皮书转为可直接执行的 GitHub issue 工单体系。
 
-## 0.1 落地状态快照（2026-03-15）
+## 0.1 落地状态快照（2026-04-07）
 
 ### 已完成（代码已合入 main）
 
@@ -17,7 +17,7 @@
 8. `ISSUE-017`（部分）：`docs/api/*` 文档集与维护入口已建立
 9. `ISSUE-014`（部分）：`riscv-perf-report` workflow 与 wrapper 已合入，且 `ci-matrix` 在 `f5eaa54` / `1792d6e` 两次 push 均为 `success`
 
-### 近期追踪（2026-03-15）
+### 近期追踪（2026-04-07）
 
 1. `df68232`：落地 revision-compare perf 工具、qemu RVV smoke 报告与 perf 工作流文档。
 2. `f5eaa54`：新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh`。
@@ -87,6 +87,10 @@
 75. `ISSUE-012` 已把正式版证据目录继续收口到 `bundle / report / publish-map / audit`：当前 `scripts/release/run_release_bundle.sh`、`run_release_report.sh`、`run_release_publish_map.sh` 与 `tools/validate/validate_release_audit.py` 都已落地，`release-bundle` 负责汇总关键 docs、gate/soak/CI 摘要与 `demo.vnpak`，`release-report` 负责生成单一发布报告，`release-publish-map` 负责固定 `tag / release URL / release note / demo asset / bundle / report` 映射，而 `validate-release-audit` 则负责校验 release note / evidence / asset / git 状态的最小一致性；其中 `docs/release-publish-v0.1.0-alpha.json` 已开始作为 `tag / release note / asset` 的 canonical release spec。
 76. `ISSUE-012` 当前的 release-facing 脚本都开始统一输出 markdown + json 双摘要：`release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence`、`release-bundle`、`release-report`、`release-publish-map`、`release-export` 与 `release-remote-summary` 均已有稳定的 `*.md` + `*.json` 输出约定，便于后续把 `1.0.0` 证据链直接挂进 release asset 或外部引用页面。
 77. `ISSUE-012` 已开始打通“本地 canonical spec vs 远端 GitHub prerelease”对齐链：新增 `tools/validate/validate_release_remote_state.py` 与 `scripts/release/run_release_remote_summary.sh`，当前可以先用 fixture 形式校验 `tag / html_url / prerelease flag / demo asset` 是否与 `docs/release-publish-v0.1.0-alpha.json` 一致，后续再把远端 fetch 接进同一条链。
+78. `be975e4`、`1a6e6c9` 与 `64d560d` 已把大文件拆分继续推进到 `preview/runtime`：`preview` 已按 `preview_parse.c + preview_cli.c + preview_report.c` 收口，`runtime` 则进一步按 `runtime_parse.c + runtime_cli.c + runtime_persist.c` 收口；当前 `runtime_cli.c` 已不再承载 CLI 参数解析与 structured error 输出。
+79. GitHub Actions：`64d560d` 对应的 push run `24059036431` / `24059036184` 首次暴露 `linux-x64/linux-arm64` 两条 `Perf smoke suite` 失败，根因是 `src/core/runtime_parse.c` 在 `-O2 -Werror` 下触发 `value may be used uninitialized`。随后 `62d3a56` 已修复该 warning，并由 push run `24059333706`（`ci-matrix`）与 `24059333491`（`Push on main`）于 `2026-04-07` 复核全部 `success`。
+80. `ISSUE-014` 当前已新增一条明确经验：native perf gate 不只要验证功能/门限，还必须在独立优化构建口径下保持 `-O2 -DNDEBUG -Werror` 无告警；否则即使 correctness suite 为绿，`perf smoke` 仍会在 Linux native job 上单独失败。
+81. `ISSUE-007` / `ISSUE-008` 当前已明确一个 `post-1.0` 候选议题：无 `AVX2` 的 x64 机器仍会长期回退到 `scalar`。本地 `Intel Celeron N4000`（`sse2/sse4.2`, 无 `avx/avx2`）样本显示 `600x800` 下 `scalar` 的 `S1 p95=32.182ms`、`S3 p95=26.626ms`、`S10 p95=114.357ms`，因此需要把 `SSE2/x64-no-avx2` 的可行性收口成单独 issue，但不把它纳入首个 `1.0.0` 阻塞项。
 69. `ISSUE-007` 已起一条实验性 `avx2_asm` 分支后端：当前新增 `VN_ARCH_AVX2_ASM` / `VN_RENDERER_FLAG_FORCE_AVX2_ASM`、`--backend=avx2_asm` 和独立 backend 名称，但仍保持 force-only，不纳入 `VN_ARCH_MASK_ALL`。实现上它与 `avx2` 共享 framebuffer / textured / dirty-submit 主路径，只在 GNU x64 下启用 x64 ASM fill；若 asm 不可用则初始化失败并回退 `scalar`。本地最新稳定 `kernel avx2 -> avx2_asm` 样本里 `clear_full p95 0.797ms -> 0.105ms`，而其它非 fill kernel 基本持平，说明当前收益仍集中在 `clear/fill(alpha=255)`；同时 `test_renderer_dirty_submit`、`test_backend_consistency` 与 `test_runtime_golden` 现已把 `avx2_asm / avx2_asm_dirty` 纳入最小一致性覆盖。
 39. `ISSUE-007` 本轮继续推进 `avx2` textured-row 主线：direct textured row 的 non-palette 路径已从逐像素 `sample/hash -> combine -> blend` 收口到 8-lane AVX2 chunk helper，`vn_avx2_sample_texels_row()` 与 `vn_avx2_sample_blend_texels_row()` 现在都复用同一套 chunk 核心；palette alpha path 也已改成复用统一的 packed-channel blend helper。本地已再次通过 `check_c89`、x64 下的 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_backend_consistency`、`test_runtime_golden`，以及短窗口 `scalar -> avx2` smoke compare。
 40. `ISSUE-007` / `ISSUE-008` 本轮同时补上 x64 反回归链路：`.github/workflows/ci-matrix.yml` 的 `linux-x64` / `windows-x64` 现已显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`；`tests/perf/run_perf.sh` / `run_perf_compare.sh` / `compare_perf.sh` 则开始把 `requested_backend` 与 `actual_backend` 一起写入 `perf_summary.csv` / compare markdown，用来防止 AVX2 静默回退后仍把 perf 结果记成 `avx2`。本地已复核单次 compare 与 `repeat=2` compare 都可正常产出新字段。
@@ -207,6 +211,7 @@ ISSUE-001 + ISSUE-016 + ISSUE-017 -> ISSUE-024
 ISSUE-010 -> ISSUE-011
 ISSUE-011 + ISSUE-014 -> ISSUE-020
 ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
+ISSUE-007 + ISSUE-008 -> ISSUE-027
 ```
 
 ## 4. Issue 摘要
@@ -239,6 +244,7 @@ ISSUE-004 + ISSUE-012 -> ISSUE-015 -> ISSUE-025
 | ISSUE-024 | 宿主 SDK 与版本协商文档 | M4 | P1 | 3d |
 | ISSUE-025 | 扩展清单、兼容矩阵与生态治理 | M4 | P2 | 3d |
 | ISSUE-026 | x64-only VM JIT 实验与决策门槛 | M4 | P2 | 4d |
+| ISSUE-027 | x64 无 `AVX2` 路径（`SSE2`）可行性与准入门槛 | M4 | P2 | 3d |
 
 ---
 
@@ -1613,14 +1619,23 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 ```bash
 cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   examples/host-embed/session_loop.c \
+  src/core/error.c \
   src/core/backend_registry.c \
   src/core/renderer.c \
+  src/core/save.c \
   src/core/vm.c \
   src/core/pack.c \
+  src/core/platform.c \
   src/core/runtime_cli.c \
+  src/core/runtime_parse.c \
+  src/core/runtime_persist.c \
+  src/core/dynamic_resolution.c \
   src/frontend/render_ops.c \
+  src/frontend/dirty_tiles.c \
   src/backend/common/pixel_pipeline.c \
   src/backend/avx2/avx2_backend.c \
+  src/backend/avx2/avx2_fill_fade.c \
+  src/backend/avx2/avx2_textured.c \
   src/backend/neon/neon_backend.c \
   src/backend/rvv/rvv_backend.c \
   src/backend/scalar/scalar_backend.c \
@@ -1727,6 +1742,55 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -c include/vn_runtime.h -o /t
 ### 回退策略
 
 若实验收益不足或平台成本过高，直接终止 JIT 分支，回到 AOT specialization / deeper cache 路线，不影响当前解释器主线。
+
+---
+
+## ISSUE-027 x64 无 `AVX2` 路径（`SSE2`）可行性与准入门槛
+
+- Labels: `type:feature`, `type:perf`, `priority:P2`
+- Milestone: `M4-engine-ecosystem`
+- Depends on: `ISSUE-007`, `ISSUE-008`, `ISSUE-014`
+- Blocking: 非 `1.0.0` 阻塞项；仅在 `scalar/avx2/neon` 主线稳定后推进
+
+### 目标
+
+把“要不要为无 `AVX2` 的 x64 机器补 `SSE2` 路径”从口头讨论收口成有证据、有门槛的技术决策，而不是直接复制一套完整新后端。
+
+### 交付物
+
+- 一份 `x64 no-AVX2` 目标机 perf 证据
+- 一份 `SSE2` / `x64-no-avx2 hot kernels` go/no-go 结论
+- 若进入实验：最小实现边界与测试/CI 扩展计划
+
+### 任务清单
+
+- [ ] 固定边界：`SSE2` 不进入首个 `v1.0.0` 发布承诺，`AVX512` 明确不在当前计划内
+- [ ] 收集至少 1 台无 `AVX2` x64 目标机的 native 证据（Linux 或 Windows）
+- [ ] 固定 `scalar` 基线样本：`S1/S3/S10` 与 `sprite_full_opaque/sprite_full_alpha180`
+- [ ] 决定实现形态：完整 `sse2 backend` vs 仅做 `x64-no-avx2` 热点 slice
+- [ ] 只有在整机 `mean p95 gain >= 25%` 且关键场景无明显回退时，才允许继续实现
+- [ ] 若进入实现，先要求 `fallback/priority/golden/dirty submit/perf smoke` 的最小测试计划
+- [ ] 明确 stop criteria：若收益不足或维护成本过高，保留 `scalar` 回退并只补文档说明
+
+### 验收命令
+
+```bash
+lscpu
+grep -o 'avx2\|avx\|sse4_2\|sse2' /proc/cpuinfo | sort | uniq -c
+./tests/perf/run_perf_compare.sh --baseline scalar --candidate scalar --candidate-label x64_no_avx2_baseline --scenes S1,S3,S10 --duration-sec 2 --warmup-sec 1 --dt-ms 16 --resolution 600x800 --out-dir /tmp/x64_no_avx2_baseline
+./tests/perf/run_kernel_compare.sh --baseline scalar --candidate scalar --candidate-label x64_no_avx2_baseline --out-dir /tmp/x64_no_avx2_kernel_baseline
+```
+
+### DoD
+
+- [ ] 已有明确的无 `AVX2` x64 目标机证据，而不是只靠推测
+- [ ] 已明确记录“为什么做 / 为什么不做”的 go/no-go 结论
+- [ ] 若继续实现，范围被锁定为 `SSE2` 或更窄的 `x64-no-avx2` 热点 slice
+- [ ] `AVX512` 被明确写为非目标，不与本议题混合推进
+
+### 回退策略
+
+若无 `AVX2` x64 目标机的 `scalar` 体验仍可接受，或 `SSE2` 路线无法提供足够收益，则不实现新后端，继续以 `scalar` 作为 `x64 no-AVX2` 的长期回退基线。
 
 ---
 
