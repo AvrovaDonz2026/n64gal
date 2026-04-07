@@ -31,11 +31,11 @@ def main():
         platform_summary_json = temp_root / "platform_evidence_summary.json"
         preview_summary = temp_root / "preview_evidence_summary.md"
         preview_summary_json = temp_root / "preview_evidence_summary.json"
-        remote_release_json = ROOT / "tests" / "fixtures" / "release_api" / "github_release_v0.1.0-alpha.json"
+        remote_release_json = temp_root / "github_release_v1.0.0.json"
 
         write_text(
             release_spec,
-            '{"version":"v1.0.0","tag":"v1.0.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0","release_note":"%s","asset":{"path":"%s"}}\n'
+            '{"version":"v1.0.0","tag":"v1.0.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0","draft":false,"prerelease":false,"release_note":"%s","asset":{"path":"%s"}}\n'
             % (release_note, ROOT / "assets" / "demo" / "demo.vnpak"),
         )
         write_text(release_note, "# N64GAL v1.0.0\n")
@@ -50,6 +50,18 @@ def main():
         write_text(platform_summary_json, '{"status":"ok"}\n')
         write_text(preview_summary, "# Preview Evidence Summary\n")
         write_text(preview_summary_json, '{"status":"ok"}\n')
+        write_text(
+            remote_release_json,
+            '{\n'
+            '  "tag_name": "v1.0.0",\n'
+            '  "html_url": "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0",\n'
+            '  "draft": false,\n'
+            '  "prerelease": false,\n'
+            '  "assets": [\n'
+            '    {"name": "demo.vnpak", "browser_download_url": "https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.0.0/demo.vnpak", "size": 1853}\n'
+            '  ]\n'
+            '}\n',
+        )
 
         proc = subprocess.run(
             SCRIPT + [

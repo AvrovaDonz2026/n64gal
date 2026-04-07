@@ -118,6 +118,17 @@ require_file() {
 }
 
 require_file "$RELEASE_SPEC"
+resolve_spec_path() {
+  local value="$1"
+  if [[ -z "$value" ]]; then
+    printf '%s' ""
+  elif [[ "$value" = /* ]]; then
+    printf '%s' "$value"
+  else
+    printf '%s' "$ROOT_DIR/$value"
+  fi
+}
+
 eval "$(
 python3 - "$RELEASE_SPEC" <<'PY'
 import json
@@ -148,10 +159,10 @@ if [[ -z "$RELEASE_URL" ]]; then
   RELEASE_URL="$SPEC_RELEASE_URL"
 fi
 if [[ -z "$RELEASE_NOTE" ]]; then
-  RELEASE_NOTE="$ROOT_DIR/$SPEC_RELEASE_NOTE"
+  RELEASE_NOTE="$(resolve_spec_path "$SPEC_RELEASE_NOTE")"
 fi
 if [[ -z "$ASSET_PATH" ]]; then
-  ASSET_PATH="$ROOT_DIR/$SPEC_ASSET_PATH"
+  ASSET_PATH="$(resolve_spec_path "$SPEC_ASSET_PATH")"
 fi
 
 require_file "$RELEASE_NOTE"

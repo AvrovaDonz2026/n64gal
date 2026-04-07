@@ -89,7 +89,10 @@ def main():
     if str(bundle_manifest) not in report_text:
         print("release report missing bundle manifest reference", file=sys.stderr)
         return 1
-    if str(release_spec) not in report_text or str(release_note) not in report_text or str(release_evidence) not in report_text:
+    if str(release_spec) not in report_text:
+        print("release report missing release spec reference", file=sys.stderr)
+        return 1
+    if str(release_note.relative_to(ROOT)) not in report_text or str(release_evidence.relative_to(ROOT)) not in report_text:
         print("release report missing spec-driven release doc references", file=sys.stderr)
         return 1
     if str(host_sdk_summary) not in report_text or str(platform_summary) not in report_text or str(preview_summary) not in report_text:
