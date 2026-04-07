@@ -39,6 +39,7 @@
 1. `src/core/runtime_cli.c`
    - Session 驱动
    - 输入/键盘/Fade/渲染提交流程
+   - `load-save / fresh-session` 两条 CLI 执行分流
 2. `src/core/runtime_parse.c`
    - CLI 参数解析
    - scene/backend 字符串映射
