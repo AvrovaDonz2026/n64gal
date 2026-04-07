@@ -104,12 +104,17 @@
    - Summary: 新增 `--save-slot=<n>` 与 `--save-timestamp=<n>`，允许在 CLI 输出 save 文件时显式写入 `vnsave` 头里的 `slot_id/timestamp_s`
    - Required action: 若 CLI 需要可控 save 元数据，应通过这两个 flag 与 `--save-out` 组合使用；若未提供 `--save-out`，不应单独传入这两个参数
 
-10. Surface: `vn_runtime` implementation layout
+10. Surface: `VNRuntimeBuildInfo` / `vn_save.h`
+   - Type: `additive`
+   - Summary: 新增 `vnsave_public_saveload_scope` 与 `VNSAVE_PUBLIC_SAVELOAD_SCOPE`，明确当前最小公开 save/load 承诺固定为 `runtime-session-only`
+   - Required action: 宿主和工具若要判断首版正式 save/load 边界，应优先读取该字段/常量，而不是把 runtime-specific session persistence 误解为通用 save ABI
+
+11. Surface: `vn_runtime` implementation layout
    - Type: `compat-note`
    - Summary: `runtime` 实现已继续按职责拆到 `runtime_input.c` + `runtime_parse.c` + `runtime_cli.c` + `runtime_session_support.c` + `runtime_session_loop.c` + `runtime_persist.c`
    - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`，但任何手写编译入口都必须把 `runtime_input.c`、`runtime_parse.c`、`runtime_session_support.c` 与 `runtime_session_loop.c` 一起编进去
 
-11. Surface: `preview protocol v1` implementation layout
+12. Surface: `preview protocol v1` implementation layout
    - Type: `compat-note`
    - Summary: `preview_cli.c` 已继续按职责拆到 `preview_parse.c` + `preview_cli.c` + `preview_report.c`
    - Required action: 这是实现层拆分，不构成新的协议字段变化；外部工具继续只依赖 `preview protocol v1` 的文档化语义

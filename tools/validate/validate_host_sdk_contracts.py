@@ -80,6 +80,7 @@ def main(argv):
         require_contains(host_sdk, "vn_runtime_session_create_from_snapshot", "host_sdk.snapshot_restore")
         require_contains(host_sdk, "vn_runtime_session_save_to_file", "host_sdk.snapshot_save_file")
         require_contains(host_sdk, "vn_runtime_session_load_from_file", "host_sdk.snapshot_load_file")
+        require_contains(host_sdk, "runtime-session-only", "host_sdk.runtime_session_only")
         require_contains(host_sdk, "Linux TTY:", "host_sdk.example_linux")
         require_contains(host_sdk, "Windows Console:", "host_sdk.example_windows")
         require_contains(host_sdk, "trace_id + error_code + error_name", "host_sdk.machine_readable")

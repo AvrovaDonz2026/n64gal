@@ -31,6 +31,7 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 Session API：`create/step/is_done/set_choice/inject_input/destroy`。
 
 Runtime 当前也已公开 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，但默认仍保持 `off`。
+当前最小公开 save/load 范围固定为 `runtime-session-only`，不等同于通用宿主 save ABI。
 当前场景名不是任意字符串，而是固定集合：`S0/S1/S2/S3/S10`。
 
 首个 `v1.0.0` 当前只承诺：

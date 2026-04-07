@@ -216,7 +216,7 @@
 1. `runtime_api_version/runtime_api_stability`
 2. `preview_protocol_version`
 3. `vnpak` 读范围与默认写版本
-4. `vnsave` 当前版本与稳定级别
+4. `vnsave` 当前版本、稳定级别与公开 save/load 范围
 5. `host_os/host_arch/host_compiler`
 
 当前建议宿主按以下版本面做兼容判断：
@@ -227,7 +227,7 @@
 | `backend abi` | `runtime-internal v1-draft` | 宿主不直接链接私有 backend；`v0.x` 期间不应把内部选择链视为冻结 ABI |
 | `script bytecode` | `v1` | 运行时只保证读取已声明兼容版本 |
 | `vnpak` | `v2` 当前默认，兼容读取 `v1` | 生成端默认写 `v2`，读取端兼容 `v1/v2` |
-| `vnsave` | `pre-1.0 unstable` | 只支持 release 文档明确声明的版本；未知、新版、损坏或 `pre-1.0` 存档必须结构化拒绝 |
+| `vnsave` | `pre-1.0 unstable` | 当前公开 save/load 范围固定为 `runtime-session-only`；未知、新版、损坏或 `pre-1.0` 存档必须结构化拒绝 |
 | `preview protocol` | `v1` | `vn_previewd` / `vn_preview_run_cli` 固定 `CLI + 文件 -> JSON` 语义，后续仅追加字段 |
 
 规则：

@@ -35,11 +35,14 @@
 
 1. `VNSAVE_API_STABILITY`
    - 当前值：`pre-1.0 unstable`
-2. `VNSAVE_VERSION_1`
+2. `VNSAVE_PUBLIC_SAVELOAD_SCOPE`
+   - 当前值：`runtime-session-only`
+   - 表示当前最小公开 save/load 承诺只覆盖 runtime session save/load
+3. `VNSAVE_VERSION_1`
    - 当前值：`0x00010000`
-3. `VNSAVE_HEADER_SIZE_V0`
+4. `VNSAVE_HEADER_SIZE_V0`
    - 当前值：`16`
-4. `VNSAVE_HEADER_SIZE_V1`
+5. `VNSAVE_HEADER_SIZE_V1`
    - 当前值：`32`
 
 ### 探测状态
@@ -72,7 +75,7 @@
 1. `status` 提供结构化探测结果。
 2. `error_code` 继续复用公共 `VN_*` 错误码。
 3. 宿主应优先按 `error_code + status` 判断，而不是依赖文本字符串。
-4. 若宿主需要在运行时读取当前 build 的 save 版本边界，也可通过 `vn_runtime_query_build_info(...)` 获取 `vnsave_latest_version + vnsave_api_stability`。
+4. 若宿主需要在运行时读取当前 build 的 save 版本边界，也可通过 `vn_runtime_query_build_info(...)` 获取 `vnsave_latest_version + vnsave_api_stability + vnsave_public_saveload_scope`。
 
 ## 6. API
 
@@ -181,6 +184,7 @@ python3 tools/toolchain.py migrate-vnsave --in tests/fixtures/vnsave/v0/sample.v
 2. 产出 `v1`
 3. 对其它输入给出结构化拒绝
 4. runtime-specific 文件级 quick-save / quick-load 继续通过 `vn_runtime_session_save_to_file(...)` / `vn_runtime_session_load_from_file(...)` 暴露，而不是通过 `vn_save.h` 直接承诺完整 save/load ABI
+5. 当前最小公开 save/load 范围固定为 `VNSAVE_PUBLIC_SAVELOAD_SCOPE = "runtime-session-only"`
 
 ## 9. 当前限制
 

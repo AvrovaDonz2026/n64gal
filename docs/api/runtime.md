@@ -73,7 +73,7 @@
 2. `runtime_api_stability`
 3. `preview_protocol_version`
 4. `vnpak_read_min_version`, `vnpak_read_max_version`, `vnpak_write_default_version`
-5. `vnsave_latest_version`, `vnsave_api_stability`
+5. `vnsave_latest_version`, `vnsave_api_stability`, `vnsave_public_saveload_scope`
 6. `host_os`, `host_arch`, `host_compiler`
 
 当前用途：
@@ -214,7 +214,8 @@
 4. `vnpak` 当前公开读范围为 `v1..v2`，默认写 `v2`
 5. `vnsave_latest_version` 当前为 `VNSAVE_VERSION_1`
 6. `vnsave_api_stability` 当前为 `pre-1.0 unstable`
-7. `host_os/host_arch/host_compiler` 来自当前 build 平台探测结果
+7. `vnsave_public_saveload_scope` 当前为 `runtime-session-only`
+8. `host_os/host_arch/host_compiler` 来自当前 build 平台探测结果
 
 ### `int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session, VNRuntimeSessionSnapshot* out_snapshot)`
 

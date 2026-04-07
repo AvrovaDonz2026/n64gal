@@ -28,6 +28,7 @@ void vn_runtime_query_build_info(VNRuntimeBuildInfo* out_info) {
     out_info->vnpak_write_default_version = VNPAK_WRITE_DEFAULT_VERSION;
     out_info->vnsave_latest_version = VNSAVE_VERSION_1;
     out_info->vnsave_api_stability = VNSAVE_API_STABILITY;
+    out_info->vnsave_public_saveload_scope = VNSAVE_PUBLIC_SAVELOAD_SCOPE;
     out_info->host_os = vn_platform_host_os_name();
     out_info->host_arch = vn_platform_host_arch_name();
     out_info->host_compiler = vn_platform_host_compiler_name();

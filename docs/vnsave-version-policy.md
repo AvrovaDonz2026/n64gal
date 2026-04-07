@@ -43,6 +43,7 @@
 2. `v1.0.0` release note 必须明确写出哪些 `vnsave` 版本被支持
 3. 对未知、过新、损坏或 `pre-1.0` 存档，必须结构化拒绝，不能静默 best-effort 读取
 4. 若 `v1.0.0` 同时公开 runtime-specific session persistence，则必须明确写出“这层只承诺当前 runtime session save/load，不自动等同于通用宿主 save ABI”
+5. 首版最小正式 save/load 范围固定为 `runtime-session-only`
 
 ## 5. `post-1.0` 策略
 

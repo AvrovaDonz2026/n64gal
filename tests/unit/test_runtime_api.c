@@ -80,6 +80,11 @@ int main(void) {
         (void)fprintf(stderr, "unexpected vnsave build info\n");
         return 1;
     }
+    if (build_info.vnsave_public_saveload_scope == (const char*)0 ||
+        strcmp(build_info.vnsave_public_saveload_scope, "runtime-session-only") != 0) {
+        (void)fprintf(stderr, "unexpected vnsave save/load scope\n");
+        return 1;
+    }
     if (build_info.host_os == (const char*)0 ||
         build_info.host_arch == (const char*)0 ||
         build_info.host_compiler == (const char*)0) {

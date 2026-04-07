@@ -61,6 +61,7 @@
 4. 宿主不应假设 `v0.1.0-alpha` 已承诺历史存档兼容
 5. 当前 `vn_save.h` 只解决“识别/拒绝/最小迁移”，不等于完整 save/load
 6. 当前 runtime-specific quick-save / quick-load 继续通过 `vn_runtime.h` draft API 暴露，不应被误读成 `vn_save.h` 已冻结为完整 save/load 面
+7. 当前最小正式 save/load 范围只承诺 `runtime session save/load`，不等同于通用宿主 save/load ABI
 
 因此，对外 release 应明确写：
 

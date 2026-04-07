@@ -64,6 +64,7 @@ def main(argv):
 
     try:
         require_contains(save_doc, "`VNSAVE_VERSION_1`", "save_doc.version")
+        require_contains(save_doc, "`VNSAVE_PUBLIC_SAVELOAD_SCOPE`", "save_doc.public_scope")
         require_contains(save_doc, "`VNSAVE_STATUS_PRE_1_0`", "save_doc.status_pre_1_0")
         require_contains(save_doc, "### `int vnsave_probe_file(const char* path, VNSaveProbe* out_probe)`", "save_doc.probe_api")
         require_contains(save_doc, "### `int vnsave_migrate_v0_to_v1_file(const char* in_path, const char* out_path)`", "save_doc.migrate_api")
@@ -77,6 +78,7 @@ def main(argv):
         require_contains(policy_doc, "`vnsave v1` 的公开承诺不早于 `v1.0.0`", "policy.v1_gate")
         require_contains(policy_doc, "`v1.0.0`：首次引入正式 `vnsave v1`", "policy.v1_summary")
         require_contains(policy_doc, "runtime-specific session persistence", "policy.runtime_specific")
+        require_contains(policy_doc, "`runtime-session-only`", "policy.runtime_session_only")
 
         require_contains(migration_doc, "最小 probe API 见 [`docs/api/save.md`](./api/save.md)", "migration.save_doc")
         require_contains(migration_doc, "`v0 -> v1`", "migration.v0_to_v1")
@@ -96,6 +98,7 @@ def main(argv):
         require_contains(toolchain, "./build/vnsave_migrate --in tests/fixtures/vnsave/v0/sample.vnsave --out /tmp/sample.v1.vnsave", "toolchain.migrate_build")
 
         require_contains(save_header, "#define VNSAVE_VERSION_1 0x00010000u", "save_header.version")
+        require_contains(save_header, '#define VNSAVE_PUBLIC_SAVELOAD_SCOPE "runtime-session-only"', "save_header.public_scope")
         require_contains(save_header, "#define VNSAVE_STATUS_PRE_1_0 3u", "save_header.status")
         require_contains(save_header, "int vnsave_probe_file(const char* path, VNSaveProbe* out_probe);", "save_header.probe_api")
         require_contains(save_header, "int vnsave_migrate_v0_to_v1_file(const char* in_path, const char* out_path);", "save_header.migrate_api")

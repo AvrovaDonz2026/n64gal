@@ -53,6 +53,7 @@ typedef struct {
     vn_u32 vnpak_write_default_version;
     vn_u32 vnsave_latest_version;
     const char* vnsave_api_stability;
+    const char* vnsave_public_saveload_scope;
     const char* host_os;
     const char* host_arch;
     const char* host_compiler;

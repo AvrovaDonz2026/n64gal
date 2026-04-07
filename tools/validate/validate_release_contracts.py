@@ -79,6 +79,7 @@ def main(argv):
 
         require_contains(migration, "首个正式 `vnsave v1` 承诺不早于 `v1.0.0`", "migration.vnsave_scope")
         require_contains(migration, "当前已有最小 `v0 -> v1` 迁移命令", "migration.vnsave_migrate")
+        require_contains(migration, "runtime session save/load", "migration.runtime_session_only")
 
         require_contains(manifest, "| `manifest_version` | yes |", "manifest.manifest_version")
         require_contains(manifest, "| `entry` | yes |", "manifest.entry")
