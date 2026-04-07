@@ -89,6 +89,32 @@
 2. `30bb973`
    - `ci-matrix`: `24072463940`
    - `Push on main`: `24072463548`
+3. `3af38be`
+   - `ci-matrix`: `24084758904`
+   - `Push on main`: `24084758388`
+
+## Rehearsal Status
+
+当前仓库已经完成过一轮基于 `docs/release-publish-v1.0.0.json` 的本地正式版 rehearsal。
+
+这轮 rehearsal 已实际跑通：
+
+1. `release-gate`
+2. `release-soak`
+3. `release-host-sdk-smoke`
+4. `release-platform-evidence`
+5. `release-preview-evidence`
+6. `release-bundle`
+7. `release-export`
+8. `release-report`
+9. `release-publish-map`
+10. `release-remote-summary`
+
+当前生成物位于：
+
+1. `build_release_v1_rehearsal/release_gate_summary.md`
+2. `build_release_v1_rehearsal/bundle/`
+3. `build_release_v1_rehearsal/export/`
 
 ## Known Limits
 

@@ -51,6 +51,23 @@
 2. `30bb973`
    - `ci-matrix`: `24072463940`
    - `Push on main`: `24072463548`
+3. `3af38be`
+   - `ci-matrix`: `24084758904`
+   - `Push on main`: `24084758388`
+
+## Current Rehearsal Outputs
+
+当前仓库已经完成一轮以 `v1.0.0` spec 为主路径的本地 release rehearsal，可直接引用以下生成物：
+
+1. `build_release_v1_rehearsal/release_gate_summary.md`
+2. `build_release_v1_rehearsal/bundle/release_bundle_index.md`
+3. `build_release_v1_rehearsal/bundle/release_bundle_manifest.json`
+4. `build_release_v1_rehearsal/export/report/release_report.md`
+5. `build_release_v1_rehearsal/export/report/release_report.json`
+6. `build_release_v1_rehearsal/export/publish/release_publish_map.md`
+7. `build_release_v1_rehearsal/export/publish/release_publish_map.json`
+8. `build_release_v1_rehearsal/export/remote/release_remote_summary.md`
+9. `build_release_v1_rehearsal/export/remote/release_remote_summary.json`
 
 ## Format And Interface Boundaries
 
@@ -67,11 +84,10 @@
 
 ## Current Status
 
-这份文件已经不再只是占位标题，但仍然是发布前证据索引。
+这份文件已经不再只是占位标题，而且 `v1.0.0` 本地 rehearsal 已经能产出完整证据物料链。
 
 在真正打 `v1.0.0` tag 前，还需要把以下内容替换成最终链接：
 
-1. 最终 `release-gate` 摘要路径
-2. 最终 `release-soak` 摘要路径
-3. 最终 `release-bundle` / `release-report` / `release-publish-map` 路径
-4. 最终远端 release URL 与资产信息
+1. 当前 `build_release_v1_rehearsal/...` 路径替换成最终归档路径
+2. 最终 GitHub Release URL 与资产信息
+3. 最终远端 `release_remote_summary` 引用真实发布对象而非 rehearsal fixture
