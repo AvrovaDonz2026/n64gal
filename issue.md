@@ -91,6 +91,8 @@
 79. GitHub Actions：`64d560d` 对应的 push run `24059036431` / `24059036184` 首次暴露 `linux-x64/linux-arm64` 两条 `Perf smoke suite` 失败，根因是 `src/core/runtime_parse.c` 在 `-O2 -Werror` 下触发 `value may be used uninitialized`。随后 `62d3a56` 已修复该 warning，并由 push run `24059333706`（`ci-matrix`）与 `24059333491`（`Push on main`）于 `2026-04-07` 复核全部 `success`。
 80. `ISSUE-014` 当前已新增一条明确经验：native perf gate 不只要验证功能/门限，还必须在独立优化构建口径下保持 `-O2 -DNDEBUG -Werror` 无告警；否则即使 correctness suite 为绿，`perf smoke` 仍会在 Linux native job 上单独失败。
 81. `ISSUE-007` / `ISSUE-008` 当前已明确一个 `post-1.0` 候选议题：无 `AVX2` 的 x64 机器仍会长期回退到 `scalar`。本地 `Intel Celeron N4000`（`sse2/sse4.2`, 无 `avx/avx2`）样本显示 `600x800` 下 `scalar` 的 `S1 p95=32.182ms`、`S3 p95=26.626ms`、`S10 p95=114.357ms`，因此需要把 `SSE2/x64-no-avx2` 的可行性收口成单独 issue，但不把它纳入首个 `1.0.0` 阻塞项。
+82. `ISSUE-016` / `ISSUE-024` 已把 runtime persistence 从纯内部状态推进到 draft 公开面：`vn_runtime_query_build_info(...)`、`VNRuntimeSessionSnapshot`、`vn_runtime_session_capture_snapshot/create_from_snapshot`、`vn_runtime_session_save_to_file/load_from_file` 已落地；CLI 也已支持 `--load-save`、`--save-out`、`--save-slot`、`--save-timestamp` 的最小工作流。
+83. `ISSUE-022` 当前的 release/toolchain 聚合已继续补上远端 release 对齐链：`validate_release_remote_state.py` 与 `run_release_remote_summary.sh` 已入主线，`release-remote-summary` 现可把本地 canonical release spec 与 GitHub release fixture/远端状态做最小一致性校验。
 69. `ISSUE-007` 已起一条实验性 `avx2_asm` 分支后端：当前新增 `VN_ARCH_AVX2_ASM` / `VN_RENDERER_FLAG_FORCE_AVX2_ASM`、`--backend=avx2_asm` 和独立 backend 名称，但仍保持 force-only，不纳入 `VN_ARCH_MASK_ALL`。实现上它与 `avx2` 共享 framebuffer / textured / dirty-submit 主路径，只在 GNU x64 下启用 x64 ASM fill；若 asm 不可用则初始化失败并回退 `scalar`。本地最新稳定 `kernel avx2 -> avx2_asm` 样本里 `clear_full p95 0.797ms -> 0.105ms`，而其它非 fill kernel 基本持平，说明当前收益仍集中在 `clear/fill(alpha=255)`；同时 `test_renderer_dirty_submit`、`test_backend_consistency` 与 `test_runtime_golden` 现已把 `avx2_asm / avx2_asm_dirty` 纳入最小一致性覆盖。
 39. `ISSUE-007` 本轮继续推进 `avx2` textured-row 主线：direct textured row 的 non-palette 路径已从逐像素 `sample/hash -> combine -> blend` 收口到 8-lane AVX2 chunk helper，`vn_avx2_sample_texels_row()` 与 `vn_avx2_sample_blend_texels_row()` 现在都复用同一套 chunk 核心；palette alpha path 也已改成复用统一的 packed-channel blend helper。本地已再次通过 `check_c89`、x64 下的 `test_renderer_fallback`、`test_renderer_dirty_submit`、`test_backend_consistency`、`test_runtime_golden`，以及短窗口 `scalar -> avx2` smoke compare。
 40. `ISSUE-007` / `ISSUE-008` 本轮同时补上 x64 反回归链路：`.github/workflows/ci-matrix.yml` 的 `linux-x64` / `windows-x64` 现已显式校验 `test_renderer_dirty_submit.log` 中出现 `matched backend=avx2`；`tests/perf/run_perf.sh` / `run_perf_compare.sh` / `compare_perf.sh` 则开始把 `requested_backend` 与 `actual_backend` 一起写入 `perf_summary.csv` / compare markdown，用来防止 AVX2 静默回退后仍把 perf 结果记成 `avx2`。本地已复核单次 compare 与 `repeat=2` compare 都可正常产出新字段。
@@ -1207,6 +1209,11 @@ OUT_DIR=/tmp/n64gal_perf_ci_wrapper BASELINE_REV=75ee8f9 CANDIDATE_REV=HEAD ./sc
 - [x] `vn_runtime_session_inject_input` 已接通离散输入注入
 - [x] CLI / preview / host 示例已复用同一套 Session API
 - [x] Session API 已接入单测与文档，且 `test_runtime_api` 与 `test_preview_protocol` 已显式覆盖 `S10` 重场景
+- [x] 已公开 `vn_runtime_query_build_info(...)` 与 `VNRuntimeBuildInfo`，用于运行时版本协商
+- [x] 已公开 `VNRuntimeSessionSnapshot` 与 `capture/create_from_snapshot`，用于 in-memory session 恢复
+- [x] 已公开 `vn_runtime_session_save_to_file/load_from_file` draft API，形成最小文件级 quick-save / quick-load 包装
+- [x] CLI 已支持 `--load-save`、`--save-out`、`--save-slot`、`--save-timestamp`
+- [x] Runtime 实现已按 `runtime_parse.c + runtime_cli.c + runtime_persist.c` 收口，避免 Session API 与 CLI parse/persistence 继续耦合
 
 ### 验收命令
 
@@ -1488,6 +1495,8 @@ cmake --build build-wasm
 - [x] 已落 preview 发布级证据入口（`scripts/release/run_preview_evidence.sh` / `python3 tools/toolchain.py release-preview-evidence`）
 - [x] 已落 release-facing markdown/json 双摘要约定（`release-gate` / `release-soak` / `release-host-sdk-smoke` / `release-platform-evidence` / `release-preview-evidence` / `release-bundle` / `release-report`）
 - [x] 已落 `release-gate --with-bundle` 组合入口，用于把 gate / soak / host-sdk/platform/preview evidence / bundle 合并成一条正式版前命令
+- [x] 已落 `validate-release-remote-state` 远端 release 状态校验（`python3 tools/toolchain.py validate-release-remote-state`）
+- [x] 已落 `release-remote-summary` 统一入口（`scripts/release/run_release_remote_summary.sh` / `python3 tools/toolchain.py release-remote-summary`）
 - [x] `validate`：已落 backend 契约一致性校验（`tools/validate/validate_backend_contracts.py`）
 - [x] `validate`：已落 API 文档索引一致性校验（`tools/validate/validate_api_index_contracts.py`）
 - [x] `validate`：已落 compat matrix 一致性校验（`tools/validate/validate_compat_matrix.py`）
@@ -1520,6 +1529,7 @@ cmake --build build-wasm
 - [x] Creator Toolchain 各命令帮助文本完整
 - [x] 至少 1 条迁移路径可跑通
 - [x] 至少 1 条 golden/perf 报告链产出 markdown artifact
+- [x] 远端 release 状态可通过 fixture/summary 工具做最小一致性校验
 
 ### 回退策略
 
@@ -1580,7 +1590,7 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 
 ### 当前实现备注
 
-1. 入口：`include/vn_preview.h` + `src/tools/preview_cli.c` + `src/tools/previewd_main.c`
+1. 入口：`include/vn_preview.h` + `src/tools/preview_parse.c` + `src/tools/preview_cli.c` + `src/tools/preview_report.c` + `src/tools/previewd_main.c`
 2. 文档：`docs/preview-protocol.md`
 3. 测试：`tests/integration/test_preview_protocol.c`，并已接入 `run_cc_suite.sh` 与 `ctest`
 4. `perf_summary` 当前是 host 侧 step 包围时间摘要，不替代正式 perf 报告
@@ -1613,6 +1623,8 @@ IPC 方案不稳定时先保留 CLI + 临时文件协议，不阻塞协议冻结
 - [x] 最小宿主嵌入示例（`examples/host-embed/session_loop.c`）
 - [x] `example_host_embed` 已接入 `CMake + ctest + run_cc_suite.sh`
 - [x] Linux/Windows 各补 1 个平台专用宿主包装层示例（`linux_tty_loop.c` / `windows_console_loop.c`）
+- [x] 宿主已可通过 `vn_runtime_query_build_info(...)` 读取 runtime/preview/pack/save 版本边界
+- [x] 宿主文档已明确 runtime-specific session persistence draft 边界，不把它误写成正式通用 save ABI
 
 ### 验收命令
 
