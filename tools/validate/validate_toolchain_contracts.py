@@ -46,6 +46,10 @@ def extract_toolchain_commands(toolchain_py: str):
     return commands
 
 
+def toolchain_test_covers_command(toolchain_test: str, command: str):
+    return f'["{command}"' in toolchain_test or f'[\n        "{command}"' in toolchain_test or f'[\n            "{command}"' in toolchain_test
+
+
 def main(argv):
     root = Path(".")
     if len(argv) > 2:
@@ -79,7 +83,7 @@ def main(argv):
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "docs/toolchain.md", f"missing command example: {command}")
         if command in README_COMMANDS and quoted not in readme:
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "README.md", f"missing command example: {command}")
-        if f'["{command}"' not in toolchain_test:
+        if not toolchain_test_covers_command(toolchain_test, command):
             return error("tool.validate.toolchain_contracts.format", VN_E_FORMAT, "tests/integration/test_toolchain_cli.py", f"missing toolchain CLI coverage: {command}")
 
     print(

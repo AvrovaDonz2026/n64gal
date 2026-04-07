@@ -58,7 +58,11 @@ def main():
         print(f"validate-release-audit failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
-    rc, out, err = run_case(["validate-release-remote-state", "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json"])
+    rc, out, err = run_case([
+        "validate-release-remote-state",
+        "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
+        "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
+    ])
     if rc != 0 or "trace_id=tool.validate.release_remote_state.ok" not in out:
         print(f"validate-release-remote-state failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
@@ -283,6 +287,7 @@ def main():
             return 1
 
         rc, out, err = run_case(["release-remote-summary",
+            "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
             "--release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
             "--out-dir", "tests/integration/toolchain_release_remote_tmp",
         ])

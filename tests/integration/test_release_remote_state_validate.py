@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
-import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from socketserver import TCPServer
-from threading import Thread
-from http.server import SimpleHTTPRequestHandler
 
 
 ROOT = Path(".").resolve()
 TOOL = ["python3", "tools/validate/validate_release_remote_state.py"]
-
-
-class QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format, *args):
-        return
-
 
 def run_case(args):
     proc = subprocess.run(TOOL + args, cwd=ROOT, capture_output=True, text=True)
@@ -52,22 +42,8 @@ def main():
         temp_root = Path(temp_dir)
         served = temp_root / "github_release_v0.1.0-alpha.json"
         served.write_text((ROOT / fixture).read_text(encoding="utf-8"), encoding="utf-8")
-
-        old_cwd = Path.cwd()
-        try:
-            os.chdir(temp_root)
-            server = TCPServer(("127.0.0.1", 0), QuietHandler)
-            thread = Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                url = f"http://127.0.0.1:{server.server_address[1]}/github_release_v0.1.0-alpha.json"
-                rc, out, err = run_case(["--release-spec", alpha_spec, "--release-json-url", url])
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=2)
-        finally:
-            os.chdir(old_cwd)
+        url = served.resolve().as_uri()
+        rc, out, err = run_case(["--release-spec", alpha_spec, "--release-json-url", url])
 
         if rc != 0:
             print(f"release remote validate url failed rc={rc} stderr={err}", file=sys.stderr)
@@ -81,22 +57,8 @@ def main():
         api_served = temp_root / "repos" / "AvrovaDonz2026" / "n64gal" / "releases" / "tags" / "v0.1.0-alpha"
         api_served.parent.mkdir(parents=True, exist_ok=True)
         api_served.write_text((ROOT / fixture).read_text(encoding="utf-8"), encoding="utf-8")
-
-        old_cwd = Path.cwd()
-        try:
-            os.chdir(temp_root)
-            server = TCPServer(("127.0.0.1", 0), QuietHandler)
-            thread = Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                rc, out, err = run_case(["--release-spec", alpha_spec, "--tag", "v0.1.0-alpha", "--api-root", api_root, "--github-repo", "AvrovaDonz2026/n64gal"])
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=2)
-        finally:
-            os.chdir(old_cwd)
+        api_root = temp_root.resolve().as_uri()
+        rc, out, err = run_case(["--release-spec", alpha_spec, "--tag", "v0.1.0-alpha", "--api-root", api_root, "--github-repo", "AvrovaDonz2026/n64gal"])
 
         if rc != 0:
             print(f"release remote validate api failed rc={rc} stderr={err}", file=sys.stderr)
@@ -110,22 +72,8 @@ def main():
         api_served = temp_root / "repos" / "AvrovaDonz2026" / "n64gal" / "releases" / "tags" / "v0.1.0-alpha"
         api_served.parent.mkdir(parents=True, exist_ok=True)
         api_served.write_text((ROOT / fixture).read_text(encoding="utf-8"), encoding="utf-8")
-
-        old_cwd = Path.cwd()
-        try:
-            os.chdir(temp_root)
-            server = TCPServer(("127.0.0.1", 0), QuietHandler)
-            thread = Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                rc, out, err = run_case(["--release-spec", alpha_spec, "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root])
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=2)
-        finally:
-            os.chdir(old_cwd)
+        api_root = temp_root.resolve().as_uri()
+        rc, out, err = run_case(["--release-spec", alpha_spec, "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root])
 
         if rc != 0:
             print(f"release remote validate api spec-default failed rc={rc} stderr={err}", file=sys.stderr)

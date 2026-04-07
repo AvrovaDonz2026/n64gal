@@ -3,18 +3,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from socketserver import TCPServer
-from threading import Thread
-from http.server import SimpleHTTPRequestHandler
 
 
 ROOT = Path(".").resolve()
 SCRIPT = ["bash", "scripts/release/run_release_remote_summary.sh"]
-
-
-class QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, format, *args):
-        return
 
 
 def main():
@@ -45,29 +37,14 @@ def main():
         api_served = temp_root / "repos" / "AvrovaDonz2026" / "n64gal" / "releases" / "tags" / "v0.1.0-alpha"
         api_served.parent.mkdir(parents=True, exist_ok=True)
         api_served.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
-
-        old_cwd = Path.cwd()
-        try:
-            import os
-            os.chdir(temp_root)
-            server = TCPServer(("127.0.0.1", 0), QuietHandler)
-            thread = Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                url = f"http://127.0.0.1:{server.server_address[1]}/github_release_v0.1.0-alpha.json"
-                out_dir = temp_root / "remote_url"
-                proc = subprocess.run(
-                    SCRIPT + ["--release-spec", str(release_spec), "--release-json-url", url, "--out-dir", str(out_dir)],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                )
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=2)
-        finally:
-            os.chdir(old_cwd)
+        url = served.resolve().as_uri()
+        out_dir = temp_root / "remote_url"
+        proc = subprocess.run(
+            SCRIPT + ["--release-spec", str(release_spec), "--release-json-url", url, "--out-dir", str(out_dir)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
 
         if proc.returncode != 0:
             print(f"release remote summary url failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
@@ -84,29 +61,14 @@ def main():
         api_served = temp_root / "repos" / "AvrovaDonz2026" / "n64gal" / "releases" / "tags" / "v0.1.0-alpha"
         api_served.parent.mkdir(parents=True, exist_ok=True)
         api_served.write_text(fixture.read_text(encoding="utf-8"), encoding="utf-8")
-
-        old_cwd = Path.cwd()
-        try:
-            import os
-            os.chdir(temp_root)
-            server = TCPServer(("127.0.0.1", 0), QuietHandler)
-            thread = Thread(target=server.serve_forever, daemon=True)
-            thread.start()
-            try:
-                api_root = f"http://127.0.0.1:{server.server_address[1]}"
-                out_dir = temp_root / "remote_api"
-                proc = subprocess.run(
-                    SCRIPT + ["--release-spec", str(release_spec), "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root, "--out-dir", str(out_dir)],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                )
-            finally:
-                server.shutdown()
-                server.server_close()
-                thread.join(timeout=2)
-        finally:
-            os.chdir(old_cwd)
+        api_root = temp_root.resolve().as_uri()
+        out_dir = temp_root / "remote_api"
+        proc = subprocess.run(
+            SCRIPT + ["--release-spec", str(release_spec), "--github-repo", "AvrovaDonz2026/n64gal", "--api-root", api_root, "--out-dir", str(out_dir)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
 
         if proc.returncode != 0:
             print(f"release remote summary api failed rc={proc.returncode} stdout={proc.stdout} stderr={proc.stderr}", file=sys.stderr)
