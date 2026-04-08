@@ -77,7 +77,7 @@ def main(argv):
         require_contains(host_sdk, "| `runtime api` | `public stable v1` |", "host_sdk.runtime_api")
         require_contains(host_sdk, "| `vnsave` | `format v1 stable; generic ABI not public` |", "host_sdk.vnsave")
 
-        require_contains(migration, "首个正式 `vnsave v1` 承诺不早于 `v1.0.0`", "migration.vnsave_scope")
+        require_contains(migration, "首个正式 `vnsave v1` 已随 `v1.0.0` 进入公开版本语义", "migration.vnsave_scope")
         require_contains(migration, "当前已有最小 `v0 -> v1` 迁移命令", "migration.vnsave_migrate")
         require_contains(migration, "runtime session save/load", "migration.runtime_session_only")
 

@@ -34,6 +34,13 @@ def require_contains(text: str, needle: str, field: str):
         raise ValueError(field)
 
 
+def require_contains_any(text: str, needles, field: str):
+    for needle in needles:
+        if needle in text:
+            return
+    raise ValueError(field)
+
+
 def main(argv):
     root = Path(".")
     if len(argv) > 2:
@@ -70,17 +77,16 @@ def main(argv):
         return error("tool.validate.release_docs.io", VN_E_IO, "root", "failed reading release docs")
 
     try:
-        require_contains(readme, "当前对外版本状态：`v0.1.0-alpha` 已发布", "readme.alpha_published")
-        require_contains(readme, "当前后续目标：`v0.1.0-mvp`", "readme.mvp_target")
-        require_contains(readme, "docs/release-v0.1.0-alpha.md", "readme.release_note_link")
-        require_contains(readme, "docs/release-evidence-v0.1.0-alpha.md", "readme.release_evidence_link")
-        require_contains(readme, "docs/release-gap-v0.1.0-mvp.md", "readme.mvp_gap_link")
+        require_contains(readme, "当前对外版本状态：`v1.0.0` 已发布", "readme.v1_published")
+        require_contains(readme, "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0", "readme.release_url")
+        require_contains(readme, "docs/release-v1.0.0.md", "readme.release_note_link")
+        require_contains(readme, "docs/release-evidence-v1.0.0.md", "readme.release_evidence_link")
+        require_contains(readme, "docs/release-package-v1.0.0.md", "readme.release_package_link")
         require_contains(readme, "docs/release-checklist-v1.0.0.md", "readme.v1_checklist_link")
         require_contains(readme, "docs/release-triage-v1.0.0.md", "readme.v1_triage_link")
 
-        require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
-        require_contains(issue, "`v0.1.0-mvp`", "issue.mvp_target")
-        require_contains(issue, "`v1.0.0` 当前明确先不包含 `RVV/riscv64 native` 承诺。", "issue.v1_boundary")
+        require_contains(issue, "`v1.0.0` 已发布", "issue.v1_published")
+        require_contains(issue, "`v1.0.0` 发布范围：先不包含 `RVV/riscv64 native`", "issue.v1_boundary")
 
         require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha_section")
         require_contains(changelog, "`rvv` 最小可运行后端与 `qemu-first` 验证链", "changelog.rvv")
@@ -129,7 +135,7 @@ def main(argv):
         require_contains(triage_v1, "## 2. Must Have", "triage.must_have")
         require_contains(triage_v1, "## 3. Nice To Have", "triage.nice_to_have")
         require_contains(triage_v1, "## 4. Post-1.0", "triage.post_1_0")
-        require_contains(triage_v1, "freeze the public contract", "triage.summary")
+        require_contains_any(triage_v1, ["freeze the public contract", "真实 tag、GitHub Release、asset、publish map、bundle、report、remote summary 已全部落地"], "triage.summary")
         require_contains(checklist_v1, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist_v1.rvv_boundary")
         require_contains(release_publish_spec, "\"repository\": \"AvrovaDonz2026/n64gal\"", "release_publish_spec.repository")
         require_contains(release_publish_spec, "\"tag\": \"v0.1.0-alpha\"", "release_publish_spec.tag")

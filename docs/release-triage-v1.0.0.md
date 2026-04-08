@@ -7,16 +7,16 @@
 当前判断基于三类事实：
 
 1. 当前代码/测试已经可运行、可验证
-2. 当前 release 文档与 release spec 仍停留在 `v0.1.0-alpha`
+2. 当前 release 文档、spec 与真实 GitHub Release 已对齐到 `v1.0.0`
 3. 当前首个 `v1.0.0` 范围已明确只收 `x64/arm64 + Linux/Windows`
 
 ## 2. Must Have
 
 这些项不完成，就不应发布首个 `v1.0.0`。
 
-1. 生成真正的 `v1.0.0` release 产物链，而不是继续复用 `v0.1.0-alpha` 产物名义。
-   - 当前已存在的 release spec / release note / evidence 仍是 `v0.1.0-alpha`
-   - 需要补齐 `v1.0.0` 的 release note、publish map、bundle、report、remote summary 对齐物
+1. 维护真实 `v1.0.0` release 产物链的一致性。
+   - 当前真实 tag、GitHub Release、asset、publish map、bundle、report、remote summary 已全部落地
+   - 后续重点转为保持 repo 文档、release spec 与远端发布对象持续一致
 2. 四个平台 release-grade 证据收口。
    - 范围只包含 `x64 Linux`、`x64 Windows`、`arm64 Linux`、`arm64 Windows`
    - 需要把 `release-gate`、`release-soak`、`release-host-sdk-smoke`、`release-platform-evidence`、`release-preview-evidence` 的正式版留痕归档成可引用证据

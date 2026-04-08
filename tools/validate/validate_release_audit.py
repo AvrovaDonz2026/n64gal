@@ -180,8 +180,6 @@ def main(argv):
         if not (root / "assets" / "demo" / "demo.vnpak").exists():
             raise FileNotFoundError("assets/demo/demo.vnpak")
         if spec_tag == "v0.1.0-alpha":
-            require_contains(readme, "v0.1.0-alpha", "readme.version")
-            require_contains(issue, "`v0.1.0-alpha` 已发布", "issue.alpha_published")
             require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
             require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
         else:

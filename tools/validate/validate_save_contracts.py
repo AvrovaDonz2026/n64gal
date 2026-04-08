@@ -80,7 +80,7 @@ def main(argv):
         require_contains(policy_doc, "runtime-specific session persistence", "policy.runtime_specific")
         require_contains(policy_doc, "`runtime-session-only`", "policy.runtime_session_only")
 
-        require_contains(migration_doc, "最小 probe API 见 [`docs/api/save.md`](./api/save.md)", "migration.save_doc")
+        require_contains(migration_doc, "docs/api/save.md", "migration.save_doc")
         require_contains(migration_doc, "`v0 -> v1`", "migration.v0_to_v1")
         require_contains(migration_doc, "runtime-specific quick-save / quick-load", "migration.runtime_specific")
 

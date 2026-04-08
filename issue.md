@@ -3,7 +3,7 @@
 基于 [`dream.md`](./dream.md) `v1.6-executable-c89-single-api` 整理。  
 目标：将白皮书转为可直接执行的 GitHub issue 工单体系。
 
-## 0.1 落地状态快照（2026-04-07）
+## 0.1 落地状态快照（2026-04-08）
 
 ### 已完成（代码已合入 main）
 
@@ -17,7 +17,13 @@
 8. `ISSUE-017`（部分）：`docs/api/*` 文档集与维护入口已建立
 9. `ISSUE-014`（部分）：`riscv-perf-report` workflow 与 wrapper 已合入，且 `ci-matrix` 在 `f5eaa54` / `1792d6e` 两次 push 均为 `success`
 
-### 近期追踪（2026-04-07）
+### 近期追踪（2026-04-08）
+
+1. `v1.0.0` tag 已创建并推送，GitHub Release 已创建：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
+2. `demo.vnpak` 已作为正式版资产上传：`https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.0.0/demo.vnpak`
+3. `build_release_v1_final_remote/` 与 `build_release_v1_final_export/` 已生成真实远端对齐后的 `remote-summary / publish-map / report / bundle` 物料
+4. `4f3132d` 已把 runtime/public contract 从 `draft/pre-1.0` 收口到正式版措辞，并由 `ci-matrix 24111326391` 与 `Push on main 24111326177` 复核为绿
+5. `32f414d` 已把 `release-v1.0.0.md`、`release-evidence-v1.0.0.md`、`release-package-v1.0.0.md` 回填到真实 release 状态
 
 1. `df68232`：落地 revision-compare perf 工具、qemu RVV smoke 报告与 perf 工作流文档。
 2. `f5eaa54`：新增 `.github/workflows/riscv-perf-report.yml` 与 `scripts/ci/run_riscv64_qemu_perf_report.sh`。
@@ -957,18 +963,18 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ### 目标
 
-已完成首个对外预发布版本 `v0.1.0-alpha` 的文档与发布动作；下一步转向 `v0.1.0-mvp` 所需的剩余文档、证据链和发布清单。`v1.0.0` 当前明确先不包含 `RVV/riscv64 native` 承诺。
+已完成 `v1.0.0` 正式版的发布收口：tag、GitHub Release、`demo.vnpak` 资产、release note / evidence / package 文档，以及 `remote-summary / export / publish-map` 产物链均已落地。后续重点转向发布后维护与 `post-1.0` 项。
 
 ### 交付物
 
 - `README`
 - `CHANGELOG.md`
 - `docs/perf-report.md`
-- `docs/release-v0.1.0-alpha.md`
-- `docs/release-checklist-v0.1.0-alpha.md`
-- `docs/release-evidence-v0.1.0-alpha.md`
-- `docs/release-package-v0.1.0-alpha.md`
-- `docs/release-gap-v0.1.0-mvp.md`
+- `docs/release-v1.0.0.md`
+- `docs/release-evidence-v1.0.0.md`
+- `docs/release-package-v1.0.0.md`
+- `build_release_v1_final_remote/`
+- `build_release_v1_final_export/`
 - `docs/release-roadmap-1.0.0.md`
 - `docs/release-checklist-v1.0.0.md`
 - `docs/compat-matrix.md`
@@ -979,19 +985,18 @@ VN_PERF_RUNNER_PREFIX='qemu-riscv64 -cpu max,v=true -L /usr/riscv64-linux-gnu' \
 
 ### 任务清单
 
-- [x] 汇总性能报告与测试附件（alpha 级索引）
-- [x] 固定 `v0.1.0-alpha` release note 与当前范围说明
-- [x] 固定 `v0.1.0-alpha` changelog 摘要
+- [x] 汇总性能报告与测试附件（正式版证据索引）
+- [x] 固定 `v1.0.0` release note 与当前范围说明
+- [x] 固定 `v1.0.0` changelog / release evidence 摘要
 - [x] 输出后端移植指南
-- [x] 建立 `v0.1.0-alpha` 发布清单文档
-- [x] 建立 `v0.1.0-alpha` 发布产物清单与缺口说明
-- [x] 发布 `v0.1.0-alpha` GitHub prerelease（tag + release + `demo.vnpak` asset）
-- [x] 在 `issue.md` 中记录已发 alpha 版本
-- [x] 建立 `v0.1.0-mvp` 差距清单
+- [x] 建立 `v1.0.0` 发布清单文档
+- [x] 建立 `v1.0.0` 发布产物清单与缺口说明
+- [x] 发布 `v1.0.0` GitHub Release（tag + release + `demo.vnpak` asset）
+- [x] 在 `issue.md` 中记录已发正式版
 - [x] 建立 `v1.0.0` 正式版 checklist
 - [x] 建立 release 兼容矩阵模板
 - [x] 固定 `vnsave` 的 `pre-1.0 / v1.0.0 / post-1.0` 版本策略
-- [ ] 完成发布清单检查
+- [x] 完成发布清单检查
 
 ### 验收命令
 
@@ -1009,9 +1014,10 @@ ctest --test-dir build --output-on-failure
 
 ### 当前状态
 
-1. `v0.1.0-alpha` 已发布：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha`
-2. 当前后续目标切换为：`v0.1.0-mvp`
-3. `v1.0.0` 当前范围：先不包含 `RVV/riscv64 native`
+1. `v1.0.0` 已发布：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
+2. 正式版资产已上传：`https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.0.0/demo.vnpak`
+3. `v1.0.0` 发布范围：先不包含 `RVV/riscv64 native`
+4. 后续工作转入发布后维护与 `post-1.0`
 
 ### 回退策略
 

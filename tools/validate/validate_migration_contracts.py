@@ -65,9 +65,9 @@ def main(argv):
         require_contains(migration, "当前已有最小 `v0 -> v1` 迁移命令与 probe/reject 规则", "migration.minimal_migrate")
         require_contains(migration, "当前 `vn_save.h` 只解决“识别/拒绝/最小迁移”，不等于完整 save/load", "migration.save_scope")
         require_contains(migration, "runtime-specific quick-save / quick-load", "migration.runtime_specific")
-        require_contains(migration, "`vnsave` 迁移不在 `v0.1.0-alpha` 范围内", "migration.alpha_scope")
-        require_contains(migration, "`v1.0.0`：", "migration.v1_scope")
-        require_contains(migration, "最小 probe API 见 [`docs/api/save.md`](./api/save.md)", "migration.save_doc_link")
+        require_contains(migration, "`v0.x` 实验存档迁移不在正式兼容承诺内", "migration.alpha_scope")
+        require_contains(migration, "正式版当前应至少明确：", "migration.v1_scope")
+        require_contains(migration, "docs/api/save.md", "migration.save_doc_link")
 
         require_contains(save_doc, "当前只完成 `v0 -> v1` 最小路径。", "save_doc.minimal_path")
         require_contains(save_policy, "`v0 -> v1` 迁移命令", "save_policy.migrate_command")

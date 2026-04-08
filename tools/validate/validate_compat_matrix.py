@@ -84,7 +84,7 @@ def main(argv):
         require_contains(readme, "首个 `v1.0.0` 正式版当前只承诺前四项；`riscv64 + Linux` 继续保留在长期路线图中，但按 `post-1.0` 处理。", "readme.post_1_0_scope")
 
         require_contains(issue, "`M3-riscv64-rvv` 继续推进，但已从 `1.0.0` 阻塞项降为 `post-1.0` 轨道", "issue.post_1_0")
-        require_contains(issue, "`v1.0.0` 当前明确先不包含 `RVV/riscv64 native` 承诺。", "issue.no_rvv")
+        require_contains(issue, "`v1.0.0` 发布范围：先不包含 `RVV/riscv64 native`", "issue.no_rvv")
 
         require_contains(toolchain, "python3 tools/toolchain.py validate-compat-matrix", "toolchain.validate_compat")
     except ValueError as exc:
