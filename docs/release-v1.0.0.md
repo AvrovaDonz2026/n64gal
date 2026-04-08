@@ -21,7 +21,7 @@
 1. `vn_runtime_run(...)`
 2. Session API：`create/step/is_done/set_choice/inject_input/destroy`
 3. `vn_runtime_query_build_info(...)`
-4. runtime snapshot / file save-load draft API
+4. runtime snapshot / file save-load API
 5. `vn_previewd` 与 `preview protocol v1`
 6. `scalar`
 7. `avx2`
@@ -92,12 +92,15 @@
 3. `3af38be`
    - `ci-matrix`: `24084758904`
    - `Push on main`: `24084758388`
+4. `4f3132d`
+   - `ci-matrix`: `24111326391`
+   - `Push on main`: `24111326177`
 
-## Rehearsal Status
+## Release Outputs
 
-当前仓库已经完成过一轮基于 `docs/release-publish-v1.0.0.json` 的本地正式版 rehearsal。
+当前仓库已基于 `docs/release-publish-v1.0.0.json` 完成真实 `v1.0.0` 发布对象与最终导出链。
 
-这轮 rehearsal 已实际跑通：
+当前已实际跑通：
 
 1. `release-gate`
 2. `release-soak`
@@ -110,11 +113,14 @@
 9. `release-publish-map`
 10. `release-remote-summary`
 
-当前生成物位于：
+当前最终生成物位于：
 
 1. `build_release_v1_rehearsal/release_gate_summary.md`
-2. `build_release_v1_rehearsal/bundle/`
-3. `build_release_v1_rehearsal/export/`
+2. `build_release_v1_final_remote/release_remote_summary.md`
+3. `build_release_v1_final_export/bundle/`
+4. `build_release_v1_final_export/report/`
+5. `build_release_v1_final_export/publish/`
+6. `build_release_v1_final_export/remote/`
 
 ## Known Limits
 

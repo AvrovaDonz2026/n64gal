@@ -54,20 +54,23 @@
 3. `3af38be`
    - `ci-matrix`: `24084758904`
    - `Push on main`: `24084758388`
+4. `4f3132d`
+   - `ci-matrix`: `24111326391`
+   - `Push on main`: `24111326177`
 
-## Current Rehearsal Outputs
+## Current Release Outputs
 
-当前仓库已经完成一轮以 `v1.0.0` spec 为主路径的本地 release rehearsal，可直接引用以下生成物：
+当前仓库已经完成真实 `v1.0.0` 远端发布与最终导出链，可直接引用以下生成物：
 
 1. `build_release_v1_rehearsal/release_gate_summary.md`
-2. `build_release_v1_rehearsal/bundle/release_bundle_index.md`
-3. `build_release_v1_rehearsal/bundle/release_bundle_manifest.json`
-4. `build_release_v1_rehearsal/export/report/release_report.md`
-5. `build_release_v1_rehearsal/export/report/release_report.json`
-6. `build_release_v1_rehearsal/export/publish/release_publish_map.md`
-7. `build_release_v1_rehearsal/export/publish/release_publish_map.json`
-8. `build_release_v1_rehearsal/export/remote/release_remote_summary.md`
-9. `build_release_v1_rehearsal/export/remote/release_remote_summary.json`
+2. `build_release_v1_final_export/bundle/release_bundle_index.md`
+3. `build_release_v1_final_export/bundle/release_bundle_manifest.json`
+4. `build_release_v1_final_export/report/release_report.md`
+5. `build_release_v1_final_export/report/release_report.json`
+6. `build_release_v1_final_export/publish/release_publish_map.md`
+7. `build_release_v1_final_export/publish/release_publish_map.json`
+8. `build_release_v1_final_remote/release_remote_summary.md`
+9. `build_release_v1_final_remote/release_remote_summary.json`
 
 ## Format And Interface Boundaries
 
@@ -84,10 +87,9 @@
 
 ## Current Status
 
-这份文件已经不再只是占位标题，而且 `v1.0.0` 本地 rehearsal 已经能产出完整证据物料链。
+这份文件已经不再只是占位标题；`v1.0.0` 的真实 GitHub Release、资产对象和最终导出链都已生成。
 
-在真正打 `v1.0.0` tag 前，还需要把以下内容替换成最终链接：
+当前真实远端对象：
 
-1. 当前 `build_release_v1_rehearsal/...` 路径替换成最终归档路径
-2. 最终 GitHub Release URL 与资产信息
-3. 最终远端 `release_remote_summary` 引用真实发布对象而非 rehearsal fixture
+1. Release URL: `https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
+2. Asset: `https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.0.0/demo.vnpak`

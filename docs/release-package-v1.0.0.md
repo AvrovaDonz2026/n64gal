@@ -34,21 +34,21 @@
 
 ## Current Status
 
-当前这份文件已经从骨架推进到可用包内容计划，而且本地 `v1.0.0` rehearsal 已经能生成对应 bundle/export/report/publish-map 物料。
+当前这份文件已经从骨架推进到真实发布包计划，而且最终 `v1.0.0` export / publish / remote 物料已经生成。
 
-当前 rehearsal 输出位于：
+当前最终输出位于：
 
-1. `build_release_v1_rehearsal/bundle/`
-2. `build_release_v1_rehearsal/export/bundle/`
-3. `build_release_v1_rehearsal/export/report/`
-4. `build_release_v1_rehearsal/export/publish/`
-5. `build_release_v1_rehearsal/export/remote/`
+1. `build_release_v1_final_export/bundle/`
+2. `build_release_v1_final_export/report/`
+3. `build_release_v1_final_export/publish/`
+4. `build_release_v1_final_export/remote/`
+5. GitHub Release: `https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
 
 ## Pre-Release Checks Still Required
 
-正式发布前仍需确认：
+最终发布后仍需长期保留并核对：
 
 1. `docs/release-publish-v1.0.0.json` 与最终 GitHub Release 对象完全一致
 2. `demo.vnpak` 仍是最终发布资产，或在 spec 中显式替换
-3. 当前 rehearsal 生成物迁移到最终归档位置
+3. `build_release_v1_final_export/...` 与最终归档位置保持一致
 4. 最终包内容与 `docs/release-checklist-v1.0.0.md` 不冲突
