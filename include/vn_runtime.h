@@ -3,8 +3,8 @@
 
 #include "vn_types.h"
 
-#define VN_RUNTIME_API_VERSION "v1-draft"
-#define VN_RUNTIME_API_STABILITY "public v1-draft (pre-1.0)"
+#define VN_RUNTIME_API_VERSION "v1"
+#define VN_RUNTIME_API_STABILITY "public stable v1"
 #define VN_RUNTIME_MAX_CHOICE_SEQ 64u
 #define VN_RUNTIME_SNAPSHOT_PATH_MAX 512u
 #define VN_RUNTIME_SNAPSHOT_BACKEND_MAX 16u

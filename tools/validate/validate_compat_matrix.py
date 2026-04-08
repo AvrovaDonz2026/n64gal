@@ -64,7 +64,7 @@ def main(argv):
         require_contains(compat, "| `v1.0.0` 首版承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.platform_row")
         require_contains(compat, "| `rvv` | `qemu-first` | 否 | 转 `post-1.0` |", "compat.backend_rvv")
         require_contains(compat, "| `avx2_asm` | force-only 实验 | 否 | 不进入 auto 优先级 |", "compat.backend_avx2_asm")
-        require_contains(compat, "| `vnsave` | `pre-1.0 unstable` | 首次引入 `v1` |", "compat.vnsave")
+        require_contains(compat, "| `vnsave` | `format v1 stable; generic ABI not public` | 首次引入 `v1` |", "compat.vnsave")
         require_contains(compat, "| `preview protocol` | `v1` | 稳定 `v1` 基面 |", "compat.preview")
         require_contains(compat, "3. `RVV/riscv64 native`、`avx2_asm`、`JIT` 都不进入首个正式版默认承诺", "compat.current_conclusion")
 
@@ -76,9 +76,9 @@ def main(argv):
         require_contains(checklist, "`compat-matrix.md` 与 `README` / release 文档口径一致", "checklist.compat_matrix")
         require_contains(checklist, "`1.0.0` / `post-1.0` 范围边界固定", "checklist.boundary")
 
-        require_contains(host_sdk, "| `vnsave` | `pre-1.0 unstable` |", "host_sdk.vnsave")
+        require_contains(host_sdk, "| `vnsave` | `format v1 stable; generic ABI not public` |", "host_sdk.vnsave")
         require_contains(host_sdk, "| `preview protocol` | `v1` |", "host_sdk.preview")
-        require_contains(host_sdk, "| `backend abi` | `runtime-internal v1-draft` |", "host_sdk.backend_abi")
+        require_contains(host_sdk, "| `backend abi` | `internal, not public ABI` |", "host_sdk.backend_abi")
 
         require_contains(readme, "docs/compat-matrix.md", "readme.compat_doc")
         require_contains(readme, "首个 `v1.0.0` 正式版当前只承诺前四项；`riscv64 + Linux` 继续保留在长期路线图中，但按 `post-1.0` 处理。", "readme.post_1_0_scope")

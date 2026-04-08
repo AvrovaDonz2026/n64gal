@@ -71,7 +71,7 @@ def main(argv):
         require_contains(save_doc, "### `const char* vnsave_status_name(vn_u32 status)`", "save_doc.status_name_api")
         require_contains(save_doc, "legacy `v0`", "save_doc.legacy_v0")
         require_contains(save_doc, "`v1`（当前正式目标格式）", "save_doc.v1_format")
-        require_contains(save_doc, "runtime-specific session save/load draft wrapper", "save_doc.runtime_wrapper")
+        require_contains(save_doc, "runtime-specific session save/load", "save_doc.runtime_wrapper")
         require_contains(save_doc, "payload 在 `vn_save.h` 层仍按 opaque bytes 处理", "save_doc.payload_opaque")
 
         require_contains(policy_doc, "`v0.x` 阶段没有对外稳定 `vnsave` 兼容承诺", "policy.pre_1_0")

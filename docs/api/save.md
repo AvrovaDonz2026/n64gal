@@ -16,25 +16,25 @@
 
 ## 3. 当前版本承诺级别
 
-`vn_save.h` 当前是 `pre-1.0` 的最小公开面：
+`vn_save.h` 当前应按“`vnsave v1` 文件格式已发布，但通用 save/load ABI 仍未公开”理解：
 
 1. 当前已经公开：
    - header/version 探测
    - 结构化拒绝
    - 最小 `v0 -> v1` 离线迁移函数
-   - 基于 `vn_runtime.h` 的 runtime-specific session save/load draft wrapper
+   - 基于 `vn_runtime.h` 的 runtime-specific session save/load
 2. 当前仍未承诺：
    - 完整 save/load 运行时 ABI
    - 宿主侧长期存档兼容
    - 多版本自动迁移链
-3. `v1.0.0` 前，宿主应把 `vn_save.h` 视为“探测/迁移工具接口”；runtime-specific session persistence 仍以 `vn_runtime.h` draft API 解释，而不是完整存档系统。
+3. 当前宿主应把 `vn_save.h` 视为“格式探测/拒绝/迁移接口”；runtime-specific session persistence 继续由 `vn_runtime.h` 的正式 runtime API 承载。
 
 ## 4. 常量与状态
 
 ### 版本与头大小
 
 1. `VNSAVE_API_STABILITY`
-   - 当前值：`pre-1.0 unstable`
+   - 当前值：`format v1 stable; generic ABI not public`
 2. `VNSAVE_PUBLIC_SAVELOAD_SCOPE`
    - 当前值：`runtime-session-only`
    - 表示当前最小公开 save/load 承诺只覆盖 runtime session save/load
@@ -159,7 +159,7 @@
 payload 说明：
 
 1. 当前 `vnsave v1` payload 在 `vn_save.h` 层仍按 opaque bytes 处理
-2. 当前仓库里 `vn_runtime_session_save_to_file(...)` 会把 runtime session snapshot draft 写进这个 payload
+2. 当前仓库里 `vn_runtime_session_save_to_file(...)` 会把 runtime session snapshot payload 写进这个 payload
 3. 这不等于“所有 `vnsave v1` 文件都必须是 runtime session dump”
 4. 普通 `vnsave` 读者若不理解 payload 语义，仍应只按 header/version/CRC 解释
 

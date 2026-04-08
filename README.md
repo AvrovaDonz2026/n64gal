@@ -23,7 +23,7 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 
 1. `vn_runtime_run(...)`
 2. Session API：`create/step/is_done/set_choice/inject_input/destroy`
-3. Runtime build-info / snapshot / file save-load draft API
+3. Runtime build-info / snapshot / file save-load API
 4. `vn_previewd` / `vn_preview_run_cli(...)`
 5. `vnsave` 的 `probe` / `migrate`
 6. `tools/toolchain.py validate-all`
@@ -236,7 +236,7 @@ int run_session(void) {
 2. `capture_snapshot/create_from_snapshot`
 3. `save_to_file/load_from_file`
 
-这些 API 当前仍应按 `public v1-draft (pre-1.0)` 理解，正式边界见 [docs/api/runtime.md](./docs/api/runtime.md)。
+这些 API 当前已按 `public stable v1` 对外承诺，正式 persistence 边界见 [docs/api/runtime.md](./docs/api/runtime.md)。
 
 ## Save / Probe / Migrate
 

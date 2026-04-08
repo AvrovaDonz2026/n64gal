@@ -76,7 +76,7 @@ int main(void) {
     }
     if (build_info.vnsave_latest_version != 0x00010000u ||
         build_info.vnsave_api_stability == (const char*)0 ||
-        strcmp(build_info.vnsave_api_stability, "pre-1.0 unstable") != 0) {
+        strcmp(build_info.vnsave_api_stability, "format v1 stable; generic ABI not public") != 0) {
         (void)fprintf(stderr, "unexpected vnsave build info\n");
         return 1;
     }

@@ -57,7 +57,7 @@
 正式版当前应按以下边界对外解释：
 
 1. `runtime api`
-   - 当前从 `public v1-draft (pre-1.0)` 收口到首版正式公开面
+   - 当前已收口为 `public stable v1`
 2. `preview protocol`
    - 固定 `v1` 基面
 3. `vnpak`

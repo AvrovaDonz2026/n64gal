@@ -3,7 +3,7 @@
 
 #include "vn_types.h"
 
-#define VNSAVE_API_STABILITY "pre-1.0 unstable"
+#define VNSAVE_API_STABILITY "format v1 stable; generic ABI not public"
 #define VNSAVE_PUBLIC_SAVELOAD_SCOPE "runtime-session-only"
 #define VNSAVE_VERSION_1 0x00010000u
 #define VNSAVE_HEADER_SIZE_V0 16u

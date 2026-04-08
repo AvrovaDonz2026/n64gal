@@ -17,13 +17,13 @@
 
 ## 2.1 当前版本承诺级别
 
-`vn_runtime.h` 当前应按“`public v1-draft (pre-1.0)`”理解：
+`vn_runtime.h` 当前应按“`public stable v1`”理解：
 
 1. 它已经是公开头文件，宿主可以基于文档化接口接入。
-2. 但在 `v0.x` 阶段，字段和函数仍允许继续收口，不应被视为完全冻结 ABI。
-3. `v1.0.0` 的目标是固定最小公开运行面，而不是追认所有历史字段都永不变化。
+2. 当前已文档化的函数、常量与结构体字段应视为首版正式公开面。
+3. 后续 `v1.x` 仅应做兼容追加，不应静默改写已公开字段语义或移除已文档化入口。
 4. 宿主不应依赖未文档化结构布局、私有状态或源码目录结构。
-5. 若 `v0.x` 期间发生破坏性调整，必须在 release note、`README` 与兼容矩阵中明确写出。
+5. 任何未来破坏性变更都必须通过显式版本升级、release note 与兼容矩阵说明完成。
 
 ## 2.2 当前性能扩展状态
 
@@ -88,8 +88,8 @@
 
 当前设计边界：
 
-1. 这是 in-memory snapshot API，不是最终文件级 save/load 格式
-2. 它的目标是先把“可恢复会话”从纯内部状态推进成公开 runtime ABI
+1. 这是 runtime API 的最小正式 persistence 面，不是通用宿主 save/load ABI
+2. 它解决的是“可恢复当前 runtime session”，不是抽象的长期宿主持久化协议
 3. dirty planner、frame reuse、op cache 等 perf 缓存不会被保留；恢复后允许从干净状态重新建立
 4. 当前只面向 live session；已结束 session、带待消费 injected input 的 session 不保证可捕获
 
@@ -208,12 +208,12 @@
 
 当前保证：
 
-1. `runtime_api_version` 当前为 `v1-draft`
-2. `runtime_api_stability` 当前为 `public v1-draft (pre-1.0)`
+1. `runtime_api_version` 当前为 `v1`
+2. `runtime_api_stability` 当前为 `public stable v1`
 3. `preview_protocol_version` 当前为 `v1`
 4. `vnpak` 当前公开读范围为 `v1..v2`，默认写 `v2`
 5. `vnsave_latest_version` 当前为 `VNSAVE_VERSION_1`
-6. `vnsave_api_stability` 当前为 `pre-1.0 unstable`
+6. `vnsave_api_stability` 当前为 `format v1 stable; generic ABI not public`
 7. `vnsave_public_saveload_scope` 当前为 `runtime-session-only`
 8. `host_os/host_arch/host_compiler` 来自当前 build 平台探测结果
 
@@ -230,8 +230,8 @@
 
 当前用途：
 
-1. 宿主做内存级 quick-save / quick-load 原型
-2. 后续 `vnsave` 文件级 save/load API 的上游状态捕获层
+1. 宿主做内存级 quick-save / quick-load
+2. 作为正式 `runtime-session-only` persistence API 的状态捕获层
 
 ### `int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot, VNRuntimeSession** out_session)`
 
@@ -247,7 +247,7 @@
 
 1. snapshot 必须包含可解析的 `scene_id`
 2. `pack_path/backend_name` 必须是当前支持的公开字符串
-3. 当前是最小恢复 API，不承诺保留所有 perf 累计统计
+3. 当前是最小正式恢复 API，不承诺保留所有 perf 累计统计
 
 ### `int vn_runtime_session_save_to_file(const VNRuntimeSession* session, const char* path, vn_u32 slot_id, vn_u32 timestamp_s)`
 
@@ -264,7 +264,7 @@
 
 1. 只支持保存 live session
 2. 若 session 带有待消费 injected input，返回 `VN_E_UNSUPPORTED`
-3. 当前仍是 `v0.x` draft runtime ABI，不等于已经冻结长期 save/load 兼容承诺
+3. 当前这是正式公开的 runtime session persistence API，但不等于长期通用宿主 save/load ABI
 
 ### `int vn_runtime_session_load_from_file(const char* path, VNRuntimeSession** out_session)`
 
@@ -280,6 +280,7 @@
 
 1. 只接受当前 runtime snapshot payload 版本
 2. 对普通 `vnsave v1` 但 payload 不是 runtime snapshot 的文件，返回格式或不支持错误
+3. 这层正式承诺只覆盖 `runtime-session-only`
 
 ### `int vn_runtime_run(const VNRunConfig* cfg, VNRunResult* out_result)`
 
@@ -289,7 +290,7 @@
 
 1. 常规模式下不承诺真实时间节流。
 2. 当 `cfg->keyboard != 0` 且 `cfg->dt_ms > 0` 时，`vn_runtime_run()` 会在帧与帧之间调用平台层 sleep，以便 CLI 调试模式可交互。
-3. `backend_name`、perf 扩展开关和结果统计字段属于当前公开面的一部分，但 `v0.x` 阶段仍需以 release note 明确兼容边界。
+3. `backend_name`、perf 扩展开关和结果统计字段属于当前公开面的一部分；后续仅允许兼容追加。
 
 返回值：
 
@@ -366,7 +367,7 @@ CLI 包装入口，主要用于调试与脚本调用。参数解析后会转调 
    - 当前只允许与 `--trace` / `--quiet` 这类输出控制参数组合
    - 若与 `--scene` / `--pack` / `--backend` / `--frames` / `--dt-ms` / `--choice-*` / perf 开关等运行配置混用，返回结构化参数错误
 2. `--save-out=<path>`
-   - 在本次 CLI run 结束后，把当前 session 状态写成 runtime session save/load draft 文件
+   - 在本次 CLI run 结束后，把当前 session 状态写成 runtime session save/load 文件
    - 可用于 normal run，也可与 `--load-save` 组合，形成“读一个 save，继续推进，再写回一个 save”
    - 当前默认写 `slot_id=0` 与 `timestamp_s=0`
 3. `--save-slot=<n>`

@@ -110,9 +110,9 @@
 2. `create_from_snapshot` 重新打开 pack 和脚本后恢复这组状态
 3. perf 缓存与 dirty planner 不保留，恢复后允许从干净状态重建
 
-这层 API 当前仍应按 `v0.x` draft 理解：
+这层 API 当前已作为最小正式 runtime persistence 面公开：
 
-1. 它解决的是 runtime 会话恢复，不等于最终文件级 `vnsave` 承诺
+1. 它解决的是 runtime 会话恢复，不等于通用宿主 save/load ABI
 2. 若宿主要做长期存档资产，仍必须同时遵守 `vnsave` 版本策略
 
 ### `vn_runtime_session_save_to_file` / `vn_runtime_session_load_from_file`
@@ -126,7 +126,7 @@
 当前边界要点：
 
 1. 这是 runtime-specific save/load，不等于“未来所有 `vnsave v1` 文件都必须是 runtime session dump”
-2. 当前仍是 `v0.x` draft ABI，payload 版本后续允许继续收口
+2. 当前已作为正式 runtime session persistence API 对外承诺，但 payload 语义仍只服务 `runtime-session-only`
 
 ## Input Bridge
 
@@ -223,17 +223,17 @@
 
 | Surface | Current Status | Negotiation Rule |
 |---|---|---|
-| `runtime api` | `public v1-draft (pre-1.0)` | `v0.x` 阶段仍允许收口字段/函数；宿主只应依赖已文档化公开接口 |
-| `backend abi` | `runtime-internal v1-draft` | 宿主不直接链接私有 backend；`v0.x` 期间不应把内部选择链视为冻结 ABI |
+| `runtime api` | `public stable v1` | 已文档化函数/字段构成首版正式公开面；后续仅允许兼容追加 |
+| `backend abi` | `internal, not public ABI` | 宿主不直接链接私有 backend；内部选择链不构成对外 ABI |
 | `script bytecode` | `v1` | 运行时只保证读取已声明兼容版本 |
 | `vnpak` | `v2` 当前默认，兼容读取 `v1` | 生成端默认写 `v2`，读取端兼容 `v1/v2` |
-| `vnsave` | `pre-1.0 unstable` | 当前公开 save/load 范围固定为 `runtime-session-only`；未知、新版、损坏或 `pre-1.0` 存档必须结构化拒绝 |
+| `vnsave` | `format v1 stable; generic ABI not public` | 当前公开 save/load 范围固定为 `runtime-session-only`；未知、新版、损坏或 `pre-1.0` 存档必须结构化拒绝 |
 | `preview protocol` | `v1` | `vn_previewd` / `vn_preview_run_cli` 固定 `CLI + 文件 -> JSON` 语义，后续仅追加字段 |
 
 规则：
 
 1. 宿主只应绑定公开头文件语义，不应把源码目录结构视为 ABI。
-2. `runtime api` 与 `backend abi` 在 `v0.x` 期间仍允许收口，但任何破坏性变更都必须伴随版本说明和迁移说明。
+2. `runtime api` 已进入首版正式公开面；`backend abi` 继续内部化，任何破坏性变更都必须伴随版本说明和迁移说明。
 3. `script/vnpak/vnsave` 的版本策略必须写进 release 文档和 issue 证据链；其中 `vnsave` 当前以 [`docs/vnsave-version-policy.md`](./vnsave-version-policy.md) 为准。
 4. 错误码名称应统一通过 [`docs/errors.md`](./errors.md) 与 `vn_error_name(int)` 解释，不应自行复制字符串表。
 5. 若宿主要预检存档，只应使用 `vn_save.h` 的 probe 结果，不应自行解析未文档化 header。

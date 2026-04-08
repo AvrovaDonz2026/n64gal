@@ -74,8 +74,8 @@ def main(argv):
         require_contains(compat, "| `v1.0.0` 首版承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.platform_matrix")
         require_contains(compat, "| `tool manifest` | `planned v1` |", "compat.tool_manifest")
 
-        require_contains(host_sdk, "| `runtime api` | `public v1-draft (pre-1.0)` |", "host_sdk.runtime_api")
-        require_contains(host_sdk, "| `vnsave` | `pre-1.0 unstable` |", "host_sdk.vnsave")
+        require_contains(host_sdk, "| `runtime api` | `public stable v1` |", "host_sdk.runtime_api")
+        require_contains(host_sdk, "| `vnsave` | `format v1 stable; generic ABI not public` |", "host_sdk.vnsave")
 
         require_contains(migration, "首个正式 `vnsave v1` 承诺不早于 `v1.0.0`", "migration.vnsave_scope")
         require_contains(migration, "当前已有最小 `v0 -> v1` 迁移命令", "migration.vnsave_migrate")

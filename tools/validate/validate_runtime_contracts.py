@@ -67,7 +67,7 @@ def main(argv):
         return error("tool.validate.runtime_contracts.io", VN_E_IO, "root", "failed reading runtime contract files")
 
     try:
-        require_contains(runtime_doc, "`public v1-draft (pre-1.0)`", "runtime_doc.stability")
+        require_contains(runtime_doc, "`public stable v1`", "runtime_doc.stability")
         require_contains(runtime_doc, "### `VNRuntimeBuildInfo`", "runtime_doc.build_info_struct")
         require_contains(runtime_doc, "### `VNRuntimeSessionSnapshot`", "runtime_doc.snapshot_struct")
         require_contains(runtime_doc, "### `void vn_runtime_query_build_info(VNRuntimeBuildInfo* out_info)`", "runtime_doc.build_info_api")

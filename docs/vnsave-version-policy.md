@@ -26,7 +26,7 @@
 1. 不应把 `v0.x` 产生的存档视为可长期保留资产
 2. 若宿主已自行实现保存格式，应继续由宿主自行管理
 3. release note 必须明确写出“当前无正式存档兼容承诺”
-4. 当前代码层也通过 `VNSAVE_API_STABILITY = "pre-1.0 unstable"` 暴露这一口径，避免宿主只能靠 README 猜测
+4. 当前代码层通过 `VNSAVE_API_STABILITY = "format v1 stable; generic ABI not public"` 暴露这一口径，避免宿主只能靠 README 猜测
 
 ## 4. `v1.0.0` 策略
 

@@ -71,9 +71,9 @@ def main(argv):
         require_contains(host_sdk, "1. `vn_runtime.h`", "host_sdk.public_surface.runtime")
         require_contains(host_sdk, "2. `vn_error.h`", "host_sdk.public_surface.error")
         require_contains(host_sdk, "3. `vn_types.h`", "host_sdk.public_surface.types")
-        require_contains(host_sdk, "| `runtime api` | `public v1-draft (pre-1.0)` |", "host_sdk.runtime_api")
-        require_contains(host_sdk, "| `backend abi` | `runtime-internal v1-draft` |", "host_sdk.backend_abi")
-        require_contains(host_sdk, "| `vnsave` | `pre-1.0 unstable` |", "host_sdk.vnsave")
+        require_contains(host_sdk, "| `runtime api` | `public stable v1` |", "host_sdk.runtime_api")
+        require_contains(host_sdk, "| `backend abi` | `internal, not public ABI` |", "host_sdk.backend_abi")
+        require_contains(host_sdk, "| `vnsave` | `format v1 stable; generic ABI not public` |", "host_sdk.vnsave")
         require_contains(host_sdk, "| `preview protocol` | `v1` |", "host_sdk.preview_protocol")
         require_contains(host_sdk, "vn_runtime_query_build_info(...)", "host_sdk.build_info_query")
         require_contains(host_sdk, "vn_runtime_session_capture_snapshot", "host_sdk.snapshot_capture")
@@ -85,9 +85,9 @@ def main(argv):
         require_contains(host_sdk, "Windows Console:", "host_sdk.example_windows")
         require_contains(host_sdk, "trace_id + error_code + error_name", "host_sdk.machine_readable")
 
-        require_contains(compat, "| `runtime api` | `public v1-draft (pre-1.0)` |", "compat.runtime_api")
-        require_contains(compat, "| `backend abi` | `runtime-internal v1-draft` |", "compat.backend_abi")
-        require_contains(compat, "| `vnsave` | `pre-1.0 unstable` |", "compat.vnsave")
+        require_contains(compat, "| `runtime api` | `public stable v1` |", "compat.runtime_api")
+        require_contains(compat, "| `backend abi` | `internal, not public ABI` |", "compat.backend_abi")
+        require_contains(compat, "| `vnsave` | `format v1 stable; generic ABI not public` |", "compat.vnsave")
         require_contains(compat, "| `preview protocol` | `v1` |", "compat.preview_protocol")
 
         require_contains(readme, "tools/toolchain.py validate-host-sdk-contracts", "readme.toolchain_validate_host_sdk")
@@ -106,10 +106,10 @@ def main(argv):
             [
                 "trace_id=tool.validate.host_sdk_contracts.ok",
                 f"root={root}",
-                "runtime_api=v1-draft",
+                "runtime_api=v1",
                 "backend_abi=runtime-internal",
                 "preview_protocol=v1",
-                "vnsave=pre-1.0-unstable",
+                "vnsave=format-v1-stable",
             ]
         )
     )
