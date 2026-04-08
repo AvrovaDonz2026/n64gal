@@ -31,8 +31,6 @@ on:
         description: Threshold profile name
         required: false
         default: linux-riscv64-qemu-rvv-rev-smoke
-  schedule:
-    - cron: '0 18 * * *'
 
 permissions:
   contents: read
