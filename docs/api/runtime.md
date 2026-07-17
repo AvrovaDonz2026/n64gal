@@ -64,6 +64,7 @@
    - 图片资源校验、CRC 读取与 32 MiB LRU 缓存
 
 这次拆分的目标是降低单文件维护压力，不改变当前公开 API 语义。
+`runtime_session_loop.c` 在进入 frame reuse / render-op 重建分支前会从 session 的上一帧结果初始化本地 op 数量；这是 C89/MSVC 严格告警兼容修正，不改变成功帧的 `VNRunResult.op_count` 语义。
 
 ## 3. 结构体
 

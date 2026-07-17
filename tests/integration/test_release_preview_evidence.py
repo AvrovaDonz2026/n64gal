@@ -9,10 +9,15 @@ ROOT = Path(".").resolve()
 SCRIPT = ["bash", "scripts/release/run_preview_evidence.sh"]
 
 
+def paths_match(actual, expected):
+    return isinstance(actual, str) and Path(actual).resolve() == expected.resolve()
+
+
 def main():
     summary_path = ROOT / "tests" / "integration" / "release_preview_tmp.md"
     summary_json_path = ROOT / "tests" / "integration" / "release_preview_tmp.json"
     out_dir = ROOT / "tests" / "integration" / "release_preview_tmp"
+    out_dir_arg = out_dir.relative_to(ROOT)
     request_path = out_dir / "preview_request.txt"
     response_path = out_dir / "preview_response.json"
     screenshot_path = out_dir / "content_preview.ppm"
@@ -47,11 +52,7 @@ def main():
         SCRIPT
         + [
             "--out-dir",
-            str(out_dir),
-            "--request-out",
-            str(request_path),
-            "--response-out",
-            str(response_path),
+            str(out_dir_arg),
             "--summary-out",
             str(summary_path),
             "--summary-json-out",
@@ -95,10 +96,13 @@ def main():
     if payload.get("summary_md") != str(summary_path) or payload.get("summary_json") != str(summary_json_path):
         print("preview evidence json summary paths inconsistent", file=sys.stderr)
         return 1
-    if payload.get("request") != str(request_path) or payload.get("response") != str(response_path):
+    if (
+        not paths_match(payload.get("request"), request_path)
+        or not paths_match(payload.get("response"), response_path)
+    ):
         print("preview evidence json request/response paths inconsistent", file=sys.stderr)
         return 1
-    if payload.get("screenshot") != str(screenshot_path) or not screenshot_path.is_file():
+    if not paths_match(payload.get("screenshot"), screenshot_path) or not screenshot_path.is_file():
         print("preview evidence screenshot path missing or inconsistent", file=sys.stderr)
         return 1
     checks = payload.get("checks")

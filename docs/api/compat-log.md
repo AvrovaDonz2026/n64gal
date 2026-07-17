@@ -30,6 +30,13 @@
 
 ## 3. 当前记录
 
+### 2026-07-17 / `v1.1.0` development
+
+1. Surface: Runtime API v1 implementation
+   - Type: `compat-note`
+   - Summary: session step 的本地 op 数量现在从上一帧已提交数量初始化，消除 MSVC 严格告警下的潜在未初始化诊断
+   - Required action: 无；公开 ABI、成功帧结果与 frame reuse 行为不变
+
 ### 2026-07-16 / `v1.1.0` development
 
 1. Surface: Runtime API v1

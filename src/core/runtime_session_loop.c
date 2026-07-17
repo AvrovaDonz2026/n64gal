@@ -105,6 +105,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
         return VN_E_INVALID_ARG;
     }
 
+    op_count = session->last_op_count;
     if (session->done == VN_FALSE && session->frames_executed < session->frames_limit) {
         runtime_dirty_stats_reset(session);
         session->state.frame_index = session->frames_executed;

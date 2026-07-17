@@ -218,6 +218,7 @@ request_info = response.get("request", {})
 final_state = response.get("final_state", {})
 response_summary = response.get("summary", {})
 screenshot = response.get("screenshot") or {}
+reported_screenshot_path = screenshot.get("path")
 events = response.get("events")
 
 ppm_header = b"P6\n64 48\n255\n"
@@ -234,7 +235,11 @@ checks = {
     "content_pack_selected": request_info.get("pack_path") == "./assets/demo/content-demo.vnpak",
     "scalar_backend_selected": final_state.get("backend_name") == "scalar",
     "screenshot_count_1": response_summary.get("screenshot_count") == 1,
-    "screenshot_path_matches": screenshot.get("path") == screenshot_path,
+    "screenshot_path_matches": (
+        isinstance(reported_screenshot_path, str)
+        and bool(reported_screenshot_path)
+        and Path(reported_screenshot_path).resolve() == screenshot_file.resolve()
+    ),
     "screenshot_dimensions_64x48": screenshot.get("width") == 64 and screenshot.get("height") == 48,
     "screenshot_ppm_valid": len(ppm_payload) == 64 * 48 * 3,
     "screenshot_crc_matches_payload": screenshot.get("crc32") == payload_crc,

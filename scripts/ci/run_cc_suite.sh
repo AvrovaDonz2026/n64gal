@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build_ci_cc}"
+export -n BUILD_DIR
 LOG_DIR="$BUILD_DIR/ci_logs"
 GOLDEN_ARTIFACT_DIR="$BUILD_DIR/golden_artifacts"
 SUMMARY_MD="$BUILD_DIR/ci_suite_summary.md"
@@ -15,10 +16,16 @@ CC_BIN="${CC:-cc}"
 
 run_capture() {
   local log_path
+  local rc
   log_path="$1"
   shift
-  "$@" >"$log_path" 2>&1
+  if "$@" >"$log_path" 2>&1; then
+    rc=0
+  else
+    rc=$?
+  fi
   cat "$log_path"
+  return "$rc"
 }
 
 dirty_submit_matched_backends() {
@@ -54,7 +61,7 @@ write_summary() {
     dirty_log="$LOG_DIR/test_renderer_dirty_submit.log"
     dirty_matches="$(dirty_submit_matched_backends "$dirty_log")"
     content_log="$LOG_DIR/test_resource_texture_backend.log"
-    content_crc="$(sed -n -E 's/.*content_crc=0x([0-9A-Fa-f]+).*/\1/p' "$content_log" 2>/dev/null | tail -n 1)"
+    content_crc="$({ sed -n -E 's/.*content_crc=0x([0-9A-Fa-f]+).*/\1/p' "$content_log" 2>/dev/null || true; } | tail -n 1)"
     legacy_goldens="$({ sed -n -E 's/.*scalar scene=([^ ]+) crc=0x([0-9A-Fa-f]+).*/\1=\2/p' "$LOG_DIR/test_runtime_golden.log" 2>/dev/null || true; } | paste -sd ',' -)"
     [[ -n "$content_crc" ]] || content_crc="none"
     [[ -n "$legacy_goldens" ]] || legacy_goldens="none"
