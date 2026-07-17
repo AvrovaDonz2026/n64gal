@@ -15,6 +15,7 @@ def main():
     out_dir = ROOT / "tests" / "integration" / "release_preview_tmp"
     request_path = out_dir / "preview_request.txt"
     response_path = out_dir / "preview_response.json"
+    screenshot_path = out_dir / "content_preview.ppm"
     try:
         if summary_path.exists():
             summary_path.unlink()
@@ -97,13 +98,25 @@ def main():
     if payload.get("request") != str(request_path) or payload.get("response") != str(response_path):
         print("preview evidence json request/response paths inconsistent", file=sys.stderr)
         return 1
+    if payload.get("screenshot") != str(screenshot_path) or not screenshot_path.is_file():
+        print("preview evidence screenshot path missing or inconsistent", file=sys.stderr)
+        return 1
     checks = payload.get("checks")
     if not isinstance(checks, dict) or not all(checks.values()):
         print("preview evidence json checks missing or false", file=sys.stderr)
         return 1
     facts = payload.get("response_facts", {})
-    if facts.get("scene_name") != "S2" or facts.get("choice_selected_index") != 1:
+    if facts.get("scene_name") != "Opening" or facts.get("backend_name") != "scalar":
         print("preview evidence json response facts mismatch", file=sys.stderr)
+        return 1
+    if facts.get("screenshot_width") != 64 or facts.get("screenshot_height") != 48:
+        print("preview evidence json screenshot dimensions mismatch", file=sys.stderr)
+        return 1
+    if facts.get("screenshot_crc32") != "995ff007":
+        print("preview evidence json screenshot CRC mismatch", file=sys.stderr)
+        return 1
+    if not screenshot_path.read_bytes().startswith(b"P6\n64 48\n255\n"):
+        print("preview evidence screenshot is not the expected PPM", file=sys.stderr)
         return 1
     if not isinstance(payload.get("request_lines"), list) or not payload["request_lines"]:
         print("preview evidence json request lines missing", file=sys.stderr)

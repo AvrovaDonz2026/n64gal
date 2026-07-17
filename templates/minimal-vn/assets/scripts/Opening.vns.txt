@@ -1,0 +1,8 @@
+BG minimal_ui_rgba16 0
+SPRITE 1 minimal_ui_rgba16 152 72
+TEXT 140 16
+WAIT 250
+FADE 3 160 180
+WAIT 250
+SPRITE 1 none 0 0
+END

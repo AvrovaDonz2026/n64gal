@@ -5,11 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_report}"
-RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.0.0.json}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.1.0.json}"
 BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_index.md}"
 BUNDLE_MANIFEST=""
 GATE_SUMMARY="${GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 SOAK_SUMMARY="${SOAK_SUMMARY:-$ROOT_DIR/build_release_soak/demo_soak_summary.md}"
+CONTENT_SOAK_SUMMARY=""
+CONTENT_SOAK_SUMMARY_JSON=""
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
 HOST_SDK_SUMMARY="${HOST_SDK_SUMMARY:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.md}"
 PLATFORM_EVIDENCE_SUMMARY="${PLATFORM_EVIDENCE_SUMMARY:-$ROOT_DIR/build_release_platform/platform_evidence_summary.md}"
@@ -19,7 +21,7 @@ REPORT_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--release-spec <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
+usage: scripts/release/run_release_report.sh [--out-dir <dir>] [--release-spec <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>] [--report-out <path>] [--report-json-out <path>]
 EOF
 }
 
@@ -59,6 +61,18 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       SOAK_SUMMARY="$1"
+      shift
+      ;;
+    --content-soak-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      CONTENT_SOAK_SUMMARY="$1"
+      shift
+      ;;
+    --content-soak-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      CONTENT_SOAK_SUMMARY_JSON="$1"
       shift
       ;;
     --ci-suite-summary)
@@ -108,6 +122,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$CONTENT_SOAK_SUMMARY" && -z "$CONTENT_SOAK_SUMMARY_JSON" ]] ||
+   [[ -z "$CONTENT_SOAK_SUMMARY" && -n "$CONTENT_SOAK_SUMMARY_JSON" ]]; then
+  echo "trace_id=release.report.content_soak.pair_required error_code=-1 error_name=VN_E_INVALID_ARG message=content soak markdown and JSON summaries must be provided together" >&2
+  exit 2
+fi
+
 mkdir -p "$OUT_DIR"
 if [[ -z "$BUNDLE_MANIFEST" ]]; then
   BUNDLE_MANIFEST="$(cd "$(dirname "$BUNDLE_INDEX")" && pwd)/release_bundle_manifest.json"
@@ -132,46 +152,30 @@ require_file "$BUNDLE_MANIFEST"
 require_file "$RELEASE_SPEC"
 require_file "$GATE_SUMMARY"
 require_file "$SOAK_SUMMARY"
+if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+  require_file "$CONTENT_SOAK_SUMMARY"
+  require_file "$CONTENT_SOAK_SUMMARY_JSON"
+fi
 require_file "$CI_SUITE_SUMMARY"
 require_file "$HOST_SDK_SUMMARY"
 require_file "$PLATFORM_EVIDENCE_SUMMARY"
 require_file "$PREVIEW_EVIDENCE_SUMMARY"
 
-eval "$(
-python3 - "$RELEASE_SPEC" <<'PY'
-import json
-import os
-import shlex
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-version = str(payload.get("version", ""))
-release_note = str(payload.get("release_note", ""))
-note_dir = os.path.dirname(release_note)
-note_base = os.path.basename(release_note)
-suffix = ""
-if note_base.startswith("release-") and note_base.endswith(".md"):
-    suffix = note_base[len("release-"):-3]
-elif version:
-    suffix = version
-
-fields = {
-    "SPEC_RELEASE_NOTE": release_note,
-    "SPEC_RELEASE_EVIDENCE": os.path.join(note_dir, f"release-evidence-{suffix}.md") if suffix else "",
-    "SPEC_RELEASE_PACKAGE": os.path.join(note_dir, f"release-package-{suffix}.md") if suffix else "",
-}
-
-for key, value in fields.items():
-    print(f"{key}={shlex.quote(str(value))}")
-PY
-)"
+eval "$(python3 tools/validate/release_spec.py --shell "$RELEASE_SPEC")"
+if [[ "$SPEC_VERSION" == "v1.1.0" && -z "$CONTENT_SOAK_SUMMARY" ]]; then
+  echo "trace_id=release.report.content_soak.required error_code=-1 error_name=VN_E_INVALID_ARG message=v1.1.0 report requires real-content soak markdown and JSON summaries" >&2
+  exit 2
+fi
+if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+  CONTENT_PACK_PATH="$(python3 tools/validate/release_spec.py "$RELEASE_SPEC" --asset-path-for-name content-demo.vnpak)"
+  python3 tools/validate/validate_content_soak_summary.py \
+    "$CONTENT_SOAK_SUMMARY_JSON" --summary-md "$CONTENT_SOAK_SUMMARY" --pack "$CONTENT_PACK_PATH"
+fi
 
 require_file "$SPEC_RELEASE_NOTE"
 require_file "$SPEC_RELEASE_EVIDENCE"
 require_file "$SPEC_RELEASE_PACKAGE"
+require_file "$SPEC_RELEASE_CHECKLIST"
 
 {
   echo "# Release Report"
@@ -183,6 +187,10 @@ require_file "$SPEC_RELEASE_PACKAGE"
   echo "- Bundle manifest: \`$BUNDLE_MANIFEST\`"
   echo "- Gate summary: \`$GATE_SUMMARY\`"
   echo "- Soak summary: \`$SOAK_SUMMARY\`"
+  if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+    echo "- Content soak summary: \`$CONTENT_SOAK_SUMMARY\`"
+    echo "- Content soak summary JSON: \`$CONTENT_SOAK_SUMMARY_JSON\`"
+  fi
   echo "- CI suite summary: \`$CI_SUITE_SUMMARY\`"
   echo "- Host SDK summary: \`$HOST_SDK_SUMMARY\`"
   echo "- Platform evidence summary: \`$PLATFORM_EVIDENCE_SUMMARY\`"
@@ -194,13 +202,17 @@ require_file "$SPEC_RELEASE_PACKAGE"
   echo "2. Release bundle manifest"
   echo "3. Release gate summary"
   echo "4. Demo soak summary"
-  echo "5. CI suite summary"
-  echo "6. Host SDK smoke summary"
-  echo "7. Platform evidence summary"
-  echo "8. Preview evidence summary"
-  echo "9. Release note: \`$SPEC_RELEASE_NOTE\`"
-  echo "10. Release evidence: \`$SPEC_RELEASE_EVIDENCE\`"
-  echo "11. Release package: \`$SPEC_RELEASE_PACKAGE\`"
+  if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+    echo "5. Real-content soak markdown and JSON summaries"
+  fi
+  echo "6. CI suite summary"
+  echo "7. Host SDK smoke summary"
+  echo "8. Platform evidence summary"
+  echo "9. Preview evidence summary"
+  echo "10. Release note: \`$SPEC_RELEASE_NOTE\`"
+  echo "11. Release evidence: \`$SPEC_RELEASE_EVIDENCE\`"
+  echo "12. Release package: \`$SPEC_RELEASE_PACKAGE\`"
+  echo "13. Release checklist: \`$SPEC_RELEASE_CHECKLIST\`"
   echo
   echo "## Perf Evidence Docs"
   echo
@@ -217,24 +229,44 @@ require_file "$SPEC_RELEASE_PACKAGE"
   echo "2. For a formal release, pair this with \`python3 tools/toolchain.py validate-all\`, \`release-gate\`, and \`release-soak\`."
 } >"$REPORT_OUT"
 
-{
-  printf '{\n'
-  printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
-  printf '  "branch": "%s",\n' "$(git branch --show-current)"
-  printf '  "release_spec": "%s",\n' "$RELEASE_SPEC"
-  printf '  "report_md": "%s",\n' "$REPORT_OUT"
-  printf '  "bundle_index": "%s",\n' "$BUNDLE_INDEX"
-  printf '  "bundle_manifest": "%s",\n' "$BUNDLE_MANIFEST"
-  printf '  "gate_summary": "%s",\n' "$GATE_SUMMARY"
-  printf '  "soak_summary": "%s",\n' "$SOAK_SUMMARY"
-  printf '  "ci_suite_summary": "%s",\n' "$CI_SUITE_SUMMARY"
-  printf '  "host_sdk_summary": "%s",\n' "$HOST_SDK_SUMMARY"
-  printf '  "platform_evidence_summary": "%s",\n' "$PLATFORM_EVIDENCE_SUMMARY"
-  printf '  "preview_evidence_summary": "%s",\n' "$PREVIEW_EVIDENCE_SUMMARY"
-  printf '  "release_note": "%s",\n' "$SPEC_RELEASE_NOTE"
-  printf '  "release_evidence": "%s",\n' "$SPEC_RELEASE_EVIDENCE"
-  printf '  "release_package": "%s"\n' "$SPEC_RELEASE_PACKAGE"
-  printf '}\n'
-} >"$REPORT_JSON_OUT"
+python3 - "$REPORT_JSON_OUT" "$(git rev-parse --short HEAD)" "$(git branch --show-current)" \
+  "$RELEASE_SPEC" "$REPORT_OUT" "$BUNDLE_INDEX" "$BUNDLE_MANIFEST" "$GATE_SUMMARY" \
+  "$SOAK_SUMMARY" "$CONTENT_SOAK_SUMMARY" "$CONTENT_SOAK_SUMMARY_JSON" \
+  "$CI_SUITE_SUMMARY" "$HOST_SDK_SUMMARY" "$PLATFORM_EVIDENCE_SUMMARY" \
+  "$PREVIEW_EVIDENCE_SUMMARY" "$SPEC_RELEASE_NOTE" "$SPEC_RELEASE_EVIDENCE" \
+  "$SPEC_RELEASE_PACKAGE" "$SPEC_RELEASE_CHECKLIST" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX bundle_manifest=$BUNDLE_MANIFEST gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY ci_summary=$CI_SUITE_SUMMARY host_sdk_summary=$HOST_SDK_SUMMARY platform_summary=$PLATFORM_EVIDENCE_SUMMARY preview_summary=$PREVIEW_EVIDENCE_SUMMARY"
+(
+    output_path, head, branch, release_spec, report_md, bundle_index,
+    bundle_manifest, gate_summary, soak_summary, content_soak_summary,
+    content_soak_summary_json, ci_suite_summary, host_sdk_summary,
+    platform_evidence_summary, preview_evidence_summary, release_note,
+    release_evidence, release_package, release_checklist,
+) = sys.argv[1:]
+payload = {
+    "head": head,
+    "branch": branch,
+    "release_spec": release_spec,
+    "report_md": report_md,
+    "bundle_index": bundle_index,
+    "bundle_manifest": bundle_manifest,
+    "gate_summary": gate_summary,
+    "soak_summary": soak_summary,
+    "content_soak_summary": content_soak_summary,
+    "content_soak_summary_json": content_soak_summary_json,
+    "ci_suite_summary": ci_suite_summary,
+    "host_sdk_summary": host_sdk_summary,
+    "platform_evidence_summary": platform_evidence_summary,
+    "preview_evidence_summary": preview_evidence_summary,
+    "release_note": release_note,
+    "release_evidence": release_evidence,
+    "release_package": release_package,
+    "release_checklist": release_checklist,
+}
+Path(output_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+
+echo "trace_id=release.report.ok report=$REPORT_OUT report_json=$REPORT_JSON_OUT bundle_index=$BUNDLE_INDEX bundle_manifest=$BUNDLE_MANIFEST gate_summary=$GATE_SUMMARY soak_summary=$SOAK_SUMMARY content_soak_summary=$CONTENT_SOAK_SUMMARY content_soak_summary_json=$CONTENT_SOAK_SUMMARY_JSON ci_summary=$CI_SUITE_SUMMARY host_sdk_summary=$HOST_SDK_SUMMARY platform_summary=$PLATFORM_EVIDENCE_SUMMARY preview_summary=$PREVIEW_EVIDENCE_SUMMARY"

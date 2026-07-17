@@ -30,6 +30,38 @@
 
 ## 3. 当前记录
 
+### 2026-07-16 / `v1.1.0` development
+
+1. Surface: Runtime API v1
+   - Type: `additive`
+   - Summary: 追加版本化 build-info v2、只读 ARGB8888 frame view 和 snapshot v2，不修改现有 v1 结构布局
+   - Required action: 宿主通过各自 init API 初始化并检查 `struct_size/version`，frame view 使用 `vn_runtime_frame_view_init(...)`；旧 API 保持原行为
+
+2. Surface: `preview protocol v1`
+   - Type: `additive`
+   - Summary: 追加可选截图请求/响应字段，输出 PPM 路径、尺寸和 CRC
+   - Required action: 旧客户端忽略未知字段；新客户端不得把截图字段当成所有响应必有字段
+
+3. Surface: `vnpak v2`
+   - Type: `additive`
+   - Summary: 场景目录和真实图片仍封装在 v2 资源表内，不引入 `vnpak v3`
+   - Required action: 没有场景目录的旧包继续走 `S0/S1/S2/S3/S10` 固定映射
+
+4. Surface: `vnsave v1`
+   - Type: `additive`
+   - Summary: 外层格式保持 v1，runtime payload 可升级到 v2 以保存背景过渡和立绘层
+   - Required action: v1.1 必须读取 v1.0 payload；旧 snapshot 无法无损表达新内容状态时返回 `VN_E_UNSUPPORTED`
+
+5. Surface: release publish spec
+   - Type: `additive`
+   - Summary: 显式支持 release note/evidence/package/checklist 和 `assets[]`，同时兼容旧 `asset` 与文档路径派生
+   - Required action: 新 release 使用显式字段；历史 spec 保持可重放
+
+6. Surface: runtime implementation layout
+   - Type: `compat-note`
+   - Summary: 新增 `scene_catalog.c` 与 `runtime_texture.c`，session 复制并持有 pack path
+   - Required action: 手写编译入口必须加入两个新源文件；调用者不再需要维持 `VNRunConfig.pack_path` 字符串生命周期
+
 ### 2026-03-11 / `pre-v1.0.0`
 
 1. Surface: `vn_error.h`
@@ -112,7 +144,7 @@
 11. Surface: `vn_runtime` implementation layout
    - Type: `compat-note`
    - Summary: `runtime` 实现已继续按职责拆到 `runtime_input.c` + `runtime_parse.c` + `runtime_cli.c` + `runtime_session_support.c` + `runtime_session_loop.c` + `runtime_persist.c`
-   - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`，但任何手写编译入口都必须把 `runtime_input.c`、`runtime_parse.c`、`runtime_session_support.c` 与 `runtime_session_loop.c` 一起编进去
+   - Required action: 这是实现层拆分，不构成新的公开 ABI；宿主和工具继续只依赖 `vn_runtime.h`
 
 12. Surface: `preview protocol v1` implementation layout
    - Type: `compat-note`

@@ -9,7 +9,7 @@
 
 #define VN_PREVIEW_PATH_MAX 512u
 #define VN_PREVIEW_TEXT_MAX 160u
-#define VN_PREVIEW_NAME_MAX 32u
+#define VN_PREVIEW_NAME_MAX 64u
 #define VN_PREVIEW_LINE_MAX 1024u
 #define VN_PREVIEW_MAX_COMMANDS 128u
 #define VN_PREVIEW_MAX_EVENTS 256u
@@ -27,6 +27,7 @@
 #define VN_PREVIEW_CMD_INJECT_KEY 6
 #define VN_PREVIEW_CMD_INJECT_TRACE_TOGGLE 7
 #define VN_PREVIEW_CMD_INJECT_QUIT 8
+#define VN_PREVIEW_CMD_CAPTURE_SCREENSHOT 9
 #define VN_PREVIEW_EXIT_HELP 99
 
 typedef struct {
@@ -53,6 +54,8 @@ typedef struct {
     char response_path[VN_PREVIEW_PATH_MAX];
     char pack_path[VN_PREVIEW_PATH_MAX];
     char resolved_pack_path[VN_PREVIEW_PATH_MAX];
+    char screenshot_path[VN_PREVIEW_PATH_MAX];
+    char resolved_screenshot_path[VN_PREVIEW_PATH_MAX];
     char scene_name[VN_PREVIEW_NAME_MAX];
     char backend_name[VN_PREVIEW_NAME_MAX];
     VNPreviewCommand commands[VN_PREVIEW_MAX_COMMANDS];
@@ -77,6 +80,11 @@ typedef struct {
     vn_u32 frame_samples;
     vn_u32 has_final_state;
     vn_u32 session_done;
+    vn_u32 screenshot_count;
+    vn_u32 screenshot_width;
+    vn_u32 screenshot_height;
+    vn_u32 screenshot_crc32;
+    char screenshot_path[VN_PREVIEW_PATH_MAX];
     double total_step_ms;
     double max_step_ms;
     VNPreviewFrameSample first_frame;

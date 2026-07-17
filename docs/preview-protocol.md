@@ -65,15 +65,15 @@
 ```bash
 ./build/vn_previewd \
   --project-dir=. \
-  --scene=S2 \
+  --pack=assets/demo/content-demo.vnpak \
+  --scene=Opening \
   --backend=auto \
   --resolution=600x800 \
   --frames=8 \
+  --screenshot=/tmp/opening.ppm \
   --trace \
-  --command=set_choice:1 \
-  --command=inject_input:choice:1 \
-  --command=inject_input:key:t \
   --command=step_frame:8 \
+  --command=capture_screenshot \
   --response=/tmp/preview_response.json
 ```
 
@@ -84,15 +84,16 @@
 3. `--project-dir=<path>`
 4. `--pack=<path>`
 5. `--scene=<name>`
-6. `--backend=auto|scalar|avx2|avx2_asm|neon|rvv`
-7. `--resolution=<width>x<height>`
-8. `--frames=<n>`
-9. `--dt-ms=<n>`
-10. `--trace`
-11. `--hold-end`
-12. `--choice-index=<n>`
-13. `--choice-seq=0,1,0`
-14. `--command=<command>`
+6. `--screenshot=<path>`
+7. `--backend=auto|scalar|avx2|avx2_asm|neon|rvv`
+8. `--resolution=<width>x<height>`
+9. `--frames=<n>`
+10. `--dt-ms=<n>`
+11. `--trace`
+12. `--hold-end`
+13. `--choice-index=<n>`
+14. `--choice-seq=0,1,0`
+15. `--command=<command>`
 
 退出码：
 
@@ -138,7 +139,8 @@ response=tests/integration/preview_protocol_response.tmp.json
 | `preview_protocol` | recommended | 当前固定为 `v1` |
 | `project_dir` | no | 相对 `pack_path` 的解析基准目录 |
 | `pack_path` / `pack` | no | `.vnpak` 路径；默认 `assets/demo/demo.vnpak` |
-| `scene_name` / `scene` | no | 当前固定场景名：`S0/S1/S2/S3/S10`；默认 `S0` |
+| `scene_name` / `scene` | no | catalog 内容包使用声明场景名；旧包使用 `S0/S1/S2/S3/S10`；默认 `S0` |
+| `screenshot_path` / `screenshot` | no | `capture_screenshot` 的 P6 PPM 输出路径 |
 | `backend` | no | `auto|scalar|avx2|avx2_asm|neon|rvv` |
 | `resolution` | no | 形如 `600x800` |
 | `width` / `height` | no | 分开给宽高；若与 `resolution` 同时出现，以最后写入值为准 |
@@ -153,8 +155,8 @@ response=tests/integration/preview_protocol_response.tmp.json
 
 路径解析规则：
 
-1. 若 `pack_path` 是绝对路径，则直接使用
-2. 若 `pack_path` 是相对路径且存在 `project_dir`，相对 `project_dir` 解析
+1. 若 `pack_path` / `screenshot_path` 是绝对路径，则直接使用
+2. 若路径是相对路径且存在 `project_dir`，相对 `project_dir` 解析
 3. 若未提供 `project_dir` 但使用了 `--request=<file>`，则相对请求文件所在目录解析
 4. 若两者都不存在，则按当前工作目录解析
 
@@ -180,6 +182,10 @@ response=tests/integration/preview_protocol_response.tmp.json
    - 注入一次 trace 切换事件
 9. `inject_input:quit`
    - 注入一次退出事件
+10. `capture_screenshot`
+   - 从 runtime frame view 写出 P6 PPM
+   - 必须同时提供 `screenshot_path`，并且此前至少成功推进一帧
+   - 重复执行会覆盖同一路径，响应记录成功次数和最后一张截图证据
 
 兼容性说明：
 
@@ -208,6 +214,7 @@ response=tests/integration/preview_protocol_response.tmp.json
 | `first_frame` | 首个成功推进帧的快照 |
 | `last_frame` | 最后一个成功推进帧的快照 |
 | `final_state` | 最终 `VNRunResult` |
+| `screenshot` | 最后一次成功截图的路径、尺寸和 RGB payload CRC32；没有截图时为 `null` |
 | `events` | 结构化事件日志 |
 
 ### `request`
@@ -218,15 +225,16 @@ response=tests/integration/preview_protocol_response.tmp.json
 2. `pack_path`
 3. `scene_name`
 4. `backend_name`
-5. `width`
-6. `height`
-7. `frames`
-8. `dt_ms`
-9. `trace`
-10. `hold_on_end`
-11. `choice_index`
-12. `choice_seq_count`
-13. `command_count`
+5. `screenshot_path`
+6. `width`
+7. `height`
+8. `frames`
+9. `dt_ms`
+10. `trace`
+11. `hold_on_end`
+12. `choice_index`
+13. `choice_seq_count`
+14. `command_count`
 
 ### `summary`
 
@@ -236,6 +244,17 @@ response=tests/integration/preview_protocol_response.tmp.json
 2. `frame_samples`
 3. `session_done`
 4. `events_truncated`
+5. `screenshot_count`
+
+### `screenshot`
+
+成功执行 `capture_screenshot` 后包含：
+
+1. `path`：解析后的实际输出路径
+2. `width/height`：截图对应的实际 renderer 尺寸
+3. `crc32`：8 位十六进制字符串，对 PPM 的 RGB pixel payload 计算
+
+文件格式固定为 binary P6 PPM，header 为 `P6\n<width> <height>\n255\n`。这项能力是 `preview protocol v1` 的 append-only 扩展，不改变旧请求或旧响应字段。
 
 当前 `trace_id` 规则：
 
@@ -317,8 +336,9 @@ response=tests/integration/preview_protocol_response.tmp.json
 6. `step_frame`
 7. `run_to_end`
 8. `reload_scene`
-9. `frame`
-10. `VN_*` 错误事件
+9. `capture_screenshot`
+10. `frame`
+11. `VN_*` 错误事件
 
 当 `trace=1` 时，会额外记录逐帧 `frame` 事件。
 当事件数量超过实现上限时，不会让请求失败，而是把 `summary.events_truncated` 置为 `1`。
@@ -337,7 +357,14 @@ response=tests/integration/preview_protocol_response.tmp.json
     "reload_count": 0,
     "frame_samples": 8,
     "session_done": 1,
-    "events_truncated": 0
+    "events_truncated": 0,
+    "screenshot_count": 1
+  },
+  "screenshot": {
+    "path": "/tmp/opening.ppm",
+    "width": 600,
+    "height": 800,
+    "crc32": "1234abcd"
   },
   "perf_summary": {
     "samples": 8,
@@ -368,7 +395,7 @@ response=tests/integration/preview_protocol_response.tmp.json
 
 1. 多请求长连接
 2. GUI 渲染或窗口集成
-3. 二进制帧缓冲导出
+3. 原始 framebuffer 的跨进程零拷贝或流式导出
 4. 远程预览协议
 5. 多会话并发隔离
 

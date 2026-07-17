@@ -192,6 +192,8 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
     src/core/runtime_persist.c
     src/core/runtime_session_support.c
     src/core/runtime_session_loop.c
+    src/core/scene_catalog.c
+    src/core/runtime_texture.c
   )
   append_source_if_exists src/core/dynamic_resolution.c
   COMPILE_CMD+=(

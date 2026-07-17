@@ -10,6 +10,10 @@
 static void preview_request_init(VNPreviewRequest* req);
 static int preview_run_request(const VNPreviewRequest* req,
                                VNPreviewReport* report);
+static int preview_capture_screenshot(const VNPreviewRequest* req,
+                                      VNRuntimeSession* session,
+                                      VNPreviewReport* report);
+static vn_u32 preview_crc32_byte(vn_u32 crc, vn_u8 value);
 int vn_preview_run_cli(int argc, char** argv) {
     VNPreviewRequest req;
     VNPreviewReport report;
@@ -206,6 +210,19 @@ static int preview_run_request(const VNPreviewRequest* req,
                     (void)vn_runtime_session_destroy(session);
                     return 1;
                 }
+            } else if (command.kind == VN_PREVIEW_CMD_CAPTURE_SCREENSHOT) {
+                preview_report_add_event(report,
+                                         VN_PREVIEW_EVENT_COMMAND,
+                                         "capture_screenshot",
+                                         0u,
+                                         0.0,
+                                         (const VNRunResult*)0);
+                rc = preview_capture_screenshot(req, session, report);
+                if (rc != VN_OK) {
+                    preview_error(report, rc, "preview capture_screenshot failed", 1);
+                    (void)vn_runtime_session_destroy(session);
+                    return 1;
+                }
             }
         }
     }
@@ -218,4 +235,102 @@ static int preview_run_request(const VNPreviewRequest* req,
     report->error_code = VN_OK;
     report->error_name = vn_error_name(VN_OK);
     return 0;
+}
+
+static vn_u32 preview_crc32_byte(vn_u32 crc, vn_u8 value) {
+    vn_u32 i;
+
+    crc ^= (vn_u32)value;
+    for (i = 0u; i < 8u; ++i) {
+        if ((crc & 1u) != 0u) {
+            crc = (crc >> 1) ^ 0xEDB88320u;
+        } else {
+            crc >>= 1;
+        }
+    }
+    return crc;
+}
+
+static int preview_capture_screenshot(const VNPreviewRequest* req,
+                                      VNRuntimeSession* session,
+                                      VNPreviewReport* report) {
+    VNRuntimeFrameView view;
+    FILE* fp;
+    vn_u32 x;
+    vn_u32 y;
+    vn_u32 crc;
+    size_t path_len;
+    int rc;
+
+    if (req == (const VNPreviewRequest*)0 ||
+        session == (VNRuntimeSession*)0 ||
+        report == (VNPreviewReport*)0 ||
+        req->resolved_screenshot_path[0] == '\0') {
+        return VN_E_INVALID_ARG;
+    }
+    if (report->frame_samples == 0u) {
+        return VN_E_RENDER_STATE;
+    }
+    vn_runtime_frame_view_init(&view);
+    rc = vn_runtime_session_get_frame_view(session, &view);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    if (view.pixels == (const vn_u32*)0 ||
+        view.pixel_format != VN_RUNTIME_PIXEL_FORMAT_ARGB8888_U32 ||
+        view.width == 0u || view.height == 0u ||
+        view.stride_pixels < (vn_u32)view.width ||
+        view.pixel_count < (vn_u32)view.width * (vn_u32)view.height) {
+        return VN_E_RENDER_STATE;
+    }
+
+    fp = fopen(req->resolved_screenshot_path, "wb");
+    if (fp == (FILE*)0) {
+        return VN_E_IO;
+    }
+    if (fprintf(fp, "P6\n%u %u\n255\n",
+                (unsigned int)view.width,
+                (unsigned int)view.height) < 0) {
+        (void)fclose(fp);
+        return VN_E_IO;
+    }
+
+    crc = 0xFFFFFFFFu;
+    for (y = 0u; y < (vn_u32)view.height; ++y) {
+        for (x = 0u; x < (vn_u32)view.width; ++x) {
+            vn_u32 pixel;
+            vn_u8 rgb[3];
+
+            pixel = view.pixels[y * view.stride_pixels + x];
+            rgb[0] = (vn_u8)((pixel >> 16) & 0xFFu);
+            rgb[1] = (vn_u8)((pixel >> 8) & 0xFFu);
+            rgb[2] = (vn_u8)(pixel & 0xFFu);
+            if (fwrite(rgb, 1u, sizeof(rgb), fp) != sizeof(rgb)) {
+                (void)fclose(fp);
+                return VN_E_IO;
+            }
+            crc = preview_crc32_byte(crc, rgb[0]);
+            crc = preview_crc32_byte(crc, rgb[1]);
+            crc = preview_crc32_byte(crc, rgb[2]);
+        }
+    }
+    if (fclose(fp) != 0) {
+        return VN_E_IO;
+    }
+
+    report->screenshot_count += 1u;
+    report->screenshot_width = (vn_u32)view.width;
+    report->screenshot_height = (vn_u32)view.height;
+    report->screenshot_crc32 = crc ^ 0xFFFFFFFFu;
+    path_len = strlen(req->resolved_screenshot_path);
+    if (path_len + 1u > sizeof(report->screenshot_path)) {
+        path_len = sizeof(report->screenshot_path) - 1u;
+    }
+    if (path_len > 0u) {
+        (void)memcpy(report->screenshot_path,
+                     req->resolved_screenshot_path,
+                     path_len);
+    }
+    report->screenshot_path[path_len] = '\0';
+    return VN_OK;
 }

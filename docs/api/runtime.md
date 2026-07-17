@@ -13,7 +13,7 @@
 3. 提供“一次性运行 + 会话化运行”两套库 API。
 4. CLI 仅作为包装层，核心行为由运行时会话层统一承载。
 5. 宿主、preview、自动化脚本应复用同一套 Session API 与输入注入接口。
-6. 当前 `test_runtime_api` 与 `test_preview_protocol` 已显式覆盖更重的 `S10` 场景，保证 `scene_name -> pack script -> runtime/preview result` 这条链路有回归保护。
+6. `v1.1.0` 在旧场景回归路径之外加入 `VNSC` 场景目录、真实图片资源、frame view 与版本化 snapshot 扩展。
 
 ## 2.1 当前版本承诺级别
 
@@ -34,7 +34,7 @@
 
 ## 2.3 当前实现落点
 
-当前 runtime 实现已按职责拆成六层：
+当前 runtime 实现按职责拆分为：
 
 1. `src/core/runtime_cli.c`
    - Session 驱动
@@ -58,6 +58,10 @@
    - build info 查询
    - snapshot encode/decode
    - file save/load wrapper
+7. `src/core/scene_catalog.c`
+   - `VNSC v1` 场景目录加载与名称/ID 查询
+8. `src/core/runtime_texture.c`
+   - 图片资源校验、CRC 读取与 32 MiB LRU 缓存
 
 这次拆分的目标是降低单文件维护压力，不改变当前公开 API 语义。
 
@@ -81,6 +85,15 @@
 1. 宿主在运行时确认当前 build 的公开版本边界
 2. 工具或 smoke 测试读取当前 host/build 元信息
 3. 避免第三方宿主只能靠 README/文档猜测当前 runtime 口径
+
+### `VNRuntimeBuildInfoV2`
+
+兼容追加的版本化 build info。调用者先用 `vn_runtime_build_info_v2_init(...)` 初始化，再查询：
+
+1. `struct_size` 与 `version` 用于结构版本协商
+2. `engine_version` 当前为 `1.1.0`
+3. `capability_flags` 当前声明 `SCENE_CATALOG / RESOURCE_TEXTURE / FRAME_VIEW / SNAPSHOT_V2`
+4. `v1` 完整嵌入原有 `VNRuntimeBuildInfo`，旧查询入口和旧结构布局不变
 
 ### `VNRuntimeSessionSnapshot`
 
@@ -108,6 +121,34 @@
 1. VM 执行状态、fade 状态、choice feed 与 dynres tier 会被保留
 2. framebuffer、dirty planner、op cache、frame reuse 统计与 pending injected input 不会保留
 3. 恢复后下一帧的用户可见语义应与未中断继续推进一致，但 perf 计数可重新累计
+4. 若保存点恰好耗尽原 frame budget，恢复时追加一份原预算，使循环场景仍可推进
+5. 已执行 `END` 或进入 VM error 的终态不可捕获或恢复，相关入口返回 `VN_E_UNSUPPORTED`，不会生成伪可恢复 session
+6. snapshot 的 `vm_flags` 含未知位时，恢复入口返回 `VN_E_INVALID_ARG`
+
+`VNRuntimeSessionSnapshot` 是保留给 legacy 场景的 v1 结构。对真实内容 session 调用旧 capture API 会返回 `VN_E_UNSUPPORTED`，避免静默丢失背景和立绘状态。
+
+### `VNRuntimeSessionSnapshotV2`
+
+真实内容使用的版本化快照结构。它嵌入完整 v1 字段，并追加：
+
+1. `scene_name` 与 `content_mode`
+2. VM 当前/上一背景、过渡时长与 serial
+3. 8 个持久 sprite layer 的资源、坐标和 active 状态
+4. background player 的过渡进度
+
+调用者必须先执行 `vn_runtime_session_snapshot_v2_init(...)`。恢复时会重新打开 pack、按场景目录核对 name/ID、重建 renderer，然后恢复视觉状态；framebuffer 和各类 perf cache 仍不会序列化。
+
+### `VNRuntimeFrameView`
+
+版本化的只读 framebuffer 借用结构。调用者必须先执行 `vn_runtime_frame_view_init(...)`，由 `struct_size/version` 协商当前布局；未初始化或版本不匹配会返回 `VN_E_INVALID_ARG`。
+
+当前字段：
+
+1. `struct_size/version` 当前使用 `sizeof(VNRuntimeFrameView)` 与 `VN_RUNTIME_FRAME_VIEW_VERSION`
+2. `pixels` 是逻辑 `ARGB8888` 的 `vn_u32` 数组
+3. `width/height/stride_pixels/pixel_count` 描述当前实际渲染尺寸
+4. `pixel_format` 当前固定为 `VN_RUNTIME_PIXEL_FORMAT_ARGB8888_U32`
+5. 指针只在下一次 `step`、renderer 重配或 session destroy 前有效，调用者需要长期保留时必须自行复制
 
 ### `VNRunConfig`
 
@@ -117,9 +158,12 @@
 
 1. `pack_path`
    - 资源包路径（默认 `assets/demo/demo.vnpak`）
+   - create 时会复制到 session 自有存储，调用者无需让输入字符串持续存活
 2. `scene_name`
-   - 当前接受固定场景名：`S0` / `S1` / `S2` / `S3` / `S10`
-   - 这是当前代码里显式解析的符号集合，不是任意 pack 内字符串；未知值会被拒绝
+   - 带 `VNSC` catalog 的内容包接受 catalog 中声明的任意合法场景名
+   - 保持初始化默认值 `S0` 且 catalog 未声明 `S0` 时，自动使用 catalog 的 `entry_scene`
+   - 没有 catalog 的旧包继续只接受 `S0` / `S1` / `S2` / `S3` / `S10`
+   - 未知名称会被显式拒绝
 3. `backend_name`
    - `"auto"` / `"scalar"` / `"avx2"` / `"avx2_asm"` / `"neon"` / `"rvv"`
    - 其中 `avx2_asm` 当前是实验性 force-only 变体
@@ -217,6 +261,14 @@
 7. `vnsave_public_saveload_scope` 当前为 `runtime-session-only`
 8. `host_os/host_arch/host_compiler` 来自当前 build 平台探测结果
 
+### `void vn_runtime_build_info_v2_init(VNRuntimeBuildInfoV2* out_info)`
+
+把版本化 build info 清零，并写入当前 `struct_size/version`。空指针无操作。
+
+### `int vn_runtime_query_build_info_v2(VNRuntimeBuildInfoV2* out_info)`
+
+查询 `1.1.0` 引擎版本和兼容追加能力位。未初始化、结构过小或版本不匹配返回 `VN_E_INVALID_ARG`；原有 `vn_runtime_query_build_info(...)` 行为不变。
+
 ### `int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session, VNRuntimeSessionSnapshot* out_snapshot)`
 
 捕获当前 live session 的可恢复快照。
@@ -233,6 +285,16 @@
 1. 宿主做内存级 quick-save / quick-load
 2. 作为正式 `runtime-session-only` persistence API 的状态捕获层
 
+真实内容 session 必须改用 v2 capture；旧入口会返回 `VN_E_UNSUPPORTED`。
+
+### `void vn_runtime_session_snapshot_v2_init(VNRuntimeSessionSnapshotV2* snapshot)`
+
+初始化 v2 snapshot 的 `struct_size/version`。每次 capture 前都应调用。
+
+### `int vn_runtime_session_capture_snapshot_v2(const VNRuntimeSession* session, VNRuntimeSessionSnapshotV2* out_snapshot)`
+
+捕获 legacy 或真实内容 session。除 v1 状态外，还保留场景名称、背景交叉淡化进度和 8 个 sprite layer；未初始化的输出结构返回 `VN_E_INVALID_ARG`。
+
 ### `int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot, VNRuntimeSession** out_session)`
 
 从 snapshot 直接重新创建一个 session。
@@ -247,7 +309,13 @@
 
 1. snapshot 必须包含可解析的 `scene_id`
 2. `pack_path/backend_name` 必须是当前支持的公开字符串
-3. 当前是最小正式恢复 API，不承诺保留所有 perf 累计统计
+3. `vm_flags` 中的 `ENDED/ERROR` 返回 `VN_E_UNSUPPORTED`，未知位返回 `VN_E_INVALID_ARG`
+4. `vm_pc_offset` 与有效 call-stack return offset 必须落在脚本指令边界，否则返回 `VN_E_FORMAT`
+5. 当前是最小正式恢复 API，不承诺保留所有 perf 累计统计
+
+### `int vn_runtime_session_create_from_snapshot_v2(const VNRuntimeSessionSnapshotV2* snapshot, VNRuntimeSession** out_session)`
+
+从 v2 snapshot 恢复 legacy 或 catalog 内容场景。恢复会核对 snapshot 的 `scene_name/scene_id/content_mode` 与 pack，拒绝损坏或指向错误资源的视觉状态，并沿用 v1 对终态及未知 `vm_flags` 的拒绝规则。恢复后的 framebuffer 尚未生成，需先成功推进一帧。
 
 ### `int vn_runtime_session_save_to_file(const VNRuntimeSession* session, const char* path, vn_u32 slot_id, vn_u32 timestamp_s)`
 
@@ -256,7 +324,7 @@
 当前行为：
 
 1. 顶层继续复用 `vnsave v1` 头
-2. payload 当前写入 runtime snapshot 二进制块
+2. payload 当前默认写入 runtime snapshot payload v2
 3. `slot_id`、`scene_id`、`script_pc`、`timestamp_s` 会同时写入 `vnsave` 头
 4. payload CRC32 按现有 `vnsave v1` 规则写回 header
 
@@ -264,7 +332,8 @@
 
 1. 只支持保存 live session
 2. 若 session 带有待消费 injected input，返回 `VN_E_UNSUPPORTED`
-3. 当前这是正式公开的 runtime session persistence API，但不等于长期通用宿主 save/load ABI
+3. VM 已执行 `END` 或进入 error 时返回 `VN_E_UNSUPPORTED`
+4. 当前这是正式公开的 runtime session persistence API，但不等于长期通用宿主 save/load ABI
 
 ### `int vn_runtime_session_load_from_file(const char* path, VNRuntimeSession** out_session)`
 
@@ -278,7 +347,8 @@
 
 当前限制：
 
-1. 只接受当前 runtime snapshot payload 版本
+1. 同时读取历史 runtime snapshot payload v1 与当前 payload v2
+2. payload 表示 VM 终态时返回 `VN_E_UNSUPPORTED`；`vm_flags` 含未知位时返回 `VN_E_INVALID_ARG`
 2. 对普通 `vnsave v1` 但 payload 不是 runtime snapshot 的文件，返回格式或不支持错误
 3. 这层正式承诺只覆盖 `runtime-session-only`
 
@@ -301,6 +371,8 @@
 
 创建运行时会话并完成初始化（加载 pack、加载脚本、初始化 VM、初始化渲染后端）。
 
+当前 renderer/backend 和纹理 provider 使用进程级状态，因此一次只支持一个 live session；创建第二个 session 前应先销毁第一个。
+
 ### `int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result)`
 
 推进一帧执行并返回最新状态快照。
@@ -315,6 +387,19 @@
 6. 若启用 `VN_RUNTIME_PERF_OP_CACHE`，则会对 `VNRenderOp[]` 构建结果做 LRU 缓存，并在 `VNRunResult` 中回传命中统计。
 7. 若启用 `VN_RUNTIME_PERF_DIRTY_TILE`，则会在当前帧最终 `VNRenderOp[]` 与上一帧已提交 op 之间构建 dirty plan，并在 `VNRunResult` 中回传当前帧与累计统计；当后端支持时，runtime 会优先走 `renderer_submit_dirty(...)`，否则自动回退整帧提交。
 8. 若启用 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，则会按滑动窗口 p95 自动在 `R0/R1/R2` 之间升降档；切档后会失效依赖旧尺寸的缓存，并在 `VNRunResult` 中回传 `render_width/render_height/dynamic_resolution_tier/dynamic_resolution_switches`。
+
+### `void vn_runtime_frame_view_init(VNRuntimeFrameView* out_view)`
+
+把 frame view 清零并写入当前 `struct_size/version`。每个 view 在第一次查询前必须初始化；后续查询会保留一个可继续复用的已初始化结构。
+
+### `int vn_runtime_session_get_frame_view(const VNRuntimeSession* session, VNRuntimeFrameView* out_view)`
+
+取得当前已提交画面的只读 view：
+
+1. 调用前先执行 `vn_runtime_frame_view_init(&view)`；空指针、未初始化结构或版本不匹配返回 `VN_E_INVALID_ARG`
+2. 新建/刚恢复的 session 尚无有效帧，返回 `VN_E_RENDER_STATE`
+3. 动态分辨率刚重建 renderer 时，旧 view 立即失效；下一次成功 step 后可再次获取
+4. 返回的像素内存由 runtime 持有，不得释放或写入
 
 ### `int vn_runtime_session_is_done(const VNRuntimeSession* session)`
 

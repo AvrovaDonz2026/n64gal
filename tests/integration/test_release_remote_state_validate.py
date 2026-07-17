@@ -82,6 +82,35 @@ def main():
             print("missing remote validate api spec-default success trace", file=sys.stderr)
             return 1
 
+    with tempfile.TemporaryDirectory(prefix="n64gal_release_remote_multi_") as temp_dir:
+        temp_root = Path(temp_dir)
+        spec = temp_root / "release_spec.json"
+        remote = temp_root / "release.json"
+        spec.write_text(
+            '{"version":"v1.1.0","tag":"v1.1.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0","draft":false,"prerelease":false,"release_note":"docs/release-v1.1.0.md","assets":[{"name":"demo.vnpak","path":"assets/demo/demo.vnpak"},{"name":"content-demo.vnpak","path":"assets/demo/content-demo.vnpak"}]}\n',
+            encoding="utf-8",
+        )
+        remote.write_text(
+            '{"tag_name":"v1.1.0","html_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0","draft":false,"prerelease":false,"assets":['
+            '{"name":"demo.vnpak","browser_download_url":"https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.1.0/demo.vnpak","size":10},'
+            '{"name":"content-demo.vnpak","browser_download_url":"https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.1.0/content-demo.vnpak","size":20}]}\n',
+            encoding="utf-8",
+        )
+        rc, out, err = run_case(["--release-spec", str(spec), "--release-json", str(remote)])
+        if rc != 0 or "assets=2" not in out:
+            print(f"multi-asset remote validate failed rc={rc} stderr={err}", file=sys.stderr)
+            return 1
+
+        remote.write_text(
+            '{"tag_name":"v1.1.0","html_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0","draft":false,"prerelease":false,"assets":['
+            '{"name":"demo.vnpak","browser_download_url":"https://github.com/AvrovaDonz2026/n64gal/releases/download/v1.1.0/demo.vnpak","size":10}]}\n',
+            encoding="utf-8",
+        )
+        rc, out, err = run_case(["--release-spec", str(spec), "--release-json", str(remote)])
+        if rc == 0 or "assets.content-demo.vnpak" not in err:
+            print("missing secondary remote asset should fail", file=sys.stderr)
+            return 1
+
     print("test_release_remote_state_validate ok")
     return 0
 

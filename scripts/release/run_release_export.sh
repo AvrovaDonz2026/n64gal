@@ -5,13 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_export}"
-RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.0.0.json}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.1.0.json}"
 TAG_NAME=""
 RELEASE_URL=""
 RELEASE_NOTE=""
-ASSET_PATH=""
+ASSET_PATHS=()
 GATE_SUMMARY="${GATE_SUMMARY:-$ROOT_DIR/build_release_gate/release_gate_summary.md}"
 SOAK_SUMMARY="${SOAK_SUMMARY:-$ROOT_DIR/build_release_soak/demo_soak_summary.md}"
+CONTENT_SOAK_SUMMARY=""
+CONTENT_SOAK_SUMMARY_JSON=""
 CI_SUITE_SUMMARY="${CI_SUITE_SUMMARY:-$ROOT_DIR/build_ci_cc/ci_suite_summary.md}"
 HOST_SDK_SUMMARY="${HOST_SDK_SUMMARY:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.md}"
 HOST_SDK_SUMMARY_JSON="${HOST_SDK_SUMMARY_JSON:-$ROOT_DIR/build_release_host_sdk/host_sdk_smoke_summary.json}"
@@ -30,7 +32,7 @@ SUMMARY_JSON_OUT=""
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release/run_release_export.sh [--out-dir <dir>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--release-note <path>] [--asset <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>] [--remote-release-json <path>] [--remote-release-json-url <url>] [--remote-github-repo <owner/repo>] [--remote-tag <tag>] [--remote-api-root <url>] [--remote-token-env <env>] [--summary-out <path>] [--summary-json-out <path>]
+usage: scripts/release/run_release_export.sh [--out-dir <dir>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--release-note <path>] [--asset <path>] [--gate-summary <path>] [--soak-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--host-sdk-summary-json <path>] [--platform-evidence-summary <path>] [--platform-evidence-summary-json <path>] [--preview-evidence-summary <path>] [--preview-evidence-summary-json <path>] [--remote-release-json <path>] [--remote-release-json-url <url>] [--remote-github-repo <owner/repo>] [--remote-tag <tag>] [--remote-api-root <url>] [--remote-token-env <env>] [--summary-out <path>] [--summary-json-out <path>]
 EOF
 }
 
@@ -69,7 +71,7 @@ while [[ $# -gt 0 ]]; do
     --asset)
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
-      ASSET_PATH="$1"
+      ASSET_PATHS+=("$1")
       shift
       ;;
     --gate-summary)
@@ -82,6 +84,18 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
       SOAK_SUMMARY="$1"
+      shift
+      ;;
+    --content-soak-summary)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      CONTENT_SOAK_SUMMARY="$1"
+      shift
+      ;;
+    --content-soak-summary-json)
+      shift
+      [[ $# -gt 0 ]] || { usage; exit 2; }
+      CONTENT_SOAK_SUMMARY_JSON="$1"
       shift
       ;;
     --ci-suite-summary)
@@ -185,6 +199,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$CONTENT_SOAK_SUMMARY" && -z "$CONTENT_SOAK_SUMMARY_JSON" ]] ||
+   [[ -z "$CONTENT_SOAK_SUMMARY" && -n "$CONTENT_SOAK_SUMMARY_JSON" ]]; then
+  echo "trace_id=release.export.content_soak.pair_required error_code=-1 error_name=VN_E_INVALID_ARG message=content soak markdown and JSON summaries must be provided together" >&2
+  exit 2
+fi
+CONTENT_SOAK_ARGS=()
+if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+  CONTENT_SOAK_ARGS+=(--content-soak-summary "$CONTENT_SOAK_SUMMARY")
+  CONTENT_SOAK_ARGS+=(--content-soak-summary-json "$CONTENT_SOAK_SUMMARY_JSON")
+fi
+
 mkdir -p "$OUT_DIR"
 resolve_spec_path() {
   local value="$1"
@@ -197,27 +222,16 @@ resolve_spec_path() {
   fi
 }
 
-eval "$(
-python3 - "$RELEASE_SPEC" <<'PY'
-import json
-import shlex
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-asset = payload.get("asset", {})
-fields = {
-    "SPEC_TAG": payload.get("tag", ""),
-    "SPEC_RELEASE_URL": payload.get("release_url", ""),
-    "SPEC_RELEASE_NOTE": payload.get("release_note", ""),
-    "SPEC_ASSET_PATH": asset.get("path", ""),
-}
-for key, value in fields.items():
-    print(f"{key}={shlex.quote(str(value))}")
-PY
-)"
+eval "$(python3 tools/validate/release_spec.py --shell "$RELEASE_SPEC")"
+if [[ "$SPEC_VERSION" == "v1.1.0" && -z "$CONTENT_SOAK_SUMMARY" ]]; then
+  echo "trace_id=release.export.content_soak.required error_code=-1 error_name=VN_E_INVALID_ARG message=v1.1.0 export requires real-content soak markdown and JSON summaries" >&2
+  exit 2
+fi
+if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+  CONTENT_PACK_PATH="$(python3 tools/validate/release_spec.py "$RELEASE_SPEC" --asset-path-for-name content-demo.vnpak)"
+  python3 tools/validate/validate_content_soak_summary.py \
+    "$CONTENT_SOAK_SUMMARY_JSON" --summary-md "$CONTENT_SOAK_SUMMARY" --pack "$CONTENT_PACK_PATH"
+fi
 if [[ -z "$TAG_NAME" ]]; then
   TAG_NAME="$SPEC_TAG"
 fi
@@ -226,9 +240,6 @@ if [[ -z "$RELEASE_URL" ]]; then
 fi
 if [[ -z "$RELEASE_NOTE" ]]; then
   RELEASE_NOTE="$(resolve_spec_path "$SPEC_RELEASE_NOTE")"
-fi
-if [[ -z "$ASSET_PATH" ]]; then
-  ASSET_PATH="$(resolve_spec_path "$SPEC_ASSET_PATH")"
 fi
 BUNDLE_DIR="$OUT_DIR/bundle"
 REPORT_DIR="$OUT_DIR/report"
@@ -255,6 +266,7 @@ run_step "release-bundle" \
   --release-spec "$RELEASE_SPEC" \
   --gate-summary "$GATE_SUMMARY" \
   --soak-summary "$SOAK_SUMMARY" \
+  "${CONTENT_SOAK_ARGS[@]}" \
   --ci-summary "$CI_SUITE_SUMMARY" \
   --host-sdk-summary "$HOST_SDK_SUMMARY" \
   --host-sdk-summary-json "$HOST_SDK_SUMMARY_JSON" \
@@ -271,22 +283,25 @@ run_step "release-report" \
   --bundle-manifest "$BUNDLE_DIR/release_bundle_manifest.json" \
   --gate-summary "$GATE_SUMMARY" \
   --soak-summary "$SOAK_SUMMARY" \
+  "${CONTENT_SOAK_ARGS[@]}" \
   --ci-suite-summary "$CI_SUITE_SUMMARY" \
   --host-sdk-summary "$HOST_SDK_SUMMARY" \
   --platform-evidence-summary "$PLATFORM_EVIDENCE_SUMMARY" \
   --preview-evidence-summary "$PREVIEW_EVIDENCE_SUMMARY"
 
-run_step "release-publish-map" \
-  bash scripts/release/run_release_publish_map.sh \
+publish_cmd=(bash scripts/release/run_release_publish_map.sh \
   --out-dir "$PUBLISH_DIR" \
   --release-spec "$RELEASE_SPEC" \
   --tag "$TAG_NAME" \
   --release-url "$RELEASE_URL" \
   --release-note "$RELEASE_NOTE" \
-  --asset "$ASSET_PATH" \
   --bundle-index "$BUNDLE_DIR/release_bundle_index.md" \
   --bundle-manifest "$BUNDLE_DIR/release_bundle_manifest.json" \
-  --report-json "$REPORT_DIR/release_report.json"
+  --report-json "$REPORT_DIR/release_report.json")
+for asset_path in "${ASSET_PATHS[@]}"; do
+  publish_cmd+=(--asset "$(resolve_spec_path "$asset_path")")
+done
+run_step "release-publish-map" "${publish_cmd[@]}"
 
 if [[ -n "$REMOTE_RELEASE_JSON" || -n "$REMOTE_RELEASE_JSON_URL" || -n "$REMOTE_GITHUB_REPO" ]]; then
   remote_cmd=(bash scripts/release/run_release_remote_summary.sh --out-dir "$REMOTE_DIR" --release-spec "$RELEASE_SPEC")
@@ -325,6 +340,9 @@ final_bundle_cmd=(bash scripts/release/run_release_bundle.sh
   --report-json "$REPORT_DIR/release_report.json"
   --publish-map-md "$PUBLISH_DIR/release_publish_map.md"
   --publish-map-json "$PUBLISH_DIR/release_publish_map.json")
+if [[ ${#CONTENT_SOAK_ARGS[@]} -gt 0 ]]; then
+  final_bundle_cmd+=("${CONTENT_SOAK_ARGS[@]}")
+fi
 
 if [[ -n "$REMOTE_RELEASE_JSON" || -n "$REMOTE_RELEASE_JSON_URL" || -n "$REMOTE_GITHUB_REPO" ]]; then
   final_bundle_cmd+=(--remote-summary-md "$REMOTE_DIR/release_remote_summary.md")
@@ -341,6 +359,10 @@ run_step "release-bundle-final" "${final_bundle_cmd[@]}"
   echo "- Tag: \`$TAG_NAME\`"
   echo "- Release URL: \`$RELEASE_URL\`"
   echo "- Release spec: \`$RELEASE_SPEC\`"
+  if [[ -n "$CONTENT_SOAK_SUMMARY" ]]; then
+    echo "- Content soak summary: \`$CONTENT_SOAK_SUMMARY\`"
+    echo "- Content soak summary JSON: \`$CONTENT_SOAK_SUMMARY_JSON\`"
+  fi
   echo
   echo "## Outputs"
   echo
@@ -357,20 +379,35 @@ run_step "release-bundle-final" "${final_bundle_cmd[@]}"
   fi
 } >"$SUMMARY_OUT"
 
-{
-  printf '{\n'
-  printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
-  printf '  "branch": "%s",\n' "$(git branch --show-current)"
-  printf '  "release_spec": "%s",\n' "$RELEASE_SPEC"
-  printf '  "tag": "%s",\n' "$TAG_NAME"
-  printf '  "release_url": "%s",\n' "$RELEASE_URL"
-  printf '  "bundle_dir": "%s",\n' "$BUNDLE_DIR"
-  printf '  "report_dir": "%s",\n' "$REPORT_DIR"
-  printf '  "publish_dir": "%s",\n' "$PUBLISH_DIR"
-  printf '  "remote_dir": "%s",\n' "$REMOTE_DIR"
-  printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
-  printf '  "summary_json": "%s"\n' "$SUMMARY_JSON_OUT"
-  printf '}\n'
-} >"$SUMMARY_JSON_OUT"
+python3 - "$SUMMARY_JSON_OUT" "$(git rev-parse --short HEAD)" "$(git branch --show-current)" \
+  "$RELEASE_SPEC" "$TAG_NAME" "$RELEASE_URL" "$CONTENT_SOAK_SUMMARY" \
+  "$CONTENT_SOAK_SUMMARY_JSON" "$BUNDLE_DIR" "$REPORT_DIR" "$PUBLISH_DIR" \
+  "$REMOTE_DIR" "$SUMMARY_OUT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    output_path, head, branch, release_spec, tag, release_url,
+    content_soak_summary, content_soak_summary_json, bundle_dir, report_dir,
+    publish_dir, remote_dir, summary_md,
+) = sys.argv[1:]
+payload = {
+    "head": head,
+    "branch": branch,
+    "release_spec": release_spec,
+    "tag": tag,
+    "release_url": release_url,
+    "content_soak_summary": content_soak_summary,
+    "content_soak_summary_json": content_soak_summary_json,
+    "bundle_dir": bundle_dir,
+    "report_dir": report_dir,
+    "publish_dir": publish_dir,
+    "remote_dir": remote_dir,
+    "summary_md": summary_md,
+    "summary_json": output_path,
+}
+Path(output_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
 
 echo "trace_id=release.export.ok out_dir=$OUT_DIR summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT tag=$TAG_NAME"

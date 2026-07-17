@@ -692,6 +692,54 @@ static void vn_rvv_draw_textured_rect(const VNRenderOp* op) {
     vn_rvv_draw_textured_rect_clipped(op, (const VNRenderRect*)0);
 }
 
+static int vn_rvv_draw_texture_op_clipped(const VNRenderOp* op,
+                                          const VNRenderRect* clip_rect) {
+    if ((op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) != 0u) {
+        return vn_pp_draw_resource_texture(g_rvv_framebuffer,
+                                           g_rvv_stride,
+                                           g_rvv_height,
+                                           op,
+                                           clip_rect);
+    }
+    if (clip_rect == (const VNRenderRect*)0) {
+        vn_rvv_draw_textured_rect(op);
+    } else {
+        vn_rvv_draw_textured_rect_clipped(op, clip_rect);
+    }
+    return VN_OK;
+}
+
+static int vn_rvv_draw_resource_crossfade_pair(const VNRenderOp* ops,
+                                               vn_u32 op_count,
+                                               vn_u32 op_index,
+                                               const VNRenderRect* clip_rect) {
+    const VNRenderOp* from_op;
+    const VNRenderOp* to_op;
+
+    if (op_index >= op_count || (op_count - op_index) < 2u) {
+        return VN_E_FORMAT;
+    }
+    from_op = &ops[op_index];
+    to_op = &ops[op_index + 1u];
+    if (from_op->op != VN_OP_SPRITE || to_op->op != VN_OP_SPRITE ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) == 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) == 0u ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) == 0u ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) == 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u ||
+        from_op->x != to_op->x || from_op->y != to_op->y ||
+        from_op->w != to_op->w || from_op->h != to_op->h) {
+        return VN_E_FORMAT;
+    }
+    return vn_pp_draw_resource_crossfade(g_rvv_framebuffer,
+                                         g_rvv_stride,
+                                         g_rvv_height,
+                                         from_op,
+                                         to_op,
+                                         clip_rect);
+}
+
 static int rvv_init(const RendererConfig* cfg) {
     vn_u32 pixels;
     size_t u_lut_bytes;
@@ -781,11 +829,26 @@ static int rvv_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
 
     for (i = 0u; i < op_count; ++i) {
         const VNRenderOp* op;
+        int rc;
         op = &ops[i];
-        if (op->op == VN_OP_CLEAR) {
+        if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u) {
+            rc = vn_rvv_draw_resource_crossfade_pair(ops,
+                                                     op_count,
+                                                     i,
+                                                     (const VNRenderRect*)0);
+            if (rc != VN_OK) {
+                return rc;
+            }
+            ++i;
+        } else if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u) {
+            return VN_E_FORMAT;
+        } else if (op->op == VN_OP_CLEAR) {
             vn_rvv_clear_rect(op->alpha, (const VNRenderRect*)0);
         } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
-            vn_rvv_draw_textured_rect(op);
+            rc = vn_rvv_draw_texture_op_clipped(op, (const VNRenderRect*)0);
+            if (rc != VN_OK) {
+                return rc;
+            }
         } else if (op->op == VN_OP_FADE) {
             vn_rvv_fill_rect_uniform(0, 0, g_rvv_cfg.width, g_rvv_cfg.height, 0xFF000000u, op->alpha);
         } else {
@@ -825,6 +888,10 @@ static int rvv_submit_ops_dirty(const VNRenderOp* ops,
     if (ops[0].op != VN_OP_CLEAR) {
         return rvv_submit_ops(ops, op_count);
     }
+    if ((ops[0].flags & (VN_OP_FLAG_RESOURCE_CROSSFADE_FROM |
+                         VN_OP_FLAG_RESOURCE_CROSSFADE_TO)) != 0u) {
+        return VN_E_FORMAT;
+    }
 
     clear_op = &ops[0];
     for (rect_index = 0u; rect_index < dirty_submit->rect_count; ++rect_index) {
@@ -835,9 +902,21 @@ static int rvv_submit_ops_dirty(const VNRenderOp* ops,
         vn_rvv_clear_rect(clear_op->alpha, clip_rect);
         for (i = 1u; i < op_count; ++i) {
             const VNRenderOp* op;
+            int rc;
             op = &ops[i];
-            if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
-                vn_rvv_draw_textured_rect_clipped(op, clip_rect);
+            if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u) {
+                rc = vn_rvv_draw_resource_crossfade_pair(ops, op_count, i, clip_rect);
+                if (rc != VN_OK) {
+                    return rc;
+                }
+                ++i;
+            } else if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u) {
+                return VN_E_FORMAT;
+            } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
+                rc = vn_rvv_draw_texture_op_clipped(op, clip_rect);
+                if (rc != VN_OK) {
+                    return rc;
+                }
             } else if (op->op == VN_OP_FADE) {
                 vn_rvv_fill_rect_uniform_clipped(0,
                                                  0,
@@ -866,6 +945,21 @@ static void rvv_query_caps(VNBackendCaps* out_caps) {
     out_caps->has_tmem_cache = 0u;
 }
 
+static int rvv_get_framebuffer(const vn_u32** out_pixels,
+                               vn_u32* out_width,
+                               vn_u32* out_height) {
+    if (out_pixels == (const vn_u32**)0 || out_width == (vn_u32*)0 || out_height == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (g_rvv_ready == VN_FALSE || g_rvv_framebuffer == (vn_u32*)0) {
+        return VN_E_RENDER_STATE;
+    }
+    *out_pixels = g_rvv_framebuffer;
+    *out_width = g_rvv_stride;
+    *out_height = g_rvv_height;
+    return VN_OK;
+}
+
 static const VNRenderBackend g_rvv_backend = {
     "rvv",
     VN_ARCH_RVV,
@@ -875,7 +969,8 @@ static const VNRenderBackend g_rvv_backend = {
     rvv_submit_ops,
     rvv_end_frame,
     rvv_query_caps,
-    rvv_submit_ops_dirty
+    rvv_submit_ops_dirty,
+    rvv_get_framebuffer
 };
 
 int vn_register_rvv_backend(void) {

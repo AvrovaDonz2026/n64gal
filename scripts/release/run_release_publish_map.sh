@@ -5,11 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_publish}"
-RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.0.0.json}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.1.0.json}"
 TAG_NAME=""
 RELEASE_URL=""
 RELEASE_NOTE=""
-ASSET_PATH=""
+ASSET_PATHS=()
+ASSET_NAMES=()
 BUNDLE_INDEX="${BUNDLE_INDEX:-$ROOT_DIR/build_release_bundle/release_bundle_index.md}"
 BUNDLE_MANIFEST="${BUNDLE_MANIFEST:-$ROOT_DIR/build_release_bundle/release_bundle_manifest.json}"
 REPORT_JSON="${REPORT_JSON:-$ROOT_DIR/build_release_report/release_report.json}"
@@ -57,7 +58,7 @@ while [[ $# -gt 0 ]]; do
     --asset)
       shift
       [[ $# -gt 0 ]] || { usage; exit 2; }
-      ASSET_PATH="$1"
+      ASSET_PATHS+=("$1")
       shift
       ;;
     --bundle-index)
@@ -129,28 +130,9 @@ resolve_spec_path() {
   fi
 }
 
-eval "$(
-python3 - "$RELEASE_SPEC" <<'PY'
-import json
-import shlex
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-asset = payload.get("asset", {})
-fields = {
-    "SPEC_VERSION": payload.get("version", ""),
-    "SPEC_TAG": payload.get("tag", ""),
-    "SPEC_RELEASE_URL": payload.get("release_url", ""),
-    "SPEC_RELEASE_NOTE": payload.get("release_note", ""),
-    "SPEC_ASSET_PATH": asset.get("path", ""),
-}
-for key, value in fields.items():
-    print(f"{key}={shlex.quote(str(value))}")
-PY
-)"
+eval "$(python3 tools/validate/release_spec.py --shell "$RELEASE_SPEC")"
+mapfile -t SPEC_ASSET_PATHS < <(python3 tools/validate/release_spec.py --asset-paths "$RELEASE_SPEC")
+mapfile -t SPEC_ASSET_NAMES < <(python3 tools/validate/release_spec.py --asset-names "$RELEASE_SPEC")
 
 if [[ -z "$TAG_NAME" ]]; then
   TAG_NAME="$SPEC_TAG"
@@ -161,18 +143,31 @@ fi
 if [[ -z "$RELEASE_NOTE" ]]; then
   RELEASE_NOTE="$(resolve_spec_path "$SPEC_RELEASE_NOTE")"
 fi
-if [[ -z "$ASSET_PATH" ]]; then
-  ASSET_PATH="$(resolve_spec_path "$SPEC_ASSET_PATH")"
+if [[ ${#ASSET_PATHS[@]} -eq 0 ]]; then
+  for i in "${!SPEC_ASSET_PATHS[@]}"; do
+    ASSET_PATHS+=("$(resolve_spec_path "${SPEC_ASSET_PATHS[$i]}")")
+    ASSET_NAMES+=("${SPEC_ASSET_NAMES[$i]}")
+  done
+else
+  for asset_path in "${ASSET_PATHS[@]}"; do
+    ASSET_NAMES+=("$(basename "$asset_path")")
+  done
 fi
 
 require_file "$RELEASE_NOTE"
-require_file "$ASSET_PATH"
+for asset_path in "${ASSET_PATHS[@]}"; do
+  require_file "$asset_path"
+done
 require_file "$BUNDLE_INDEX"
 require_file "$BUNDLE_MANIFEST"
 require_file "$REPORT_JSON"
 
-asset_sha="$(sha256sum "$ASSET_PATH" | awk '{print $1}')"
-asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
+ASSET_SHAS=()
+ASSET_BYTES=()
+for asset_path in "${ASSET_PATHS[@]}"; do
+  ASSET_SHAS+=("$(sha256sum "$asset_path" | awk '{print $1}')")
+  ASSET_BYTES+=("$(wc -c <"$asset_path" | tr -d '[:space:]')")
+done
 
 {
   echo "# Release Publish Map"
@@ -187,15 +182,16 @@ asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
   echo
   echo "1. Release spec: \`$RELEASE_SPEC\`"
   echo "2. Release note: \`$RELEASE_NOTE\`"
-  echo "3. Asset: \`$ASSET_PATH\`"
+  echo "3. Assets: \`${#ASSET_PATHS[@]}\`"
   echo "4. Bundle index: \`$BUNDLE_INDEX\`"
   echo "5. Bundle manifest: \`$BUNDLE_MANIFEST\`"
   echo "6. Release report json: \`$REPORT_JSON\`"
   echo
-  echo "## Asset Digest"
+  echo "## Asset Digests"
   echo
-  echo "1. Asset bytes: \`$asset_bytes\`"
-  echo "2. Asset sha256: \`$asset_sha\`"
+  for i in "${!ASSET_PATHS[@]}"; do
+    echo "$((i + 1)). \`${ASSET_NAMES[$i]}\`: path=\`${ASSET_PATHS[$i]}\`, bytes=\`${ASSET_BYTES[$i]}\`, sha256=\`${ASSET_SHAS[$i]}\`"
+  done
 } >"$MAP_OUT"
 
 {
@@ -206,7 +202,16 @@ asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
   printf '  "tag": "%s",\n' "$TAG_NAME"
   printf '  "release_url": "%s",\n' "$RELEASE_URL"
   printf '  "release_note": "%s",\n' "$RELEASE_NOTE"
-  printf '  "asset": {"path":"%s","bytes":%s,"sha256":"%s"},\n' "$ASSET_PATH" "$asset_bytes" "$asset_sha"
+  printf '  "asset": {"name":"%s","path":"%s","bytes":%s,"sha256":"%s"},\n' "${ASSET_NAMES[0]}" "${ASSET_PATHS[0]}" "${ASSET_BYTES[0]}" "${ASSET_SHAS[0]}"
+  printf '  "assets": [\n'
+  for i in "${!ASSET_PATHS[@]}"; do
+    printf '    {"name":"%s","path":"%s","bytes":%s,"sha256":"%s"}' "${ASSET_NAMES[$i]}" "${ASSET_PATHS[$i]}" "${ASSET_BYTES[$i]}" "${ASSET_SHAS[$i]}"
+    if [[ $i -lt $((${#ASSET_PATHS[@]} - 1)) ]]; then
+      printf ','
+    fi
+    printf '\n'
+  done
+  printf '  ],\n'
   printf '  "bundle_index": "%s",\n' "$BUNDLE_INDEX"
   printf '  "bundle_manifest": "%s",\n' "$BUNDLE_MANIFEST"
   printf '  "report_json": "%s",\n' "$REPORT_JSON"
@@ -215,4 +220,4 @@ asset_bytes="$(wc -c <"$ASSET_PATH" | tr -d '[:space:]')"
   printf '}\n'
 } >"$MAP_JSON_OUT"
 
-echo "trace_id=release.publish_map.ok map=$MAP_OUT map_json=$MAP_JSON_OUT tag=$TAG_NAME release_url=$RELEASE_URL asset=$ASSET_PATH"
+echo "trace_id=release.publish_map.ok map=$MAP_OUT map_json=$MAP_JSON_OUT tag=$TAG_NAME release_url=$RELEASE_URL assets=${#ASSET_PATHS[@]}"

@@ -38,6 +38,7 @@ def main():
         shutil.copy2(ROOT / "docs" / "toolchain.md", temp_root / "docs" / "toolchain.md")
         shutil.copy2(ROOT / "docs" / "compat-matrix.md", temp_root / "docs" / "compat-matrix.md")
         shutil.copy2(ROOT / "docs" / "release-roadmap-1.0.0.md", temp_root / "docs" / "release-roadmap-1.0.0.md")
+        shutil.copy2(ROOT / "docs" / "release-roadmap-1.1.0.md", temp_root / "docs" / "release-roadmap-1.1.0.md")
         shutil.copy2(ROOT / "docs" / "release-checklist-v1.0.0.md", temp_root / "docs" / "release-checklist-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "host-sdk.md", temp_root / "docs" / "host-sdk.md")
 

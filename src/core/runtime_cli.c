@@ -4,6 +4,8 @@
 
 #include "runtime_internal.h"
 
+static VNRuntimeSession* g_runtime_live_session = (VNRuntimeSession*)0;
+
 static int runtime_perf_flag_enabled(vn_u32 perf_flags, vn_u32 flag) {
     return ((perf_flags & flag) != 0u) ? VN_TRUE : VN_FALSE;
 }
@@ -91,6 +93,7 @@ int runtime_renderer_reconfigure(VNRuntimeSession* session,
     if (session->renderer_ready != VN_FALSE) {
         renderer_shutdown();
         session->renderer_ready = VN_FALSE;
+        session->frame_ready = VN_FALSE;
     }
 
     rc = renderer_init(&next_cfg);
@@ -105,7 +108,10 @@ int runtime_renderer_reconfigure(VNRuntimeSession* session,
     }
 
     session->renderer_cfg = next_cfg;
+    session->state.render_width = width;
+    session->state.render_height = height;
     session->renderer_ready = VN_TRUE;
+    session->frame_ready = VN_FALSE;
     runtime_render_cache_invalidate(session);
     runtime_dirty_planner_reconfigure(session, width, height);
     return VN_OK;
@@ -359,6 +365,7 @@ void runtime_submit_render_ops(VNRuntimeSession* session,
         renderer_submit(ops, op_count);
     }
     renderer_end_frame();
+    session->frame_ready = VN_TRUE;
 }
 
 static vn_u32 runtime_render_sprite_phase(const VNRuntimeState* state) {
@@ -375,7 +382,113 @@ static vn_u32 runtime_render_fade_phase(const VNRuntimeState* state) {
     return state->frame_index & 0x3Fu;
 }
 
-static void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeState* state) {
+static vn_u32 runtime_content_visual_hash(const VNRuntimeState* state) {
+    vn_u32 hash;
+    vn_u32 i;
+
+    hash = 2166136261u;
+#define VN_CONTENT_HASH(expr) hash ^= (vn_u32)(expr); hash *= 16777619u
+    VN_CONTENT_HASH(state->background_texture_id);
+    VN_CONTENT_HASH(state->previous_background_texture_id);
+    VN_CONTENT_HASH(state->background_active);
+    VN_CONTENT_HASH(state->previous_background_active);
+    VN_CONTENT_HASH(state->background_transition_alpha);
+    VN_CONTENT_HASH(state->background_transition_active);
+    VN_CONTENT_HASH(state->text_id);
+    VN_CONTENT_HASH(state->text_speed_ms);
+    VN_CONTENT_HASH(state->vm_ended);
+    VN_CONTENT_HASH(state->vm_error);
+    VN_CONTENT_HASH(state->choice_count);
+    VN_CONTENT_HASH(state->choice_selected_index);
+    VN_CONTENT_HASH(state->fade_layer_mask);
+    VN_CONTENT_HASH(state->fade_alpha);
+    VN_CONTENT_HASH(state->vm_fade_active);
+    for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+        const VNRuntimeVisualLayer* layer;
+        layer = &state->visual_layers[i];
+        VN_CONTENT_HASH(layer->texture_id);
+        VN_CONTENT_HASH((vn_u16)layer->x);
+        VN_CONTENT_HASH((vn_u16)layer->y);
+        VN_CONTENT_HASH(layer->width);
+        VN_CONTENT_HASH(layer->height);
+        VN_CONTENT_HASH(layer->layer);
+        VN_CONTENT_HASH(layer->active);
+    }
+#undef VN_CONTENT_HASH
+    return hash;
+}
+
+static void runtime_content_visual_key_init(RenderContentVisualKey* out_key,
+                                            const VNRuntimeState* state) {
+    vn_u32 i;
+
+    if (out_key == (RenderContentVisualKey*)0) {
+        return;
+    }
+    (void)memset(out_key, 0, sizeof(*out_key));
+    if (state == (const VNRuntimeState*)0) {
+        return;
+    }
+    out_key->base_width = state->base_width;
+    out_key->base_height = state->base_height;
+    out_key->background_texture_id = state->background_texture_id;
+    out_key->previous_background_texture_id = state->previous_background_texture_id;
+    out_key->text_id = state->text_id;
+    out_key->text_speed_ms = state->text_speed_ms;
+    out_key->background_active = state->background_active;
+    out_key->previous_background_active = state->previous_background_active;
+    out_key->background_transition_alpha = state->background_transition_alpha;
+    out_key->background_transition_active = state->background_transition_active;
+    out_key->vm_ended = state->vm_ended;
+    out_key->vm_error = state->vm_error;
+    out_key->choice_count = state->choice_count;
+    out_key->choice_selected_index = state->choice_selected_index;
+    out_key->fade_layer_mask = state->fade_layer_mask;
+    out_key->fade_alpha = state->fade_alpha;
+    out_key->vm_fade_active = state->vm_fade_active;
+    for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+        out_key->visual_layers[i] = state->visual_layers[i];
+    }
+}
+
+static int runtime_content_visual_key_equal(const RenderContentVisualKey* a,
+                                            const RenderContentVisualKey* b) {
+    vn_u32 i;
+
+    if (a == (const RenderContentVisualKey*)0 ||
+        b == (const RenderContentVisualKey*)0 ||
+        a->base_width != b->base_width || a->base_height != b->base_height ||
+        a->background_texture_id != b->background_texture_id ||
+        a->previous_background_texture_id != b->previous_background_texture_id ||
+        a->text_id != b->text_id || a->text_speed_ms != b->text_speed_ms ||
+        a->background_active != b->background_active ||
+        a->previous_background_active != b->previous_background_active ||
+        a->background_transition_alpha != b->background_transition_alpha ||
+        a->background_transition_active != b->background_transition_active ||
+        a->vm_ended != b->vm_ended || a->vm_error != b->vm_error ||
+        a->choice_count != b->choice_count ||
+        a->choice_selected_index != b->choice_selected_index ||
+        a->fade_layer_mask != b->fade_layer_mask ||
+        a->fade_alpha != b->fade_alpha ||
+        a->vm_fade_active != b->vm_fade_active) {
+        return VN_FALSE;
+    }
+    for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+        const VNRuntimeVisualLayer* a_layer;
+        const VNRuntimeVisualLayer* b_layer;
+        a_layer = &a->visual_layers[i];
+        b_layer = &b->visual_layers[i];
+        if (a_layer->texture_id != b_layer->texture_id ||
+            a_layer->x != b_layer->x || a_layer->y != b_layer->y ||
+            a_layer->width != b_layer->width || a_layer->height != b_layer->height ||
+            a_layer->layer != b_layer->layer || a_layer->active != b_layer->active) {
+            return VN_FALSE;
+        }
+    }
+    return VN_TRUE;
+}
+
+void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeState* state) {
     vn_u32 scene_id;
     vn_u32 text_flags;
 
@@ -402,6 +515,37 @@ static void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeSt
         text_flags |= 8u;
     }
 
+    if (state->content_mode != 0u) {
+        vn_u32 i;
+        out_key->op_count = 1u;
+        if (state->previous_background_active != 0u) {
+            out_key->op_count += 1u;
+        }
+        if (state->background_active != 0u) {
+            out_key->op_count += 1u;
+        }
+        for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+            if (state->visual_layers[i].active != 0u) {
+                out_key->op_count += 1u;
+            }
+        }
+        if (state->text_id != 0u) {
+            out_key->op_count += 1u;
+        }
+        if (state->vm_fade_active != 0u) {
+            out_key->op_count += 1u;
+        }
+        out_key->clear_gray = state->clear_color & 0xFFu;
+        out_key->clear_flags = (state->resource_count > 0u) ? 1u : 0u;
+        out_key->scene_id = scene_id;
+        out_key->content_mode = 1u;
+        out_key->visual_hash = runtime_content_visual_hash(state);
+        runtime_content_visual_key_init(&out_key->content_visual, state);
+        out_key->render_width = state->render_width;
+        out_key->render_height = state->render_height;
+        return;
+    }
+
     if (scene_id == VN_SCENE_S10) {
         out_key->op_count = 6u;
     } else if (state->vm_fade_active != 0u || state->vm_waiting != 0u || scene_id == VN_SCENE_S1 || scene_id == VN_SCENE_S3) {
@@ -412,6 +556,7 @@ static void runtime_render_key_init(RenderOpCacheKey* out_key, const VNRuntimeSt
     out_key->clear_gray = state->clear_color & 0xFFu;
     out_key->clear_flags = (state->resource_count > 0u) ? 1u : 0u;
     out_key->scene_id = scene_id;
+    out_key->content_mode = 0u;
     out_key->sprite_flags = (state->se_id != 0u) ? 1u : 0u;
     if (state->text_id != 0u) {
         out_key->text_tex_id = state->text_id;
@@ -442,6 +587,10 @@ static void runtime_render_patch_cached_ops(const VNRuntimeState* state,
     if (state == (const VNRuntimeState*)0 ||
         ops == (VNRenderOp*)0 ||
         op_count == 0u) {
+        return;
+    }
+
+    if (state->content_mode != 0u) {
         return;
     }
 
@@ -485,11 +634,15 @@ static vn_u32 runtime_render_key_hash(const RenderOpCacheKey* key_data) {
     VN_HASH_VALUE(key_data->text_alpha);
     VN_HASH_VALUE(key_data->fade_flags);
     VN_HASH_VALUE(key_data->fade_mask);
+    VN_HASH_VALUE(key_data->content_mode);
+    VN_HASH_VALUE(key_data->visual_hash);
+    VN_HASH_VALUE(key_data->render_width);
+    VN_HASH_VALUE(key_data->render_height);
 #undef VN_HASH_VALUE
     return hash;
 }
 
-static int runtime_render_key_equal(const RenderOpCacheKey* a, const RenderOpCacheKey* b) {
+int runtime_render_key_equal(const RenderOpCacheKey* a, const RenderOpCacheKey* b) {
     if (a == (const RenderOpCacheKey*)0 || b == (const RenderOpCacheKey*)0) {
         return VN_FALSE;
     }
@@ -502,14 +655,23 @@ static int runtime_render_key_equal(const RenderOpCacheKey* a, const RenderOpCac
             a->text_flags == b->text_flags &&
             a->text_alpha == b->text_alpha &&
             a->fade_flags == b->fade_flags &&
-            a->fade_mask == b->fade_mask) ? VN_TRUE : VN_FALSE;
+            a->fade_mask == b->fade_mask &&
+            a->content_mode == b->content_mode &&
+            a->visual_hash == b->visual_hash &&
+            runtime_content_visual_key_equal(&a->content_visual,
+                                             &b->content_visual) != VN_FALSE &&
+            a->render_width == b->render_width &&
+            a->render_height == b->render_height) ? VN_TRUE : VN_FALSE;
 }
 
 static int runtime_frame_reuse_eligible(const VNRuntimeState* state) {
     if (state == (const VNRuntimeState*)0) {
         return VN_FALSE;
     }
-    if (state->vm_fade_active != 0u) {
+    if (state->fade_duration_ms != 0u) {
+        return VN_FALSE;
+    }
+    if (state->content_mode != 0u && state->background_transition_active != 0u) {
         return VN_FALSE;
     }
     if (state->se_id != 0u) {
@@ -531,6 +693,10 @@ int runtime_prepare_frame_reuse(VNRuntimeSession* session,
         return VN_FALSE;
     }
     if (runtime_perf_flag_enabled(session->perf_flags, VN_RUNTIME_PERF_FRAME_REUSE) == VN_FALSE) {
+        session->frame_reuse_valid = 0u;
+        return VN_FALSE;
+    }
+    if (session->frame_ready == VN_FALSE) {
         session->frame_reuse_valid = 0u;
         return VN_FALSE;
     }
@@ -664,6 +830,7 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     VNRuntimeSession* session;
     const char* pack_path;
     const char* scene_name;
+    const VNSceneCatalogEntry* catalog_scene;
     vn_u32 scene_id;
     vn_u32 force_flag;
     vn_u32 i;
@@ -674,6 +841,9 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     }
     *out_session = (VNRuntimeSession*)0;
     runtime_result_reset();
+    if (g_runtime_live_session != (VNRuntimeSession*)0) {
+        return VN_E_RENDER_STATE;
+    }
 
     active_cfg = cfg;
     if (active_cfg == (const VNRunConfig*)0) {
@@ -699,10 +869,8 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     if (scene_name == (const char*)0 || scene_name[0] == '\0') {
         scene_name = "S0";
     }
-
-    rc = parse_scene_id(scene_name, &scene_id);
-    if (rc != VN_OK) {
-        return rc;
+    if (vn_scene_name_is_valid(scene_name) == VN_FALSE) {
+        return VN_E_INVALID_ARG;
     }
 
     session = (VNRuntimeSession*)malloc(sizeof(VNRuntimeSession));
@@ -713,6 +881,8 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
 
     state_init_defaults(&session->state);
     fade_player_init(&session->fade_player);
+    background_player_init(&session->background_player);
+    vn_scene_catalog_init(&session->scene_catalog);
     keyboard_init(&session->keyboard);
     session->choice_feed.count = 0u;
     session->choice_feed.cursor = 0u;
@@ -747,18 +917,87 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     }
     session->choice_feed.count = active_cfg->choice_seq_count;
 
-    session->state.scene_id = scene_id;
-    session->state.clear_color = (vn_u32)(200u + (scene_id * 12u));
-
-    rc = vnpak_open(&session->pak, pack_path);
+    if (strlen(pack_path) >= sizeof(session->pack_path)) {
+        runtime_session_cleanup(session);
+        free(session);
+        return VN_E_NOMEM;
+    }
+    (void)strcpy(session->pack_path, pack_path);
+    rc = vnpak_open(&session->pak, session->pack_path);
     if (rc != VN_OK) {
+        runtime_session_cleanup(session);
         free(session);
         return rc;
     }
     session->pak_opened = VN_TRUE;
     session->state.resource_count = session->pak.resource_count;
 
-    rc = load_scene_script(&session->pak, session->state.scene_id, &session->script_buf, &session->script_size);
+    rc = vn_scene_catalog_load(&session->scene_catalog, &session->pak);
+    if (rc != VN_OK) {
+        runtime_session_cleanup(session);
+        free(session);
+        return rc;
+    }
+    catalog_scene = (const VNSceneCatalogEntry*)0;
+    if (session->scene_catalog.present != VN_FALSE) {
+        catalog_scene = vn_scene_catalog_find_name(&session->scene_catalog, scene_name);
+        if (catalog_scene == (const VNSceneCatalogEntry*)0 && strcmp(scene_name, "S0") == 0) {
+            catalog_scene = vn_scene_catalog_find_id(&session->scene_catalog,
+                                                     session->scene_catalog.entry_scene_id);
+            if (catalog_scene != (const VNSceneCatalogEntry*)0) {
+                scene_name = catalog_scene->name;
+            }
+        }
+        if (catalog_scene == (const VNSceneCatalogEntry*)0) {
+            runtime_session_cleanup(session);
+            free(session);
+            return VN_E_FORMAT;
+        }
+        scene_id = catalog_scene->scene_id;
+        session->scene_script_resource_id = catalog_scene->script_resource_id;
+        session->state.content_mode = 1u;
+        session->state.clear_color = 24u;
+    } else {
+        rc = parse_scene_id(scene_name, &scene_id);
+        if (rc != VN_OK) {
+            runtime_session_cleanup(session);
+            free(session);
+            return rc;
+        }
+        session->scene_script_resource_id = legacy_scene_script_res_id(scene_id);
+        session->state.content_mode = 0u;
+        session->state.clear_color = (vn_u32)(200u + (scene_id * 12u));
+    }
+    if (strlen(scene_name) >= sizeof(session->scene_name)) {
+        runtime_session_cleanup(session);
+        free(session);
+        return VN_E_NOMEM;
+    }
+    (void)strcpy(session->scene_name, scene_name);
+    session->state.scene_id = scene_id;
+    session->state.base_width = active_cfg->width;
+    session->state.base_height = active_cfg->height;
+    session->state.render_width = session->renderer_cfg.width;
+    session->state.render_height = session->renderer_cfg.height;
+
+    rc = runtime_texture_store_init(&session->texture_store, &session->pak);
+    if (rc != VN_OK) {
+        runtime_session_cleanup(session);
+        free(session);
+        return rc;
+    }
+    session->texture_store_ready = VN_TRUE;
+    rc = vn_texture_source_bind(runtime_texture_store_lookup, &session->texture_store);
+    if (rc != VN_OK) {
+        runtime_session_cleanup(session);
+        free(session);
+        return rc;
+    }
+
+    rc = load_script_resource(&session->pak,
+                              session->scene_script_resource_id,
+                              &session->script_buf,
+                              &session->script_size);
     if (rc != VN_OK) {
         runtime_session_cleanup(session);
         free(session);
@@ -792,6 +1031,7 @@ int vn_runtime_session_create(const VNRunConfig* cfg, VNRuntimeSession** out_ses
     }
 
     runtime_result_publish(session);
+    g_runtime_live_session = session;
     *out_session = session;
     return VN_OK;
 }
@@ -843,6 +1083,9 @@ int vn_runtime_session_destroy(VNRuntimeSession* session) {
         return VN_OK;
     }
     runtime_session_cleanup(session);
+    if (g_runtime_live_session == session) {
+        g_runtime_live_session = (VNRuntimeSession*)0;
+    }
     free(session);
     return VN_OK;
 }

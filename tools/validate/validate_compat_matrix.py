@@ -50,6 +50,7 @@ def main(argv):
     try:
         compat = read_text(root, "docs/compat-matrix.md")
         roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
+        roadmap_v11 = read_text(root, "docs/release-roadmap-1.1.0.md")
         checklist = read_text(root, "docs/release-checklist-v1.0.0.md")
         host_sdk = read_text(root, "docs/host-sdk.md")
         readme = read_text(root, "README.md")
@@ -62,6 +63,7 @@ def main(argv):
 
     try:
         require_contains(compat, "| `v1.0.0` 首版承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.platform_row")
+        require_contains(compat, "| `v1.1.0` 计划 | 是 | 是 | 是 | 是 | 否 |", "compat.v11_platform_row")
         require_contains(compat, "| `rvv` | `qemu-first` | 否 | 转 `post-1.0` |", "compat.backend_rvv")
         require_contains(compat, "| `avx2_asm` | force-only 实验 | 否 | 不进入 auto 优先级 |", "compat.backend_avx2_asm")
         require_contains(compat, "| `vnsave` | `format v1 stable; generic ABI not public` | 首次引入 `v1` |", "compat.vnsave")
@@ -71,6 +73,7 @@ def main(argv):
         require_contains(roadmap, "`v1.0.0` **先不包含 RVV / riscv64 native 承诺**", "roadmap.no_rvv")
         require_contains(roadmap, "`riscv64/RVV` 转入 `post-1.0` 轨道", "roadmap.post_1_0")
         require_contains(roadmap, "`x64/arm64 + Linux/Windows`", "roadmap.platform_scope")
+        require_contains(roadmap_v11, "`RVV/riscv64 native` 因缺少设备证据继续延期", "roadmap_v11.no_device")
 
         require_contains(checklist, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist.post_1_0")
         require_contains(checklist, "`compat-matrix.md` 与 `README` / release 文档口径一致", "checklist.compat_matrix")
@@ -97,6 +100,7 @@ def main(argv):
                 f"root={root}",
                 "v1_scope=x64_arm64_linux_windows",
                 "rvv=post_1_0",
+                "v1_1_scope=real_content",
                 "compat_matrix=present",
             ]
         )

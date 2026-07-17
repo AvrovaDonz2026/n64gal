@@ -144,22 +144,37 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
             t_after_vm = runtime_now_ms();
             t_after_build = t_after_vm;
             t_after_raster = t_after_vm;
+            rc = VN_OK;
             state_from_vm(&session->state, &session->vm);
             fade_player_step(&session->fade_player, &session->vm, session->dt_ms);
             state_apply_fade(&session->state, &session->fade_player);
+            background_player_step(&session->background_player, &session->vm, session->dt_ms);
+            if (session->state.content_mode != 0u) {
+                rc = state_apply_content_visuals(&session->state,
+                                                 &session->vm,
+                                                 &session->background_player,
+                                                 &session->pak);
+                if (rc != VN_OK) {
+                    session->exit_code = 1;
+                    session->done = VN_TRUE;
+                }
+            }
 
             build_cache_hit = VN_FALSE;
             frame_reuse_hit = VN_FALSE;
-            frame_reuse_active = runtime_prepare_frame_reuse(session,
-                                                             &session->state,
-                                                             &frame_reuse_key,
-                                                             &frame_reuse_hit);
-            if (frame_reuse_hit != VN_FALSE) {
+            frame_reuse_active = VN_FALSE;
+            if (rc == VN_OK) {
+                frame_reuse_active = runtime_prepare_frame_reuse(session,
+                                                                 &session->state,
+                                                                 &frame_reuse_key,
+                                                                 &frame_reuse_hit);
+            }
+            if (rc == VN_OK && frame_reuse_hit != VN_FALSE) {
                 op_count = session->last_op_count;
                 rc = VN_OK;
                 t_after_build = runtime_now_ms();
                 t_after_raster = t_after_build;
-            } else {
+            } else if (rc == VN_OK) {
                 op_count = 16u;
                 rc = runtime_build_render_ops_cached(session,
                                                      &session->state,
@@ -174,12 +189,24 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                     session->exit_code = 1;
                     session->done = VN_TRUE;
                 } else {
-                    runtime_prepare_dirty_plan(session, session->ops, op_count);
-                    runtime_submit_render_ops(session, session->ops, op_count);
-                    t_after_raster = runtime_now_ms();
-                    runtime_commit_dirty_plan(session, session->ops, op_count);
-                    if (frame_reuse_active != VN_FALSE) {
-                        runtime_commit_frame_reuse(session, &frame_reuse_key);
+                    rc = runtime_texture_store_prepare_ops(&session->texture_store,
+                                                           session->ops,
+                                                           op_count);
+                    if (rc != VN_OK) {
+                        (void)fprintf(stderr,
+                                      "texture prepare failed rc=%d frame=%u\n",
+                                      rc,
+                                      (unsigned int)session->state.frame_index);
+                        session->exit_code = 1;
+                        session->done = VN_TRUE;
+                    } else {
+                        runtime_prepare_dirty_plan(session, session->ops, op_count);
+                        runtime_submit_render_ops(session, session->ops, op_count);
+                        t_after_raster = runtime_now_ms();
+                        runtime_commit_dirty_plan(session, session->ops, op_count);
+                        if (frame_reuse_active != VN_FALSE) {
+                            runtime_commit_frame_reuse(session, &frame_reuse_key);
+                        }
                     }
                 }
             }
@@ -245,12 +272,6 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                                  (unsigned int)vn_dynres_get_switch_count(&session->dynamic_resolution));
                 }
 
-                switch_rc = runtime_dynamic_resolution_maybe_switch(session, frame_ms);
-                if (switch_rc != VN_OK) {
-                    session->exit_code = 1;
-                    session->done = VN_TRUE;
-                }
-
                 if (session->state.vm_error != 0u) {
                     session->exit_code = 1;
                     session->done = VN_TRUE;
@@ -259,6 +280,13 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                 }
                 if (session->frames_executed >= session->frames_limit) {
                     session->done = VN_TRUE;
+                }
+                if (session->done == VN_FALSE) {
+                    switch_rc = runtime_dynamic_resolution_maybe_switch(session, frame_ms);
+                    if (switch_rc != VN_OK) {
+                        session->exit_code = 1;
+                        session->done = VN_TRUE;
+                    }
                 }
             }
         }
@@ -275,7 +303,7 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result) 
                      renderer_backend_name(),
                      (unsigned int)session->renderer_cfg.width,
                      (unsigned int)session->renderer_cfg.height,
-                     scene_name_from_id(session->state.scene_id),
+                     session->scene_name,
                      (unsigned int)session->frames_executed,
                      (unsigned int)session->dt_ms,
                      (unsigned int)session->state.resource_count,

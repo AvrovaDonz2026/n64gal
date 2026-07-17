@@ -60,15 +60,55 @@ assert_log_has() {
 
 write_summary() {
   local status
+  local content_log
+  local content_crc
+  local legacy_goldens
+  local rvv_backend_hit
+  local rvv_dirty_parity
+  local source_state
+  local head_value
+  local branch_value
   status="$1"
+  content_log="$LOG_DIR/test_resource_texture_backend_rvv.log"
+  if [[ ! -f "$content_log" ]]; then
+    content_log="$LOG_DIR/test_resource_texture_backend.log"
+  fi
+  content_crc="$(sed -n -E 's/.*content_crc=0x([0-9A-Fa-f]+).*/\1/p' "$content_log" 2>/dev/null | tail -n 1)"
+  legacy_goldens="$({ sed -n -E 's/.*scalar scene=([^ ]+) crc=0x([0-9A-Fa-f]+).*/\1=\2/p' "$LOG_DIR/test_runtime_golden.log" 2>/dev/null || true; } | paste -sd ',' -)"
+  [[ -n "$content_crc" ]] || content_crc="none"
+  [[ -n "$legacy_goldens" ]] || legacy_goldens="none"
+  rvv_backend_hit="no"
+  rvv_dirty_parity="no"
+  if grep -q 'backend=rvv' "$LOG_DIR/player_rvv_forced.log" 2>/dev/null; then
+    rvv_backend_hit="yes"
+  fi
+  if grep -q 'matched backend=rvv' "$LOG_DIR/test_renderer_dirty_submit_rvv.log" 2>/dev/null; then
+    rvv_dirty_parity="yes"
+  fi
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    source_state="dirty"
+  else
+    source_state="clean"
+  fi
+  head_value="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  branch_value="$(git branch --show-current 2>/dev/null || true)"
+  [[ -n "$branch_value" ]] || branch_value="detached"
   {
     echo "# RISC-V QEMU Suite Summary"
     echo
     echo "- Status: \`$status\`"
+    echo "- Head: \`$head_value\`"
+    echo "- Branch: \`$branch_value\`"
+    echo "- Source state: \`$source_state\`"
     echo "- Build dir: \`$BUILD_DIR\`"
     echo "- Log dir: \`$LOG_DIR\`"
     echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
     echo "- RVV mode: \`$RVV_MODE\`"
+    echo "- RVV backend hit: \`$rvv_backend_hit\`"
+    echo "- RVV dirty parity: \`$rvv_dirty_parity\`"
+    echo "- Legacy scalar goldens: \`$legacy_goldens\`"
+    echo "- Real-content golden log: \`$content_log\`"
+    echo "- Real-content RGB CRC32: \`$content_crc\`"
     echo "- Fallback evidence: \`$LOG_DIR/player_auto.log\`, \`$LOG_DIR/test_runtime_api.log\`, \`$LOG_DIR/test_renderer_fallback.log\`"
     if compgen -G "$GOLDEN_ARTIFACT_DIR/*" >/dev/null; then
       echo "- Golden artifacts present: yes"
@@ -98,6 +138,10 @@ run_capture "$LOG_DIR/test_runtime_api.log" \
 assert_log_has "$LOG_DIR/test_runtime_api.log" "backend=scalar"
 run_capture "$LOG_DIR/test_runtime_session.log" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_session_riscv64"
+run_capture "$LOG_DIR/test_scene_catalog.log" \
+  "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_scene_catalog_riscv64"
+run_capture "$LOG_DIR/test_resource_texture_backend.log" \
+  "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_resource_texture_backend_riscv64"
 run_capture "$LOG_DIR/test_runtime_golden.log" \
   env VN_GOLDEN_ARTIFACT_DIR="$GOLDEN_ARTIFACT_DIR" \
   "$QEMU_BIN" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_runtime_golden_riscv64"
@@ -135,6 +179,9 @@ rvv_smoke() {
   run_capture "$LOG_DIR/test_renderer_dirty_submit_rvv.log" \
     "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_renderer_dirty_submit_rvv"
   assert_log_has "$LOG_DIR/test_renderer_dirty_submit_rvv.log" "matched backend=rvv"
+  run_capture "$LOG_DIR/test_resource_texture_backend_rvv.log" \
+    "$QEMU_BIN" -cpu "$QEMU_RVV_CPU" -L "$QEMU_SYSROOT" "$BUILD_DIR/test_resource_texture_backend_rvv"
+  assert_log_has "$LOG_DIR/test_resource_texture_backend_rvv.log" "test_resource_texture_backend ok"
 }
 
 if rvv_smoke; then

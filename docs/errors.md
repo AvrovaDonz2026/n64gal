@@ -38,10 +38,10 @@ const char* vn_error_name(int error_code);
 2. 未知错误码返回 `VN_E_UNKNOWN`
 3. 返回值用于诊断、日志、协议输出，不应用来代替错误码本身做逻辑分支
 
-## 4. `1.0.0` 前的承诺边界
+## 4. `v1.x` 承诺边界
 
 1. 当前错误码集合已经是公开 surface
-2. `v0.x` 期间允许追加新错误码
+2. `v1.x` 只允许追加错误码，不能重写已公开数值或含义
 3. 已公开错误码的含义不应被偷偷重写
 4. 若出现破坏性调整，必须同步更新 `README`、release note 和本文件
 
@@ -91,3 +91,16 @@ const char* vn_error_name(int error_code);
 
 1. 即使 `preview` 的实现拆到多个源码文件，`trace_id/error_code/error_name` 语义也不应变化
 2. 当前 `preview` 继续拆成 `preview_parse.c / preview_cli.c / preview_report.c` 只影响可维护性，不影响公开错误语义
+
+## 8. `v1.1.0` 真实内容错误映射
+
+`v1.1.0` 的项目、场景目录和真实纹理沿用现有错误码：
+
+1. 项目声明参数非法、场景名不合规或数值越界：`VN_E_INVALID_ARG`
+2. 场景哈希冲突、未知资源引用、资源目录/像素载荷损坏或 CRC 错误：`VN_E_FORMAT`
+3. 包或截图文件读写失败：`VN_E_IO`
+4. 纹理缓存或 framebuffer 分配失败：`VN_E_NOMEM`
+5. 旧 snapshot API 无法无损表达内容场景状态：`VN_E_UNSUPPORTED`
+6. backend 收到非法纹理 render op 或未初始化渲染状态：`VN_E_RENDER_STATE`
+
+这组能力不新增重复的专用错误码；工具与宿主继续依据 `error_code + error_name + trace_id` 处理。

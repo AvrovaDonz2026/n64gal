@@ -23,6 +23,8 @@ COMMON_SRC=(
   src/core/runtime_persist.c
   src/core/runtime_session_support.c
   src/core/runtime_session_loop.c
+  src/core/scene_catalog.c
+  src/core/runtime_texture.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
@@ -60,6 +62,8 @@ TESTS=(
   test_renderer_dirty_submit
   test_backend_consistency
   test_vm
+  test_scene_catalog
+  test_resource_texture_backend
   test_runtime_api
   test_runtime_dynamic_resolution
   test_runtime_session
@@ -73,6 +77,7 @@ riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" src/main.c "${COMMON_SRC[
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" -c src/backend/rvv/rvv_backend.c -o "$BUILD_DIR/rvv_backend.o"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_backend_consistency.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_backend_consistency_rvv"
 riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_renderer_dirty_submit.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_renderer_dirty_submit_rvv"
+riscv64-linux-gnu-gcc "${CFLAGS[@]}" "${RVV_FLAGS[@]}" tests/unit/test_resource_texture_backend.c "${COMMON_SRC[@]}" -o "$BUILD_DIR/test_resource_texture_backend_rvv"
 
 for test_name in "${TESTS[@]}"; do
   echo "[riscv64-cross] compiling $test_name"

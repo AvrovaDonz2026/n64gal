@@ -157,6 +157,8 @@ COMMON_SRC=(
   src/core/runtime_persist.c
   src/core/runtime_session_support.c
   src/core/runtime_session_loop.c
+  src/core/scene_catalog.c
+  src/core/runtime_texture.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
@@ -185,18 +187,32 @@ write_summary() {
   local frames_value="$2"
   local scene_lines="$3"
   local scenes_json="$4"
+  local pack_sha
+  local source_state
+  local total_simulated_ms
+
+  pack_sha="$(sha256sum "$PACK_PATH" | awk '{print $1}')"
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    source_state="dirty"
+  else
+    source_state="clean"
+  fi
+  total_simulated_ms=$(( frames_value * DT_MS * SCENE_COUNT ))
   {
     echo "# Demo Soak Summary"
     echo
     echo "- Status: \`$status\`"
     echo "- Head: \`$(git rev-parse --short HEAD)\`"
     echo "- Branch: \`$(git branch --show-current)\`"
+    echo "- Source state: \`$source_state\`"
     echo "- Backend: \`$BACKEND\`"
     echo "- Pack: \`$PACK_PATH\`"
+    echo "- Pack SHA256: \`$pack_sha\`"
     echo "- Resolution: \`$RESOLUTION\`"
     echo "- DT ms: \`$DT_MS\`"
     echo "- Scenes: \`$SCENES\`"
     echo "- Frames per scene: \`$frames_value\`"
+    echo "- Total simulated seconds: \`$(( total_simulated_ms / 1000 ))\`"
     echo "- Runner bin: \`$PLAYER_BIN\`"
     echo "- Build dir: \`$BUILD_DIR\`"
     echo "- Log dir: \`$LOG_DIR\`"
@@ -205,22 +221,118 @@ write_summary() {
     echo
     printf "%s" "$scene_lines"
   } >"$SUMMARY_OUT"
-  {
-    printf '{\n'
-    printf '  "status": "%s",\n' "$status"
-    printf '  "head": "%s",\n' "$(git rev-parse --short HEAD)"
-    printf '  "branch": "%s",\n' "$(git branch --show-current)"
-    printf '  "backend": "%s",\n' "$BACKEND"
-    printf '  "pack": "%s",\n' "$PACK_PATH"
-    printf '  "resolution": "%s",\n' "$RESOLUTION"
-    printf '  "dt_ms": %s,\n' "$DT_MS"
-    printf '  "frames_per_scene": %s,\n' "$frames_value"
-    printf '  "runner_bin": "%s",\n' "$PLAYER_BIN"
-    printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
-    printf '  "scenes": [%s]\n' "$scenes_json"
-    printf '}\n'
-  } >"$SUMMARY_JSON_OUT"
+  python3 - "$SUMMARY_JSON_OUT" "$status" "$(git rev-parse --short HEAD)" \
+    "$(git branch --show-current)" "$source_state" "$BACKEND" "$PACK_PATH" "$pack_sha" \
+    "$RESOLUTION" "$DT_MS" "$frames_value" "$total_simulated_ms" \
+    "$PLAYER_BIN" "$SUMMARY_OUT" "$SCENES" "$LOG_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    output_path,
+    status,
+    head,
+    branch,
+    source_state,
+    backend,
+    pack,
+    pack_sha256,
+    resolution,
+    dt_ms,
+    frames_per_scene,
+    total_simulated_ms,
+    runner_bin,
+    summary_md,
+    scenes_text,
+    log_dir,
+) = sys.argv[1:]
+
+scenes = [scene.strip() for scene in scenes_text.split(",") if scene.strip()]
+scene_results = []
+for scene in scenes:
+    log_path = Path(log_dir) / f"scene_{scene}.log"
+    lines = log_path.read_text(encoding="utf-8").splitlines() if log_path.is_file() else []
+    summary_line = next((line for line in reversed(lines) if "trace_id=runtime.run.ok" in line), "")
+    facts = {}
+    for token in summary_line.split():
+        if "=" in token:
+            key, value = token.split("=", 1)
+            facts[key] = value
+    scene_results.append(
+        {
+            "scene": scene,
+            "status": "success" if summary_line else "failed",
+            "frames_executed": int(facts.get("frames", "0")),
+            "vm_ended": int(facts.get("end", "0")),
+            "vm_error": int(facts.get("err", "0")),
+            "frame_reuse_hits": int(facts.get("frame_reuse_hits", "0")),
+            "frame_reuse_misses": int(facts.get("frame_reuse_misses", "0")),
+            "log": str(log_path),
+        }
+    )
+
+payload = {
+    "schema_version": 1,
+    "status": status,
+    "head": head,
+    "branch": branch,
+    "source_state": source_state,
+    "backend": backend,
+    "pack": pack,
+    "pack_sha256": pack_sha256,
+    "resolution": resolution,
+    "dt_ms": int(dt_ms),
+    "frames_per_scene": int(frames_per_scene),
+    "total_simulated_ms": int(total_simulated_ms),
+    "total_simulated_seconds": int(total_simulated_ms) / 1000.0,
+    "runner_bin": runner_bin,
+    "summary_md": summary_md,
+    "scenes": scenes,
+    "scene_results": scene_results,
 }
+Path(output_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+if [[ -z "$FRAMES_PER_SCENE" ]]; then
+  FRAMES_PER_SCENE=$(( (SCENE_DURATION_SEC * 1000 + DT_MS - 1) / DT_MS ))
+fi
+if [[ "$FRAMES_PER_SCENE" -le 0 ]]; then
+  echo "trace_id=release.soak.frames.invalid error_code=-1 error_name=VN_E_INVALID_ARG message=frames-per-scene must be > 0" >&2
+  exit 2
+fi
+
+IFS=',' read -r -a RAW_SCENE_LIST <<<"$SCENES"
+SCENE_LIST=()
+for scene in "${RAW_SCENE_LIST[@]}"; do
+  scene="$(printf '%s' "$scene" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  if [[ -n "$scene" ]]; then
+    if [[ ! "$scene" =~ ^[A-Za-z][A-Za-z0-9_-]{0,62}$ ]]; then
+      echo "trace_id=release.soak.scene_name.invalid error_code=-1 error_name=VN_E_INVALID_ARG scene=$scene message=scene name must match the documented grammar" >&2
+      exit 2
+    fi
+    for existing_scene in "${SCENE_LIST[@]}"; do
+      if [[ "$existing_scene" == "$scene" ]]; then
+        echo "trace_id=release.soak.scene_name.duplicate error_code=-1 error_name=VN_E_INVALID_ARG scene=$scene message=duplicate scene name" >&2
+        exit 2
+      fi
+    done
+    SCENE_LIST+=("$scene")
+  fi
+done
+SCENE_COUNT=${#SCENE_LIST[@]}
+if [[ $SCENE_COUNT -eq 0 ]]; then
+  echo "trace_id=release.soak.scenes.invalid error_code=-1 error_name=VN_E_INVALID_ARG message=at least one scene is required" >&2
+  exit 2
+fi
+SCENES=""
+for scene in "${SCENE_LIST[@]}"; do
+  if [[ -n "$SCENES" ]]; then
+    SCENES="${SCENES},"
+  fi
+  SCENES="${SCENES}${scene}"
+done
 
 if [[ $SKIP_PACK -eq 0 ]]; then
   run_log_step "build-demo-scripts" ./tools/scriptc/build_demo_scripts.sh
@@ -236,22 +348,11 @@ if [[ ! -x "$PLAYER_BIN" ]]; then
   exit 1
 fi
 
-if [[ -z "$FRAMES_PER_SCENE" ]]; then
-  FRAMES_PER_SCENE=$(( (SCENE_DURATION_SEC * 1000 + DT_MS - 1) / DT_MS ))
-fi
-if [[ "$FRAMES_PER_SCENE" -le 0 ]]; then
-  echo "trace_id=release.soak.frames.invalid error_code=-1 error_name=VN_E_INVALID_ARG message=frames-per-scene must be > 0" >&2
-  exit 2
-fi
-
-IFS=',' read -r -a SCENE_LIST <<<"$SCENES"
 SCENE_SUMMARY=""
 SCENE_JSON=""
 STATUS="success"
 
 for scene in "${SCENE_LIST[@]}"; do
-  scene="$(printf '%s' "$scene" | tr -d '[:space:]')"
-  [[ -n "$scene" ]] || continue
   log_path="$LOG_DIR/scene_${scene}.log"
   echo "[demo-soak] scene=$scene frames=$FRAMES_PER_SCENE backend=$BACKEND"
   if ! "$PLAYER_BIN" \
@@ -263,7 +364,7 @@ for scene in "${SCENE_LIST[@]}"; do
       --dt-ms "$DT_MS" \
       --hold-end >"$log_path" 2>&1; then
     STATUS="failed"
-    SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: failed, see \`$log_path\`\n"
+    SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: failed, see \`$log_path\`"$'\n'
     write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY" "$SCENE_JSON"
     cat "$log_path"
     echo "trace_id=release.soak.scene.failed scene=$scene error_code=-3 error_name=VN_E_FORMAT message=scene soak failed" >&2
@@ -273,12 +374,12 @@ for scene in "${SCENE_LIST[@]}"; do
   summary_line="$(grep 'trace_id=runtime.run.ok' "$log_path" | tail -n 1 || true)"
   if [[ -z "$summary_line" ]]; then
     STATUS="failed"
-    SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: missing runtime summary, see \`$log_path\`\n"
+    SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: missing runtime summary, see \`$log_path\`"$'\n'
     write_summary "$STATUS" "$FRAMES_PER_SCENE" "$SCENE_SUMMARY" "$SCENE_JSON"
     echo "trace_id=release.soak.scene.summary_missing scene=$scene error_code=-3 error_name=VN_E_FORMAT message=scene summary missing" >&2
     exit 1
   fi
-  SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: \`$summary_line\`\n"
+  SCENE_SUMMARY="${SCENE_SUMMARY}- \`$scene\`: \`$summary_line\`"$'\n'
   if [[ -n "$SCENE_JSON" ]]; then
     SCENE_JSON="${SCENE_JSON}, "
   fi

@@ -80,6 +80,9 @@ def main(argv):
         require_contains(host_sdk, "vn_runtime_session_create_from_snapshot", "host_sdk.snapshot_restore")
         require_contains(host_sdk, "vn_runtime_session_save_to_file", "host_sdk.snapshot_save_file")
         require_contains(host_sdk, "vn_runtime_session_load_from_file", "host_sdk.snapshot_load_file")
+        require_contains(host_sdk, "VNRuntimeSessionSnapshotV2", "host_sdk.snapshot_v2")
+        require_contains(host_sdk, "vn_runtime_session_get_frame_view", "host_sdk.frame_view")
+        require_contains(host_sdk, "一次只支持一个 live session", "host_sdk.single_session")
         require_contains(host_sdk, "runtime-session-only", "host_sdk.runtime_session_only")
         require_contains(host_sdk, "Linux TTY:", "host_sdk.example_linux")
         require_contains(host_sdk, "Windows Console:", "host_sdk.example_windows")
@@ -95,6 +98,8 @@ def main(argv):
 
         require_contains(example_readme, "src/core/platform.c", "example_readme.platform")
         require_contains(example_readme, "src/core/dynamic_resolution.c", "example_readme.dynamic_resolution")
+        require_contains(example_readme, "src/core/scene_catalog.c", "example_readme.scene_catalog")
+        require_contains(example_readme, "src/core/runtime_texture.c", "example_readme.runtime_texture")
         require_contains(example_readme, "src/frontend/dirty_tiles.c", "example_readme.dirty_tiles")
         require_contains(example_readme, "src/backend/avx2/avx2_fill_fade.c", "example_readme.avx2_fill_fade")
         require_contains(example_readme, "src/backend/avx2/avx2_textured.c", "example_readme.avx2_textured")

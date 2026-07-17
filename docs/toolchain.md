@@ -37,6 +37,8 @@ python3 tools/toolchain.py validate-porting-contracts
 python3 tools/toolchain.py validate-runtime-contracts
 python3 tools/toolchain.py validate-save-contracts
 python3 tools/toolchain.py validate-template-contracts
+python3 tools/toolchain.py validate-project templates/minimal-vn
+python3 tools/toolchain.py build-project templates/minimal-vn
 python3 tools/toolchain.py probe-vnsave --in tests/fixtures/vnsave/v1/sample.vnsave
 python3 tools/toolchain.py probe-trace-summary tests/fixtures/runtime_trace/sample_trace.log
 python3 tools/toolchain.py probe-preview --scene=S2 --frames=2 --command=step_frame:2
@@ -58,22 +60,24 @@ bash scripts/release/run_demo_soak.sh --frames-per-scene 600 --scenes S0,S1,S2,S
 python3 tools/toolchain.py release-soak --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --summary-json-out build_release_soak/demo_soak_summary.json --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-soak --skip-build --runner-bin build_release_soak/vn_player --frames-per-scene 600 --scenes S0,S1,S2,S3,S10
-python3 tools/toolchain.py release-preflight --allow-dirty --skip-cc-suite --out-dir build_release_preflight --release-spec docs/release-publish-v1.0.0.json --soak-frames-per-scene 120 --soak-scenes S0,S1,S2,S3,S10 --remote-github-repo AvrovaDonz2026/n64gal
+BUILD_DIR=build_release_content_soak python3 tools/toolchain.py release-soak --pack assets/demo/content-demo.vnpak --scenes Opening,Gallery --scene-duration-sec 450 --backend scalar
+CC=clang BUILD_DIR=build_ci_sanitizers ./scripts/ci/run_linux_x64_sanitizers.sh
+python3 tools/toolchain.py release-preflight --allow-dirty --skip-cc-suite --ci-suite-summary build_ci_cc/ci_suite_summary.md --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --out-dir build_release_preflight --release-spec docs/release-publish-v1.1.0.json --soak-frames-per-scene 120 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
 python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --soak-frames-per-scene 600 --soak-scenes S0,S1,S2,S3,S10
-python3 tools/toolchain.py release-bundle --out-dir build_release_bundle
-python3 tools/toolchain.py release-report --out-dir build_release_report
-python3 tools/toolchain.py release-publish-map --release-spec docs/release-publish-v1.0.0.json --out-dir build_release_publish
-python3 tools/toolchain.py release-export --release-spec docs/release-publish-v1.0.0.json --out-dir build_release_export
-python3 tools/toolchain.py validate-release-remote-state --github-repo AvrovaDonz2026/n64gal --tag v1.0.0 --release-spec docs/release-publish-v1.0.0.json
-python3 tools/toolchain.py release-remote-summary --github-repo AvrovaDonz2026/n64gal --tag v1.0.0 --release-spec docs/release-publish-v1.0.0.json --out-dir build_release_remote
-python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-export --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --export-out-dir build_release_export
-python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --bundle-out-dir build_release_bundle
+python3 tools/toolchain.py release-bundle --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --out-dir build_release_bundle
+python3 tools/toolchain.py release-report --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --out-dir build_release_report
+python3 tools/toolchain.py release-publish-map --release-spec docs/release-publish-v1.1.0.json --out-dir build_release_publish
+python3 tools/toolchain.py release-export --release-spec docs/release-publish-v1.1.0.json --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --out-dir build_release_export
+python3 tools/toolchain.py validate-release-remote-state --github-repo AvrovaDonz2026/n64gal --tag v1.1.0 --release-spec docs/release-publish-v1.1.0.json
+python3 tools/toolchain.py release-remote-summary --github-repo AvrovaDonz2026/n64gal --tag v1.1.0 --release-spec docs/release-publish-v1.1.0.json --out-dir build_release_remote
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-export --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --export-out-dir build_release_export
+python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soak --with-bundle --soak-skip-build --soak-skip-pack --soak-runner-bin build_release_soak/vn_player --content-soak-summary build_release_content_soak/demo_soak_summary.md --content-soak-summary-json build_release_content_soak/demo_soak_summary.json --bundle-out-dir build_release_bundle
 ```
 
 当前作用：
 
-1. 给 `validate/migrate/probe` 三类子命令提供统一入口
+1. 给 `validate/build/migrate/probe` 四类子命令提供统一入口
 2. 提供统一帮助文本
 3. 保持现有 machine-readable 输出继续透传
 4. `validate-all` 可作为当前 `1.0.0` release gate 的单命令入口
@@ -89,13 +93,17 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 14. `release-gate --with-bundle` 可把 contract gate、soak、host SDK/platform/preview 证据与 bundle 合并成一条正式版前命令
 15. `release-preview-evidence` 可给 preview protocol 固定 request/response 路径产出发布级证据摘要
 16. `release-platform-evidence` 可把平台矩阵、suite summary 与 release-like 命令收成单一平台证据摘要
-17. `release-publish-map` 可把 tag、release URL、release note、demo asset、bundle 与 report 收成单一发布映射
+17. `release-publish-map` 可把 tag、release URL、release note、全部 assets、bundle 与 report 收成单一发布映射
 18. `release-export` 可把 bundle、report 与 publish-map 串成单一导出命令
-19. `docs/release-publish-v1.0.0.json` 当前是正式版 release-facing 命令的默认 spec；`docs/release-publish-v0.1.0-alpha.json` 继续保留给历史 alpha 的审计/对齐链
+19. `docs/release-publish-v1.1.0.json` 是当前 release-facing 命令的默认 spec；v0.1/v1.0 spec 继续保留给历史审计与证据重放
 20. `release-gate --with-export` 可把 contract gate、soak 和 `release-export` 合并成一条正式版前命令
 21. `validate-release-remote-state` 可把 canonical release spec 与 GitHub prerelease JSON 做机检比对，并支持 `--github-repo <owner/repo> --tag <tag>` 或直接从 URL 拉取 release JSON
 22. `release-remote-summary` 可把远端 prerelease 状态收成单一 md/json 摘要，并支持 `--github-repo <owner/repo> --tag <tag>` 或直接从 URL 拉取 release JSON
 23. `release-preflight` 可把 `release-gate --with-soak --with-export` 收成一条本地/CI 都可复用的预检命令
+24. `validate-project` 校验 `template.json` v2、场景、图片和脚本资源引用，但不写构建产物
+25. `build-project` 按声明顺序生成脚本、图片、`VNSC v1` 场景目录、`vnpak v2`、resource map 和审计 manifest
+26. `scripts/ci/run_linux_x64_sanitizers.sh` 以严格 C89、ASan/UBSan 运行核心单测和 `Opening/Gallery` 内容 soak，并对每个进程执行 64 MiB 峰值 RSS 门限
+27. `--content-soak-summary` 与 `--content-soak-summary-json` 将 900 秒真实内容证据成对传入 gate/preflight/export，并在 bundle manifest 中记录 SHA256 和字节数；`v1.1.0` bundle/export 强制要求两者，且校验 `Opening/Gallery`、每场景 450 秒、VM 终态和 pack SHA
 
 ### release-facing outputs
 
@@ -113,17 +121,19 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 10. `release-export` -> `build_release_export/release_export_summary.md` + `build_release_export/release_export_summary.json`
 11. `release-remote-summary` -> `build_release_remote/release_remote_summary.md` + `build_release_remote/release_remote_summary.json`
 12. `release-preflight` -> `build_release_preflight/release_preflight_summary.md` + `build_release_preflight/release_preflight_summary.json`
+13. Linux x64 sanitizer -> `build_ci_sanitizers/sanitizer_summary.md` + `build_ci_sanitizers/sanitizer_summary.json`
+14. v1.1 real-content soak -> `build_release_content_soak/demo_soak_summary.md` + `build_release_content_soak/demo_soak_summary.json`
 
 其中：
 
-1. `release-bundle` 当前默认收口 `release_gate_summary`、`demo_soak_summary`、`ci_suite_summary`、`host_sdk_smoke_summary`、`platform_evidence_summary`、`preview_evidence_summary`
+1. `release-bundle` 当前默认收口 `release_gate_summary`、legacy `demo_soak_summary`、`ci_suite_summary`、`host_sdk_smoke_summary`、`platform_evidence_summary`、`preview_evidence_summary`；历史 spec 可省略 content-soak 参数，`v1.1.0` 必须成对提供并归档 `content_soak_summary.{md,json}`
 2. `release-bundle_manifest.json` 当前为每个收口文件提供 `path/sha256/bytes`
 3. `release-report` 当前会把以上摘要、bundle manifest 与 release docs/perf docs 再汇总成单一发布报告
 4. `release-gate --with-bundle` 当前会自动跑 `release-host-sdk-smoke`、`release-platform-evidence` 与 `release-preview-evidence`，再调用 `release-bundle`
-5. `release-publish-map` 当前会固定 `tag / release URL / release note / demo asset / bundle / report` 的发布映射
+5. `release-publish-map` 当前会固定 `tag / release URL / release note / assets[] / bundle / report` 的发布映射
 6. `release-export` 当前会顺序跑 `release-bundle`、`release-report` 与 `release-publish-map`
-7. release-facing 脚本默认以 `docs/release-publish-v1.0.0.json` 为基线；历史 alpha 的审计/远端对齐仍显式使用 `docs/release-publish-v0.1.0-alpha.json`
-8. `validate-release-remote-state` 当前会校验远端 `tag/html_url/prerelease/assets` 是否与 canonical spec 一致
+7. release-facing 脚本默认以 `docs/release-publish-v1.1.0.json` 为基线；历史 v0.1/v1.0 的审计或远端对齐必须显式传对应 spec
+8. `validate-release-remote-state` 会逐一校验远端 `tag/html_url/draft/prerelease/assets` 是否与 canonical spec 一致
 9. `release-export` 当前在带 remote 输入时，也会把 `release_remote_summary.{md,json}` 一起收进 final bundle
 10. `release-preflight` 当前会顺序跑 `release-gate --with-soak --with-export`
 
@@ -135,18 +145,18 @@ python3 tools/toolchain.py release-gate --allow-dirty --skip-cc-suite --with-soa
 4. `python3 tools/toolchain.py release-host-sdk-smoke`
 5. `python3 tools/toolchain.py release-platform-evidence --out-dir <dir>`
 6. `python3 tools/toolchain.py release-preview-evidence`
-7. `python3 tools/toolchain.py release-bundle --out-dir <dir>`
-8. `python3 tools/toolchain.py release-report --out-dir <dir>`
+7. `python3 tools/toolchain.py release-bundle --content-soak-summary <md> --content-soak-summary-json <json> --out-dir <dir>`
+8. `python3 tools/toolchain.py release-report --content-soak-summary <md> --content-soak-summary-json <json> --out-dir <dir>`
 9. `python3 tools/toolchain.py release-publish-map --out-dir <dir>`
-10. `python3 tools/toolchain.py release-export --out-dir <dir>`
+10. `python3 tools/toolchain.py release-export --content-soak-summary <md> --content-soak-summary-json <json> --out-dir <dir>`
 11. `python3 tools/toolchain.py validate-release-remote-state --release-json <path>`
 12. `python3 tools/toolchain.py validate-release-remote-state --release-json-url <url>`
 13. `python3 tools/toolchain.py validate-release-remote-state --github-repo <owner/repo> --tag <tag>`
 12. `python3 tools/toolchain.py release-remote-summary --release-json <path> --out-dir <dir>`
 13. `python3 tools/toolchain.py release-remote-summary --release-json-url <url> --out-dir <dir>`
 14. `python3 tools/toolchain.py release-remote-summary --github-repo <owner/repo> --tag <tag> --out-dir <dir>`
-15. `python3 tools/toolchain.py release-gate --with-soak --with-export`
-16. `python3 tools/toolchain.py release-preflight --out-dir <dir>`
+15. `python3 tools/toolchain.py release-gate --with-soak --with-export --content-soak-summary <md> --content-soak-summary-json <json>`
+16. `python3 tools/toolchain.py release-preflight --content-soak-summary <md> --content-soak-summary-json <json> --out-dir <dir>`
 
 ### validate
 
@@ -197,6 +207,19 @@ python3 tools/validate/validate_runtime_contracts.py
 python3 tools/validate/validate_save_contracts.py
 python3 tools/validate/validate_template_contracts.py
 ```
+
+### content project
+
+内容项目使用以下统一入口：
+
+```bash
+python3 tools/toolchain.py validate-project templates/minimal-vn
+python3 tools/toolchain.py build-project templates/minimal-vn
+```
+
+`build-project` 先完整校验所有输入，再按 `scenes[]` 顺序分配脚本资源 ID，随后按 `images.json` 顺序分配图片资源 ID，最后追加 `VNSC v1` catalog。输出目录由 `pack_output` 决定，并固定在同目录生成 `scripts/`、`resource-map.json` 和 `manifest.json`；审计 manifest 声明 `min_runtime: v1.1.0`。
+
+脚本编译器还会遍历可达的 `CHOICE/GOTO/CALL/RETURN` 路径，拒绝可达 EOF、空栈 `RETURN`、调用栈溢出和超过 VM 128 步 guard 的路径。guard 分析按 runtime 公开上限 `dt_ms=1000` 跟踪当前帧最坏剩余时间；短 `WAIT` 可能被同一帧完全消费，因此只有保证让出当前帧的等待才会重置静态步数。
 
 输出约定：
 

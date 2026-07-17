@@ -62,11 +62,7 @@ def main(argv):
         host_meta = read_text(root, "templates/host-embed/template.json")
         templates_test = read_text(root, "tests/integration/test_templates_layout.py")
 
-        require_file(root, "templates/minimal-vn/assets/scripts/S0.vns.txt")
-        require_file(root, "templates/minimal-vn/assets/scripts/S1.vns.txt")
-        require_file(root, "templates/minimal-vn/assets/scripts/S2.vns.txt")
-        require_file(root, "templates/minimal-vn/assets/scripts/S3.vns.txt")
-        require_file(root, "templates/minimal-vn/assets/scripts/S10.vns.txt")
+        require_file(root, "templates/minimal-vn/assets/scripts/Opening.vns.txt")
         require_file(root, "templates/minimal-vn/assets/images/images.json")
         require_file(root, "templates/minimal-vn/tools/build_assets.sh")
         require_file(root, "templates/host-embed/src/session_loop.c")
@@ -93,24 +89,37 @@ def main(argv):
         require_contains(minimal_readme, "./templates/minimal-vn/tools/build_assets.sh", "minimal.readme.build_assets")
         require_contains(minimal_readme, "templates/minimal-vn/build/minimal.vnpak", "minimal.readme.pack_output")
         require_contains(minimal_readme, "templates/minimal-vn/build/scripts/*.vns.bin", "minimal.readme.script_output")
-        require_contains(minimal_meta, "\"template_version\": 1", "minimal.meta.version")
+        require_contains(minimal_meta, "\"template_version\": 2", "minimal.meta.version")
         require_contains(minimal_meta, "\"template_name\": \"minimal-vn\"", "minimal.meta.name")
+        require_contains(minimal_meta, "\"entry_scene\": \"Opening\"", "minimal.meta.entry_scene")
+        require_contains(minimal_meta, "\"images_manifest\": \"assets/images/images.json\"", "minimal.meta.images_manifest")
 
         require_contains(host_readme, "./templates/minimal-vn/tools/build_assets.sh", "host.readme.depends_minimal")
+        require_contains(host_readme, "`Opening`", "host.readme.opening_scene")
         require_contains(host_readme, "templates/host-embed/src/session_loop.c", "host.readme.session_loop")
         require_contains(host_readme, "src/core/platform.c", "host.readme.platform")
         require_contains(host_readme, "src/core/dynamic_resolution.c", "host.readme.dynamic_resolution")
+        require_contains(host_readme, "src/core/scene_catalog.c", "host.readme.scene_catalog")
+        require_contains(host_readme, "src/core/runtime_texture.c", "host.readme.runtime_texture")
         require_contains(host_readme, "src/frontend/dirty_tiles.c", "host.readme.dirty_tiles")
         require_contains(host_readme, "src/backend/avx2/avx2_fill_fade.c", "host.readme.avx2_fill_fade")
         require_contains(host_readme, "src/backend/avx2/avx2_textured.c", "host.readme.avx2_textured")
         require_contains(host_meta, "\"template_version\": 1", "host.meta.version")
         require_contains(host_meta, "\"template_name\": \"host-embed\"", "host.meta.name")
 
+        for rel in (
+            "templates/host-embed/src/session_loop.c",
+            "templates/host-embed/src/linux_tty_loop.c",
+            "templates/host-embed/src/windows_console_loop.c",
+        ):
+            require_contains(read_text(root, rel), 'cfg.scene_name = "Opening";', f"{rel}.scene")
+
         require_contains(templates_test, '"minimal-vn"', "templates_test.minimal")
         require_contains(templates_test, '"host-embed"', "templates_test.host")
         require_contains(templates_test, "build_assets.sh", "templates_test.build_assets")
         require_contains(templates_test, "minimal.vnpak", "templates_test.pack_output")
         require_contains(templates_test, 'compiled_scripts = minimal / "build" / "scripts"', "templates_test.script_output")
+        require_contains(templates_test, "resource-map.json", "templates_test.resource_map")
     except ValueError as exc:
         return error("tool.validate.template_contracts.format", VN_E_FORMAT, str(exc), "template contract drift detected")
 

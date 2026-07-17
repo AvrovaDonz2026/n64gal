@@ -1,0 +1,8 @@
+BG demo_ui_rgba16 0
+SPRITE 1 demo_ui_ci8 40 32
+SPRITE 2 demo_ui_ia8 264 152
+TEXT 200 16
+WAIT 160
+BG demo_ui_ci8 160
+WAIT 240
+END

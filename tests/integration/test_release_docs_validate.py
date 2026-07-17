@@ -49,12 +49,16 @@ def main():
         shutil.copy2(ROOT / "docs" / "release-checklist-v1.0.0.md", temp_root / "docs" / "release-checklist-v1.0.0.md")
         shutil.copy2(ROOT / "docs" / "release-publish-v0.1.0-alpha.json", temp_root / "docs" / "release-publish-v0.1.0-alpha.json")
         shutil.copy2(ROOT / "docs" / "release-publish-v1.0.0.json", temp_root / "docs" / "release-publish-v1.0.0.json")
+        shutil.copy2(ROOT / "docs" / "release-roadmap-1.1.0.md", temp_root / "docs" / "release-roadmap-1.1.0.md")
+        shutil.copy2(ROOT / "docs" / "release-v1.1.0.md", temp_root / "docs" / "release-v1.1.0.md")
+        shutil.copy2(ROOT / "docs" / "release-evidence-v1.1.0.md", temp_root / "docs" / "release-evidence-v1.1.0.md")
+        shutil.copy2(ROOT / "docs" / "release-package-v1.1.0.md", temp_root / "docs" / "release-package-v1.1.0.md")
+        shutil.copy2(ROOT / "docs" / "release-checklist-v1.1.0.md", temp_root / "docs" / "release-checklist-v1.1.0.md")
+        shutil.copy2(ROOT / "docs" / "release-publish-v1.1.0.json", temp_root / "docs" / "release-publish-v1.1.0.json")
 
-        broken = (temp_root / "docs" / "release-v0.1.0-alpha.md").read_text(encoding="utf-8")
-        broken = broken.replace("`JIT`；当前仍是文档化实验方向，不是 release blocker。",
-                                "`JIT` 已进入当前发布范围。",
-                                1)
-        (temp_root / "docs" / "release-v0.1.0-alpha.md").write_text(broken, encoding="utf-8")
+        broken = (temp_root / "docs" / "release-publish-v1.1.0.json").read_text(encoding="utf-8")
+        broken = broken.replace('  "release_evidence": "docs/release-evidence-v1.1.0.md",\n', "", 1)
+        (temp_root / "docs" / "release-publish-v1.1.0.json").write_text(broken, encoding="utf-8")
 
         rc, out, err = run_case(temp_root)
         if rc == 0:

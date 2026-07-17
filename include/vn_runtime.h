@@ -2,6 +2,7 @@
 #define VN_RUNTIME_H
 
 #include "vn_types.h"
+#include "vn_version.h"
 
 #define VN_RUNTIME_API_VERSION "v1"
 #define VN_RUNTIME_API_STABILITY "public stable v1"
@@ -9,11 +10,23 @@
 #define VN_RUNTIME_SNAPSHOT_PATH_MAX 512u
 #define VN_RUNTIME_SNAPSHOT_BACKEND_MAX 16u
 #define VN_RUNTIME_SNAPSHOT_CALL_STACK_MAX 16u
+#define VN_RUNTIME_SCENE_NAME_MAX 64u
+#define VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX 8u
 #define VN_RUNTIME_PERF_OP_CACHE    (1u << 0)
 #define VN_RUNTIME_PERF_FRAME_REUSE (1u << 1)
 #define VN_RUNTIME_PERF_DIRTY_TILE         (1u << 2)
 #define VN_RUNTIME_PERF_DYNAMIC_RESOLUTION (1u << 3)
 #define VN_RUNTIME_PERF_DEFAULT_FLAGS (VN_RUNTIME_PERF_OP_CACHE | VN_RUNTIME_PERF_FRAME_REUSE)
+
+#define VN_RUNTIME_CAP_SCENE_CATALOG  (1u << 0)
+#define VN_RUNTIME_CAP_RESOURCE_TEXTURE (1u << 1)
+#define VN_RUNTIME_CAP_FRAME_VIEW     (1u << 2)
+#define VN_RUNTIME_CAP_SNAPSHOT_V2    (1u << 3)
+
+#define VN_RUNTIME_BUILD_INFO_V2_VERSION 2u
+#define VN_RUNTIME_SNAPSHOT_V2_VERSION 2u
+#define VN_RUNTIME_FRAME_VIEW_VERSION 1u
+#define VN_RUNTIME_PIXEL_FORMAT_ARGB8888_U32 1u
 
 typedef struct {
     const char* pack_path;
@@ -58,6 +71,25 @@ typedef struct {
     const char* host_arch;
     const char* host_compiler;
 } VNRuntimeBuildInfo;
+
+typedef struct {
+    vn_u32 struct_size;
+    vn_u32 version;
+    const char* engine_version;
+    vn_u32 capability_flags;
+    VNRuntimeBuildInfo v1;
+} VNRuntimeBuildInfoV2;
+
+typedef struct {
+    vn_u32 struct_size;
+    vn_u32 version;
+    const vn_u32* pixels;
+    vn_u32 pixel_count;
+    vn_u32 stride_pixels;
+    vn_u16 width;
+    vn_u16 height;
+    vn_u32 pixel_format;
+} VNRuntimeFrameView;
 
 typedef struct {
     char pack_path[VN_RUNTIME_SNAPSHOT_PATH_MAX];
@@ -111,6 +143,34 @@ typedef struct {
 } VNRuntimeSessionSnapshot;
 
 typedef struct {
+    vn_u16 texture_id;
+    vn_i16 x;
+    vn_i16 y;
+    vn_u8 active;
+    vn_u8 reserved;
+} VNRuntimeVisualLayerSnapshot;
+
+typedef struct {
+    vn_u32 struct_size;
+    vn_u32 version;
+    VNRuntimeSessionSnapshot v1;
+    char scene_name[VN_RUNTIME_SCENE_NAME_MAX];
+    vn_u32 content_mode;
+    vn_u16 vm_background_texture_id;
+    vn_u16 vm_previous_background_texture_id;
+    vn_u16 vm_background_duration_ms;
+    vn_u32 vm_background_serial;
+    vn_u32 vm_sprite_serial;
+    VNRuntimeVisualLayerSnapshot visual_layers[VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX];
+    vn_u32 background_seen_serial;
+    vn_u16 background_previous_texture_id;
+    vn_u16 background_texture_id;
+    vn_u16 background_duration_ms;
+    vn_u32 background_elapsed_ms;
+    vn_u8 background_active;
+} VNRuntimeSessionSnapshotV2;
+
+typedef struct {
     vn_u32 frames_executed;
     vn_u32 text_id;
     vn_u32 vm_waiting;
@@ -147,6 +207,14 @@ typedef struct VNRuntimeSession VNRuntimeSession;
 
 void vn_run_config_init(VNRunConfig* cfg);
 void vn_runtime_query_build_info(VNRuntimeBuildInfo* out_info);
+void vn_runtime_build_info_v2_init(VNRuntimeBuildInfoV2* out_info);
+int vn_runtime_query_build_info_v2(VNRuntimeBuildInfoV2* out_info);
+void vn_runtime_frame_view_init(VNRuntimeFrameView* out_view);
+void vn_runtime_session_snapshot_v2_init(VNRuntimeSessionSnapshotV2* snapshot);
+int vn_runtime_session_capture_snapshot_v2(const VNRuntimeSession* session,
+                                           VNRuntimeSessionSnapshotV2* out_snapshot);
+int vn_runtime_session_create_from_snapshot_v2(const VNRuntimeSessionSnapshotV2* snapshot,
+                                               VNRuntimeSession** out_session);
 int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
                                         VNRuntimeSessionSnapshot* out_snapshot);
 int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot,
@@ -164,6 +232,8 @@ int vn_runtime_session_step(VNRuntimeSession* session, VNRunResult* out_result);
 int vn_runtime_session_is_done(const VNRuntimeSession* session);
 int vn_runtime_session_set_choice(VNRuntimeSession* session, vn_u8 choice_index);
 int vn_runtime_session_inject_input(VNRuntimeSession* session, const VNInputEvent* event);
+int vn_runtime_session_get_frame_view(const VNRuntimeSession* session,
+                                      VNRuntimeFrameView* out_view);
 int vn_runtime_session_destroy(VNRuntimeSession* session);
 
 #endif

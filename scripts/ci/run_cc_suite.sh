@@ -40,25 +40,50 @@ dirty_submit_matched_backends() {
 }
 
 write_summary() {
-  local status
-  local dirty_log
-  local dirty_matches
+    local status
+    local dirty_log
+    local dirty_matches
+    local content_log
+    local content_crc
+    local legacy_goldens
+    local source_state
+    local head_value
+    local branch_value
 
-  status="$1"
-  dirty_log="$LOG_DIR/test_renderer_dirty_submit.log"
-  dirty_matches="$(dirty_submit_matched_backends "$dirty_log")"
-  {
-    echo "# CI Suite Summary"
-    echo
-    echo "- Status: \`$status\`"
-    echo "- Build dir: \`$BUILD_DIR\`"
+    status="$1"
+    dirty_log="$LOG_DIR/test_renderer_dirty_submit.log"
+    dirty_matches="$(dirty_submit_matched_backends "$dirty_log")"
+    content_log="$LOG_DIR/test_resource_texture_backend.log"
+    content_crc="$(sed -n -E 's/.*content_crc=0x([0-9A-Fa-f]+).*/\1/p' "$content_log" 2>/dev/null | tail -n 1)"
+    legacy_goldens="$({ sed -n -E 's/.*scalar scene=([^ ]+) crc=0x([0-9A-Fa-f]+).*/\1=\2/p' "$LOG_DIR/test_runtime_golden.log" 2>/dev/null || true; } | paste -sd ',' -)"
+    [[ -n "$content_crc" ]] || content_crc="none"
+    [[ -n "$legacy_goldens" ]] || legacy_goldens="none"
+    if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+      source_state="dirty"
+    else
+      source_state="clean"
+    fi
+    head_value="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    branch_value="$(git branch --show-current 2>/dev/null || true)"
+    [[ -n "$branch_value" ]] || branch_value="detached"
+    {
+      echo "# CI Suite Summary"
+      echo
+      echo "- Status: \`$status\`"
+      echo "- Head: \`$head_value\`"
+      echo "- Branch: \`$branch_value\`"
+      echo "- Source state: \`$source_state\`"
+      echo "- Build dir: \`$BUILD_DIR\`"
     echo "- Temp dir: \`$TMPDIR\`"
     echo "- Log dir: \`$LOG_DIR\`"
     echo "- Golden artifact dir: \`$GOLDEN_ARTIFACT_DIR\`"
     echo "- Fallback log: \`$LOG_DIR/test_renderer_fallback.log\`"
     echo "- Dirty submit log: \`$dirty_log\`"
-    echo "- Dirty submit matched backends: \`$dirty_matches\`"
-    echo "- Golden runtime log: \`$LOG_DIR/test_runtime_golden.log\`"
+      echo "- Dirty submit matched backends: \`$dirty_matches\`"
+      echo "- Golden runtime log: \`$LOG_DIR/test_runtime_golden.log\`"
+      echo "- Legacy scalar goldens: \`$legacy_goldens\`"
+      echo "- Real-content golden log: \`$content_log\`"
+      echo "- Real-content RGB CRC32: \`$content_crc\`"
     if compgen -G "$GOLDEN_ARTIFACT_DIR/*" >/dev/null; then
       echo "- Golden artifacts present: yes"
     else
@@ -93,6 +118,7 @@ run_capture "$LOG_DIR/test_runtime_contracts_validate.log" python3 tests/integra
 run_capture "$LOG_DIR/test_save_contracts_validate.log" python3 tests/integration/test_save_contracts_validate.py
 run_capture "$LOG_DIR/test_template_contracts_validate.log" python3 tests/integration/test_template_contracts_validate.py
 run_capture "$LOG_DIR/test_templates_layout.log" python3 tests/integration/test_templates_layout.py
+run_capture "$LOG_DIR/test_project_toolchain.log" python3 tests/integration/test_project_toolchain.py
 run_capture "$LOG_DIR/test_toolchain_cli.log" env VN_TOOLCHAIN_CLI_LIGHT=1 python3 tests/integration/test_toolchain_cli.py
 run_capture "$LOG_DIR/test_release_gate_script.log" python3 tests/integration/test_release_gate_script.py
 run_capture "$LOG_DIR/test_release_soak_script.log" python3 tests/integration/test_release_soak_script.py
@@ -129,6 +155,8 @@ COMMON_SRC=(
   src/core/runtime_persist.c
   src/core/runtime_session_support.c
   src/core/runtime_session_loop.c
+  src/core/scene_catalog.c
+  src/core/runtime_texture.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
@@ -169,6 +197,8 @@ TESTS=(
   test_backend_priority
   test_avx2_fastpath_parity
   test_vm
+  test_scene_catalog
+  test_resource_texture_backend
   test_runtime_api
   test_runtime_dynamic_resolution
   test_runtime_session

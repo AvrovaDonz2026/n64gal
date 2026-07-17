@@ -21,14 +21,16 @@ def main():
         bundle_index = Path(temp_dir) / "release_bundle_index.md"
         bundle_manifest = Path(temp_dir) / "release_bundle_manifest.json"
         report_json = Path(temp_dir) / "release_report.json"
+        content_demo = Path(temp_dir) / "content-demo.vnpak"
 
         write_text(
             release_spec,
-            '{"version":"v0.1.0-alpha","tag":"v0.1.0-alpha","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha","release_note":"docs/release-v0.1.0-alpha.md","asset":{"path":"assets/demo/demo.vnpak"}}\n',
+            '{"version":"v1.1.0","tag":"v1.1.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0","release_note":"docs/release-v1.1.0.md","assets":[{"name":"demo.vnpak","path":"assets/demo/demo.vnpak"},{"name":"content-demo.vnpak","path":"%s"}]}\n' % content_demo,
         )
         write_text(bundle_index, "# Release Bundle\n")
-        write_text(bundle_manifest, '{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1}]}\n')
+        write_text(bundle_manifest, '{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1},{"path":"content-demo.vnpak","sha256":"feedface","bytes":2}]}\n')
         write_text(report_json, '{"report_md":"release_report.md"}\n')
+        content_demo.write_bytes(b"content-demo")
 
         proc = subprocess.run(
             SCRIPT
@@ -62,16 +64,19 @@ def main():
             return 1
 
         map_text = map_md.read_text(encoding="utf-8")
-        if "# Release Publish Map" not in map_text or "`v0.1.0-alpha`" not in map_text:
+        if "# Release Publish Map" not in map_text or "`v1.1.0`" not in map_text:
             print("release publish map markdown content missing", file=sys.stderr)
             return 1
 
         map_json_text = map_json.read_text(encoding="utf-8")
-        if '"tag": "v0.1.0-alpha"' not in map_json_text:
+        if '"tag": "v1.1.0"' not in map_json_text:
             print("release publish map json missing tag", file=sys.stderr)
             return 1
         if '"bundle_manifest":' not in map_json_text or '"sha256":' not in map_json_text:
             print("release publish map json missing bundle/asset details", file=sys.stderr)
+            return 1
+        if '"name":"content-demo.vnpak"' not in map_json_text or '"assets": [' not in map_json_text:
+            print("release publish map json missing multiple assets", file=sys.stderr)
             return 1
 
     print("test_release_publish_map_script ok")

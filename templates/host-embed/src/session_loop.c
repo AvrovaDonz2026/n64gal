@@ -14,7 +14,7 @@ int main(void) {
     session = (VNRuntimeSession*)0;
     vn_run_config_init(&cfg);
     cfg.pack_path = "templates/minimal-vn/build/minimal.vnpak";
-    cfg.scene_name = "S0";
+    cfg.scene_name = "Opening";
     cfg.backend_name = "auto";
     cfg.frames = 12u;
     cfg.dt_ms = 16u;

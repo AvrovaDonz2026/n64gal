@@ -53,6 +53,7 @@ def main(argv):
         runtime_cli = read_text(root, "src/core/runtime_cli.c")
         runtime_session_support = read_text(root, "src/core/runtime_session_support.c")
         pack_test = read_text(root, "tests/unit/test_vnpak.c")
+        scene_catalog_test = read_text(root, "tests/unit/test_scene_catalog.c")
         readme = read_text(root, "README.md")
         toolchain = read_text(root, "docs/toolchain.md")
     except FileNotFoundError as exc:
@@ -67,11 +68,17 @@ def main(argv):
         require_contains(pack_doc, "### `int vnpak_read_resource(const VNPak* pak, vn_u32 id, vn_u8* out_buf, vn_u32 out_size, vn_u32* out_read)`", "pack_doc.read_api")
         require_contains(pack_doc, "`assets/demo/demo.vnpak`", "pack_doc.demo_pack")
         require_contains(pack_doc, "`assets/demo/manifest.json`", "pack_doc.manifest")
+        require_contains(pack_doc, "`assets/demo/content-demo.vnpak`", "pack_doc.content_demo")
+        require_contains(pack_doc, "### `VNSC v1` 场景目录", "pack_doc.scene_catalog")
+        require_contains(pack_doc, "最多 4096 个资源", "pack_doc.resource_limit")
+        require_contains(pack_doc, "working set 总量也不得超过 32 MiB", "pack_doc.working_set_limit")
 
         require_contains(pack_header, "int vnpak_open(VNPak* pak, const char* path);", "pack_header.open_api")
         require_contains(pack_header, "const ResourceEntry* vnpak_get(const VNPak* pak, vn_u32 id);", "pack_header.get_api")
         require_contains(pack_header, "int vnpak_read_resource(const VNPak* pak, vn_u32 id, vn_u8* out_buf, vn_u32 out_size, vn_u32* out_read);", "pack_header.read_api")
         require_contains(pack_header, "void vnpak_close(VNPak* pak);", "pack_header.close_api")
+        require_contains(pack_header, "#define VN_RESOURCE_TYPE_SCENE_CATALOG 3u", "pack_header.scene_catalog_type")
+        require_contains(pack_header, "#define VN_IMAGE_FORMAT_CI8", "pack_header.ci8_format")
 
         require_contains(runtime_cli, "vnpak_open(", "runtime_cli.open_pack")
         require_contains(runtime_session_support, "vnpak_read_resource(", "runtime_session_support.read_pack")
@@ -81,6 +88,7 @@ def main(argv):
         require_contains(pack_test, "write_demo_pack_v2", "pack_test.v2")
         require_contains(pack_test, "VN_E_NOMEM", "pack_test.nmem")
         require_contains(pack_test, "VN_E_FORMAT", "pack_test.format")
+        require_contains(scene_catalog_test, 'vn_scene_catalog_find_name(&catalog, "Opening")', "scene_catalog_test.opening")
 
         require_contains(readme, "docs/api/pack.md", "readme.pack_doc")
         require_contains(toolchain, "python3 tools/toolchain.py validate-pack-contracts", "toolchain.validate_pack")

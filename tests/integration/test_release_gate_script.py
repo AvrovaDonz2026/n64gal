@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import subprocess
 import sys
@@ -77,6 +78,7 @@ def main():
     if not summary_json_path.exists():
         print("release gate json summary missing", file=sys.stderr)
         return 1
+    json.loads(summary_json_path.read_text(encoding="utf-8"))
 
     summary_text = summary_path.read_text(encoding="utf-8")
     if "# Release Gate Summary" not in summary_text:
@@ -123,6 +125,7 @@ def main():
     if not summary_path_runner.exists() or not summary_json_path_runner.exists():
         print("release gate runner-bin gate summaries missing", file=sys.stderr)
         return 1
+    json.loads(summary_json_path_runner.read_text(encoding="utf-8"))
     if not soak_summary_path_runner.exists() or not soak_summary_json_path_runner.exists():
         print("release gate runner-bin soak summaries missing", file=sys.stderr)
         return 1
@@ -182,6 +185,10 @@ def main():
         return 1
     if not (export_dir / "release_export_summary.md").exists():
         print("release gate export summary missing", file=sys.stderr)
+        return 1
+    bundled_gate = (export_dir / "bundle" / "summaries" / "release_gate_summary.md").read_text(encoding="utf-8")
+    if "- Status: `success`" not in bundled_gate or "- Status: `in_progress`" in bundled_gate:
+        print("release export bundled a stale gate status", file=sys.stderr)
         return 1
 
     proc = subprocess.run(

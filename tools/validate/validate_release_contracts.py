@@ -53,6 +53,7 @@ def main(argv):
     try:
         readme = read_text(root, "README.md")
         roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
+        roadmap_v11 = read_text(root, "docs/release-roadmap-1.1.0.md")
         compat = read_text(root, "docs/compat-matrix.md")
         host_sdk = read_text(root, "docs/host-sdk.md")
         migration = read_text(root, "docs/migration.md")
@@ -70,6 +71,10 @@ def main(argv):
 
         require_contains(roadmap, "先不包含 RVV / riscv64 native 承诺", "roadmap.rvv_scope")
         require_contains(roadmap, "`riscv64/RVV` 转入 `post-1.0` 轨道", "roadmap.post_1_0")
+        require_contains(roadmap_v11, "真实内容渲染切片", "roadmap_v11.content_slice")
+        require_contains(roadmap_v11, "Runtime API 继续保持 `public stable v1`", "roadmap_v11.runtime_v1")
+        require_contains(roadmap_v11, "`preview protocol v1`、`vnpak v2` 默认写入格式和 `vnsave v1` 外层格式不升级", "roadmap_v11.format_versions")
+        require_contains(roadmap_v11, "`RVV/riscv64 native` 因缺少设备证据继续延期", "roadmap_v11.rvv_deferred")
 
         require_contains(compat, "| `v1.0.0` 首版承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.platform_matrix")
         require_contains(compat, "| `tool manifest` | `planned v1` |", "compat.tool_manifest")
@@ -99,6 +104,7 @@ def main(argv):
                 "trace_id=tool.validate.release_contracts.ok",
                 f"root={root}",
                 "rvv_scope=post-1.0",
+                "v1_1_scope=real-content",
                 "tool_manifest=v1-planned",
                 "vnsave_scope=pre-1.0->v1.0.0",
             ]

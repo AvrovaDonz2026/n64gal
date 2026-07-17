@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "vn_error.h"
 #include "vn_runtime.h"
 #include "vn_save.h"
 
@@ -28,11 +29,14 @@ int main(void) {
     const char* save_path;
     const char* cli_save_path;
     VNRunConfig cfg;
+    VNRunResult resumed_result;
     VNRuntimeSession* session;
+    VNRuntimeSession* resumed_session;
     VNSaveProbe probe;
     char* argv_missing[2];
     char* argv_invalid[2];
     char* argv_scene[2];
+    char* argv_content[8];
     char* argv_load_missing[2];
     char* argv_load_conflict[3];
     char* argv_load_ok[3];
@@ -51,8 +55,10 @@ int main(void) {
     (void)remove(save_path);
     (void)remove(cli_save_path);
     memset((void*)&probe, 0, sizeof(probe));
+    memset((void*)&resumed_result, 0, sizeof(resumed_result));
 
     session = (VNRuntimeSession*)0;
+    resumed_session = (VNRuntimeSession*)0;
     vn_run_config_init(&cfg);
     cfg.scene_name = "S2";
     cfg.frames = 8u;
@@ -118,7 +124,7 @@ int main(void) {
     }
 
     argv_scene[0] = (char*)"vn_player";
-    argv_scene[1] = (char*)"--scene=NOPE";
+    argv_scene[1] = (char*)"--scene=bad/name";
     if (redirect_stderr_to(err_path) != 0) {
         return 1;
     }
@@ -131,6 +137,20 @@ int main(void) {
     if (!file_contains(err_path, "trace_id=runtime.cli.scene.invalid") ||
         !file_contains(err_path, "arg=scene")) {
         (void)printf("missing structured invalid-scene output\n");
+        return 1;
+    }
+
+    argv_content[0] = (char*)"vn_player";
+    argv_content[1] = (char*)"--pack=assets/demo/content-demo.vnpak";
+    argv_content[2] = (char*)"--scene=Opening";
+    argv_content[3] = (char*)"--backend=scalar";
+    argv_content[4] = (char*)"--resolution=64x48";
+    argv_content[5] = (char*)"--frames=8";
+    argv_content[6] = (char*)"--dt-ms=40";
+    argv_content[7] = (char*)"--quiet";
+    rc = vn_runtime_run_cli(8, argv_content);
+    if (rc != 0) {
+        (void)printf("content catalog scene CLI case rc=%d\n", rc);
         return 1;
     }
 
@@ -274,6 +294,25 @@ int main(void) {
         (void)remove(cli_save_path);
         return 1;
     }
+    rc = vn_runtime_session_load_from_file(cli_save_path, &resumed_session);
+    if (rc != VN_OK || resumed_session == (VNRuntimeSession*)0) {
+        (void)printf("save-out resume load failed rc=%d\n", rc);
+        (void)remove(save_path);
+        (void)remove(cli_save_path);
+        return 1;
+    }
+    rc = vn_runtime_session_step(resumed_session, &resumed_result);
+    if (rc != VN_OK || resumed_result.frames_executed != 4u) {
+        (void)printf("save-out resume did not advance rc=%d frames=%u\n",
+                     rc,
+                     (unsigned int)resumed_result.frames_executed);
+        (void)vn_runtime_session_destroy(resumed_session);
+        (void)remove(save_path);
+        (void)remove(cli_save_path);
+        return 1;
+    }
+    (void)vn_runtime_session_destroy(resumed_session);
+    resumed_session = (VNRuntimeSession*)0;
 
     (void)remove(err_path);
     (void)remove(save_path);

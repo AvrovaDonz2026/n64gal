@@ -115,6 +115,22 @@ function Get-DirtySubmitMatchedBackends {
     return ($Matches -join ',')
 }
 
+function Get-ContentGoldenCRC {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LogPath
+    )
+
+    if (-not (Test-Path $LogPath -PathType Leaf)) {
+        return 'none'
+    }
+    $Matches = @(Select-String -Path $LogPath -Pattern 'content_crc=0x([0-9A-Fa-f]+)')
+    if ($Matches.Count -eq 0 -or $Matches[-1].Matches.Count -eq 0) {
+        return 'none'
+    }
+    return $Matches[-1].Matches[0].Groups[1].Value
+}
+
 function Write-Summary {
     param(
         [Parameter(Mandatory = $true)]
@@ -152,6 +168,8 @@ function Write-Summary {
     }
     $DirtySubmitLogPath = Join-Path $LogDirText 'test_renderer_dirty_submit.log'
     $DirtySubmitMatched = Get-DirtySubmitMatchedBackends -LogPath $DirtySubmitLogPath
+    $ContentGoldenLogPath = Join-Path $LogDirText 'test_resource_texture_backend.log'
+    $ContentGoldenCRC = Get-ContentGoldenCRC -LogPath $ContentGoldenLogPath
 
     $Lines = @(
         '# CI Suite Summary',
@@ -171,6 +189,8 @@ function Write-Summary {
         "- Dirty submit matched backends: $DirtySubmitMatched",
         "- Runtime API log: $LogDirText/test_runtime_api.log",
         "- Golden runtime log: $LogDirText/test_runtime_golden.log",
+        "- Real-content golden log: $ContentGoldenLogPath",
+        "- Real-content RGB CRC32: $ContentGoldenCRC",
         "- Golden artifacts present: $GoldenPresent"
     )
 
@@ -227,6 +247,7 @@ try {
             @{ Step = 'test_renderer_fallback'; File = 'test_renderer_fallback.exe'; Log = 'test_renderer_fallback.log' },
             @{ Step = 'test_renderer_dirty_submit'; File = 'test_renderer_dirty_submit.exe'; Log = 'test_renderer_dirty_submit.log' },
             @{ Step = 'test_runtime_api'; File = 'test_runtime_api.exe'; Log = 'test_runtime_api.log' },
+            @{ Step = 'test_resource_texture_backend'; File = 'test_resource_texture_backend.exe'; Log = 'test_resource_texture_backend.log' },
             @{ Step = 'test_runtime_golden'; File = 'test_runtime_golden.exe'; Log = 'test_runtime_golden.log' }
         )
         $RerunOk = $true
@@ -268,6 +289,7 @@ try {
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_renderer_fallback.log') -Reason 'build failed'
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_renderer_dirty_submit.log') -Reason 'build failed'
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_runtime_api.log') -Reason 'build failed'
+        Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_resource_texture_backend.log') -Reason 'build failed'
         Write-SkippedLog -LogPath (Join-Path $LogDirAbs 'test_runtime_golden.log') -Reason 'build failed'
         $script:StepStatus['rerun-binaries'] = 'skipped(build-failed)'
     }

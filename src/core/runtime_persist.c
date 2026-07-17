@@ -10,7 +10,8 @@
 #define VN_RUNTIME_SNAPSHOT_MAGIC_1 ((vn_u8)'N')
 #define VN_RUNTIME_SNAPSHOT_MAGIC_2 ((vn_u8)'R')
 #define VN_RUNTIME_SNAPSHOT_MAGIC_3 ((vn_u8)'S')
-#define VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION 1u
+#define VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_1 1u
+#define VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_2 2u
 
 static vn_u32 g_runtime_snapshot_crc32_table[256];
 static int g_runtime_snapshot_crc32_ready = VN_FALSE;
@@ -32,6 +33,30 @@ void vn_runtime_query_build_info(VNRuntimeBuildInfo* out_info) {
     out_info->host_os = vn_platform_host_os_name();
     out_info->host_arch = vn_platform_host_arch_name();
     out_info->host_compiler = vn_platform_host_compiler_name();
+}
+
+void vn_runtime_build_info_v2_init(VNRuntimeBuildInfoV2* out_info) {
+    if (out_info == (VNRuntimeBuildInfoV2*)0) {
+        return;
+    }
+    (void)memset(out_info, 0, sizeof(*out_info));
+    out_info->struct_size = (vn_u32)sizeof(*out_info);
+    out_info->version = VN_RUNTIME_BUILD_INFO_V2_VERSION;
+}
+
+int vn_runtime_query_build_info_v2(VNRuntimeBuildInfoV2* out_info) {
+    if (out_info == (VNRuntimeBuildInfoV2*)0 ||
+        out_info->struct_size < (vn_u32)sizeof(*out_info) ||
+        out_info->version != VN_RUNTIME_BUILD_INFO_V2_VERSION) {
+        return VN_E_INVALID_ARG;
+    }
+    out_info->engine_version = N64GAL_VERSION;
+    out_info->capability_flags = VN_RUNTIME_CAP_SCENE_CATALOG |
+                                 VN_RUNTIME_CAP_RESOURCE_TEXTURE |
+                                 VN_RUNTIME_CAP_FRAME_VIEW |
+                                 VN_RUNTIME_CAP_SNAPSHOT_V2;
+    vn_runtime_query_build_info(&out_info->v1);
+    return VN_OK;
 }
 
 static void runtime_copy_string(char* dst, size_t dst_cap, const char* src) {
@@ -244,6 +269,15 @@ static vn_u32 runtime_snapshot_payload_size(void) {
            4u;
 }
 
+static vn_u32 runtime_snapshot_payload_size_v2(void) {
+    return runtime_snapshot_payload_size() +
+           VN_RUNTIME_SCENE_NAME_MAX +
+           4u +
+           2u + 2u + 2u + 4u + 4u +
+           (VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX * 8u) +
+           4u + 2u + 2u + 2u + 4u + 1u;
+}
+
 static int runtime_text_is_terminated(const char* text, size_t cap) {
     if (text == (const char*)0) {
         return VN_FALSE;
@@ -326,8 +360,77 @@ static void runtime_state_from_snapshot_fields(VNRuntimeSession* session,
     state_apply_fade(&session->state, &session->fade_player);
 }
 
-int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
-                                        VNRuntimeSessionSnapshot* out_snapshot) {
+static int runtime_vm_instruction_size_at(const vn_u8* script,
+                                          vn_u32 script_size,
+                                          vn_u32 offset,
+                                          vn_u32* out_size) {
+    vn_u32 size;
+    vn_u32 count;
+
+    if (script == (const vn_u8*)0 || out_size == (vn_u32*)0 ||
+        offset >= script_size) {
+        return VN_FALSE;
+    }
+    size = 0u;
+    switch (script[offset]) {
+        case VN_VM_OP_BG: size = 5u; break;
+        case VN_VM_OP_SPRITE: size = 8u; break;
+        case VN_VM_OP_TEXT: size = 5u; break;
+        case VN_VM_OP_WAIT: size = 3u; break;
+        case VN_VM_OP_GOTO: size = 3u; break;
+        case VN_VM_OP_CALL: size = 3u; break;
+        case VN_VM_OP_RETURN: size = 1u; break;
+        case VN_VM_OP_FADE: size = 5u; break;
+        case VN_VM_OP_BGM: size = 4u; break;
+        case VN_VM_OP_SE: size = 3u; break;
+        case VN_VM_OP_END: size = 1u; break;
+        case VN_VM_OP_CHOICE:
+            if (script_size - offset < 2u) {
+                return VN_FALSE;
+            }
+            count = (vn_u32)script[offset + 1u];
+            if (count == 0u || count > (0xFFFFFFFFu - 2u) / 4u) {
+                return VN_FALSE;
+            }
+            size = 2u + count * 4u;
+            break;
+        default:
+            return VN_FALSE;
+    }
+    if (size > script_size - offset) {
+        return VN_FALSE;
+    }
+    *out_size = size;
+    return VN_TRUE;
+}
+
+static int runtime_vm_offset_is_instruction_boundary(const vn_u8* script,
+                                                     vn_u32 script_size,
+                                                     vn_u32 target) {
+    vn_u32 offset;
+    vn_u32 instruction_size;
+
+    if (script == (const vn_u8*)0 || target >= script_size) {
+        return VN_FALSE;
+    }
+    offset = 0u;
+    while (offset < script_size) {
+        if (runtime_vm_instruction_size_at(script,
+                                           script_size,
+                                           offset,
+                                           &instruction_size) == VN_FALSE) {
+            return VN_FALSE;
+        }
+        if (offset == target) {
+            return VN_TRUE;
+        }
+        offset += instruction_size;
+    }
+    return VN_FALSE;
+}
+
+static int runtime_session_capture_snapshot_v1_fields(const VNRuntimeSession* session,
+                                                      VNRuntimeSessionSnapshot* out_snapshot) {
     vn_u16 base_width;
     vn_u16 base_height;
     vn_u32 i;
@@ -337,6 +440,8 @@ int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
         return VN_E_INVALID_ARG;
     }
     if (session->exit_code != 0 ||
+        vm_is_ended(&session->vm) != VN_FALSE ||
+        vm_has_error(&session->vm) != VN_FALSE ||
         session->injected_has_choice != VN_FALSE ||
         session->injected_trace_toggle_count != 0u ||
         session->injected_quit != VN_FALSE) {
@@ -352,6 +457,11 @@ int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
         session->choice_feed.cursor > session->choice_feed.count ||
         session->vm.call_sp > VN_RUNTIME_SNAPSHOT_CALL_STACK_MAX) {
         return VN_E_FORMAT;
+    }
+
+    pc_offset = (vn_u32)(session->vm.script_pc - session->vm.script_base);
+    if (pc_offset >= session->script_size) {
+        return VN_E_UNSUPPORTED;
     }
 
     if (runtime_snapshot_base_dims(session, &base_width, &base_height) != VN_OK) {
@@ -389,7 +499,6 @@ int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
     out_snapshot->dynamic_resolution_tier = vn_dynres_get_current_tier(&session->dynamic_resolution);
     out_snapshot->dynamic_resolution_switches = vn_dynres_get_switch_count(&session->dynamic_resolution);
 
-    pc_offset = (vn_u32)(session->vm.script_pc - session->vm.script_base);
     out_snapshot->vm_pc_offset = pc_offset;
     out_snapshot->vm_wait_ms = session->vm.wait_ms;
     out_snapshot->vm_call_sp = session->vm.call_sp;
@@ -425,17 +534,89 @@ int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
     return VN_OK;
 }
 
-int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot,
-                                            VNRuntimeSession** out_session) {
+int vn_runtime_session_capture_snapshot(const VNRuntimeSession* session,
+                                        VNRuntimeSessionSnapshot* out_snapshot) {
+    if (session == (const VNRuntimeSession*)0 || out_snapshot == (VNRuntimeSessionSnapshot*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (session->state.content_mode != 0u) {
+        return VN_E_UNSUPPORTED;
+    }
+    return runtime_session_capture_snapshot_v1_fields(session, out_snapshot);
+}
+
+void vn_runtime_session_snapshot_v2_init(VNRuntimeSessionSnapshotV2* snapshot) {
+    if (snapshot == (VNRuntimeSessionSnapshotV2*)0) {
+        return;
+    }
+    (void)memset(snapshot, 0, sizeof(*snapshot));
+    snapshot->struct_size = (vn_u32)sizeof(*snapshot);
+    snapshot->version = VN_RUNTIME_SNAPSHOT_V2_VERSION;
+}
+
+int vn_runtime_session_capture_snapshot_v2(const VNRuntimeSession* session,
+                                           VNRuntimeSessionSnapshotV2* out_snapshot) {
+    vn_u32 i;
+    int rc;
+
+    if (session == (const VNRuntimeSession*)0 || out_snapshot == (VNRuntimeSessionSnapshotV2*)0 ||
+        out_snapshot->struct_size < (vn_u32)sizeof(*out_snapshot) ||
+        out_snapshot->version != VN_RUNTIME_SNAPSHOT_V2_VERSION) {
+        return VN_E_INVALID_ARG;
+    }
+    rc = runtime_session_capture_snapshot_v1_fields(session, &out_snapshot->v1);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    runtime_copy_string(out_snapshot->scene_name,
+                        sizeof(out_snapshot->scene_name),
+                        session->scene_name);
+    out_snapshot->content_mode = session->state.content_mode;
+    out_snapshot->vm_background_texture_id = session->vm.background_texture_id;
+    out_snapshot->vm_previous_background_texture_id = session->vm.previous_background_texture_id;
+    out_snapshot->vm_background_duration_ms = session->vm.background_duration_ms;
+    out_snapshot->vm_background_serial = session->vm.background_serial;
+    out_snapshot->vm_sprite_serial = session->vm.sprite_serial;
+    for (i = 0u; i < VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX; ++i) {
+        out_snapshot->visual_layers[i].texture_id = session->vm.sprite_layers[i].texture_id;
+        out_snapshot->visual_layers[i].x = session->vm.sprite_layers[i].x;
+        out_snapshot->visual_layers[i].y = session->vm.sprite_layers[i].y;
+        out_snapshot->visual_layers[i].active = session->vm.sprite_layers[i].active;
+        out_snapshot->visual_layers[i].reserved = 0u;
+    }
+    out_snapshot->background_seen_serial = session->background_player.seen_serial;
+    out_snapshot->background_previous_texture_id = session->background_player.previous_texture_id;
+    out_snapshot->background_texture_id = session->background_player.texture_id;
+    out_snapshot->background_duration_ms = session->background_player.duration_ms;
+    out_snapshot->background_elapsed_ms = session->background_player.elapsed_ms;
+    out_snapshot->background_active = session->background_player.active;
+    return VN_OK;
+}
+
+static int runtime_session_create_from_snapshot_fields(const VNRuntimeSessionSnapshot* snapshot,
+                                                       const char* scene_name_override,
+                                                       VNRuntimeSession** out_session) {
     VNRunConfig cfg;
     VNRuntimeSession* session;
     const VNDynResTier* current_dims;
     const char* scene_name;
+    vn_u32 restored_frames_limit;
     vn_u32 i;
     int rc;
 
-    if (snapshot == (const VNRuntimeSessionSnapshot*)0 || out_session == (VNRuntimeSession**)0) {
+    if (out_session == (VNRuntimeSession**)0) {
         return VN_E_INVALID_ARG;
+    }
+    *out_session = (VNRuntimeSession*)0;
+    if (snapshot == (const VNRuntimeSessionSnapshot*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if ((snapshot->vm_flags &
+         ~(VN_VM_FLAG_WAITING | VN_VM_FLAG_ENDED | VN_VM_FLAG_ERROR)) != 0u) {
+        return VN_E_INVALID_ARG;
+    }
+    if ((snapshot->vm_flags & (VN_VM_FLAG_ENDED | VN_VM_FLAG_ERROR)) != 0u) {
+        return VN_E_UNSUPPORTED;
     }
     if (runtime_text_is_terminated(snapshot->pack_path, sizeof(snapshot->pack_path)) == VN_FALSE ||
         runtime_text_is_terminated(snapshot->backend_name, sizeof(snapshot->backend_name)) == VN_FALSE ||
@@ -443,17 +624,33 @@ int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snap
         snapshot->base_width == 0u ||
         snapshot->base_height == 0u ||
         snapshot->frames_limit == 0u ||
+        snapshot->frames_executed > snapshot->frames_limit ||
         snapshot->dt_ms > 1000u ||
         snapshot->choice_feed_count > VN_RUNTIME_MAX_CHOICE_SEQ ||
         snapshot->choice_feed_cursor > snapshot->choice_feed_count ||
-        snapshot->vm_call_sp > VN_RUNTIME_SNAPSHOT_CALL_STACK_MAX) {
+        snapshot->vm_call_sp > VN_RUNTIME_SNAPSHOT_CALL_STACK_MAX ||
+        snapshot->fade_active > 1u ||
+        snapshot->fade_elapsed_ms > (vn_u32)snapshot->fade_duration_ms ||
+        (snapshot->fade_active != 0u && snapshot->fade_duration_ms == 0u)) {
         return VN_E_INVALID_ARG;
     }
 
-    scene_name = scene_name_from_id(snapshot->scene_id);
-    if ((snapshot->scene_id != VN_SCENE_S0 && strcmp(scene_name, "S0") == 0) ||
+    scene_name = scene_name_override;
+    if (scene_name == (const char*)0) {
+        scene_name = scene_name_from_id(snapshot->scene_id);
+    }
+    if ((scene_name_override == (const char*)0 &&
+         snapshot->scene_id != VN_SCENE_S0 && strcmp(scene_name, "S0") == 0) ||
         (snapshot->perf_flags & ~runtime_supported_perf_flags()) != 0u) {
         return VN_E_INVALID_ARG;
+    }
+
+    restored_frames_limit = snapshot->frames_limit;
+    if (snapshot->frames_executed == snapshot->frames_limit) {
+        if (snapshot->frames_executed > 0xFFFFFFFFu - snapshot->frames_limit) {
+            return VN_E_INVALID_ARG;
+        }
+        restored_frames_limit = snapshot->frames_executed + snapshot->frames_limit;
     }
 
     vn_run_config_init(&cfg);
@@ -462,7 +659,7 @@ int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snap
     cfg.backend_name = (snapshot->backend_name[0] != '\0') ? snapshot->backend_name : cfg.backend_name;
     cfg.width = snapshot->base_width;
     cfg.height = snapshot->base_height;
-    cfg.frames = snapshot->frames_limit;
+    cfg.frames = restored_frames_limit;
     cfg.dt_ms = snapshot->dt_ms;
     cfg.trace = snapshot->trace;
     cfg.keyboard = snapshot->keyboard_enabled;
@@ -479,10 +676,24 @@ int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snap
     if (rc != VN_OK) {
         return rc;
     }
-
-    if (snapshot->vm_pc_offset >= session->script_size) {
+    if (session->state.scene_id != snapshot->scene_id) {
         (void)vn_runtime_session_destroy(session);
         return VN_E_FORMAT;
+    }
+
+    if (runtime_vm_offset_is_instruction_boundary(session->script_buf,
+                                                  session->script_size,
+                                                  snapshot->vm_pc_offset) == VN_FALSE) {
+        (void)vn_runtime_session_destroy(session);
+        return VN_E_FORMAT;
+    }
+    for (i = 0u; i < snapshot->vm_call_sp; ++i) {
+        if (runtime_vm_offset_is_instruction_boundary(session->script_buf,
+                                                      session->script_size,
+                                                      (vn_u32)snapshot->vm_call_stack[i]) == VN_FALSE) {
+            (void)vn_runtime_session_destroy(session);
+            return VN_E_FORMAT;
+        }
     }
 
     vn_dynres_init(&session->dynamic_resolution, snapshot->base_width, snapshot->base_height);
@@ -559,6 +770,84 @@ int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snap
     return VN_OK;
 }
 
+int vn_runtime_session_create_from_snapshot(const VNRuntimeSessionSnapshot* snapshot,
+                                            VNRuntimeSession** out_session) {
+    return runtime_session_create_from_snapshot_fields(snapshot, (const char*)0, out_session);
+}
+
+int vn_runtime_session_create_from_snapshot_v2(const VNRuntimeSessionSnapshotV2* snapshot,
+                                               VNRuntimeSession** out_session) {
+    VNRuntimeSession* session;
+    vn_u32 i;
+    int rc;
+
+    if (out_session == (VNRuntimeSession**)0) {
+        return VN_E_INVALID_ARG;
+    }
+    *out_session = (VNRuntimeSession*)0;
+    if (snapshot == (const VNRuntimeSessionSnapshotV2*)0 ||
+        snapshot->struct_size < (vn_u32)sizeof(*snapshot) ||
+        snapshot->version != VN_RUNTIME_SNAPSHOT_V2_VERSION ||
+        runtime_text_is_terminated(snapshot->scene_name, sizeof(snapshot->scene_name)) == VN_FALSE ||
+        snapshot->scene_name[0] == '\0') {
+        return VN_E_INVALID_ARG;
+    }
+    if (snapshot->background_active > 1u ||
+        snapshot->background_elapsed_ms > (vn_u32)snapshot->background_duration_ms ||
+        (snapshot->background_active != 0u && snapshot->background_duration_ms == 0u)) {
+        return VN_E_FORMAT;
+    }
+    for (i = 0u; i < VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX; ++i) {
+        if (snapshot->visual_layers[i].reserved != 0u ||
+            snapshot->visual_layers[i].active > 1u ||
+            (snapshot->visual_layers[i].active != 0u &&
+             snapshot->visual_layers[i].texture_id == VN_VM_TEXTURE_NONE)) {
+            return VN_E_FORMAT;
+        }
+    }
+    rc = runtime_session_create_from_snapshot_fields(&snapshot->v1,
+                                                     snapshot->scene_name,
+                                                     &session);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    if (snapshot->content_mode != session->state.content_mode) {
+        (void)vn_runtime_session_destroy(session);
+        return VN_E_FORMAT;
+    }
+    session->vm.background_texture_id = snapshot->vm_background_texture_id;
+    session->vm.previous_background_texture_id = snapshot->vm_previous_background_texture_id;
+    session->vm.background_duration_ms = snapshot->vm_background_duration_ms;
+    session->vm.background_serial = snapshot->vm_background_serial;
+    session->vm.sprite_serial = snapshot->vm_sprite_serial;
+    for (i = 0u; i < VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX; ++i) {
+        session->vm.sprite_layers[i].texture_id = snapshot->visual_layers[i].texture_id;
+        session->vm.sprite_layers[i].x = snapshot->visual_layers[i].x;
+        session->vm.sprite_layers[i].y = snapshot->visual_layers[i].y;
+        session->vm.sprite_layers[i].active = snapshot->visual_layers[i].active;
+    }
+    session->background_player.seen_serial = snapshot->background_seen_serial;
+    session->background_player.previous_texture_id = snapshot->background_previous_texture_id;
+    session->background_player.texture_id = snapshot->background_texture_id;
+    session->background_player.duration_ms = snapshot->background_duration_ms;
+    session->background_player.elapsed_ms = snapshot->background_elapsed_ms;
+    session->background_player.active = snapshot->background_active;
+    if (session->state.content_mode != 0u) {
+        rc = state_apply_content_visuals(&session->state,
+                                         &session->vm,
+                                         &session->background_player,
+                                         &session->pak);
+        if (rc != VN_OK) {
+            (void)vn_runtime_session_destroy(session);
+            return rc;
+        }
+    }
+    runtime_render_cache_invalidate(session);
+    runtime_result_publish(session);
+    *out_session = session;
+    return VN_OK;
+}
+
 static int runtime_snapshot_encode(const VNRuntimeSessionSnapshot* snapshot,
                                    vn_u8* out_payload,
                                    vn_u32 payload_size) {
@@ -589,7 +878,7 @@ static int runtime_snapshot_encode(const VNRuntimeSessionSnapshot* snapshot,
     if (rc != VN_OK) return rc;
     rc = runtime_snapshot_write_u8(&p, end, VN_RUNTIME_SNAPSHOT_MAGIC_3);
     if (rc != VN_OK) return rc;
-    rc = runtime_snapshot_write_u32(&p, end, VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION);
+    rc = runtime_snapshot_write_u32(&p, end, VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_1);
     if (rc != VN_OK) return rc;
     rc = runtime_snapshot_write_u32(&p, end, payload_size);
     if (rc != VN_OK) return rc;
@@ -728,7 +1017,7 @@ static int runtime_snapshot_decode(const vn_u8* payload,
     }
     rc = runtime_snapshot_read_u32(&p, end, &payload_version);
     if (rc != VN_OK) return rc;
-    if (payload_version != VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION) {
+    if (payload_version != VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_1) {
         return VN_E_UNSUPPORTED;
     }
     rc = runtime_snapshot_read_u32(&p, end, &declared_size);
@@ -844,11 +1133,167 @@ static int runtime_snapshot_decode(const vn_u8* payload,
     return VN_OK;
 }
 
+static int runtime_snapshot_encode_v2(const VNRuntimeSessionSnapshotV2* snapshot,
+                                      vn_u8* out_payload,
+                                      vn_u32 payload_size) {
+    vn_u8* p;
+    const vn_u8* end;
+    vn_u32 base_size;
+    vn_u32 i;
+    int rc;
+
+    if (snapshot == (const VNRuntimeSessionSnapshotV2*)0 || out_payload == (vn_u8*)0 ||
+        payload_size != runtime_snapshot_payload_size_v2() ||
+        runtime_text_is_terminated(snapshot->scene_name, sizeof(snapshot->scene_name)) == VN_FALSE) {
+        return VN_E_INVALID_ARG;
+    }
+    base_size = runtime_snapshot_payload_size();
+    rc = runtime_snapshot_encode(&snapshot->v1, out_payload, base_size);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    runtime_u32_le_write(out_payload + 4, VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_2);
+    runtime_u32_le_write(out_payload + 8, payload_size);
+    p = out_payload + base_size;
+    end = out_payload + payload_size;
+    rc = runtime_snapshot_write_bytes(&p, end, snapshot->scene_name, sizeof(snapshot->scene_name));
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u32(&p, end, snapshot->content_mode);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->vm_background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->vm_previous_background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->vm_background_duration_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u32(&p, end, snapshot->vm_background_serial);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u32(&p, end, snapshot->vm_sprite_serial);
+    if (rc != VN_OK) return rc;
+    for (i = 0u; i < VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX; ++i) {
+        rc = runtime_snapshot_write_u16(&p, end, snapshot->visual_layers[i].texture_id);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_write_u16(&p, end, (vn_u16)snapshot->visual_layers[i].x);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_write_u16(&p, end, (vn_u16)snapshot->visual_layers[i].y);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_write_u8(&p, end, snapshot->visual_layers[i].active);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_write_u8(&p, end, snapshot->visual_layers[i].reserved);
+        if (rc != VN_OK) return rc;
+    }
+    rc = runtime_snapshot_write_u32(&p, end, snapshot->background_seen_serial);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->background_previous_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u16(&p, end, snapshot->background_duration_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u32(&p, end, snapshot->background_elapsed_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_write_u8(&p, end, snapshot->background_active);
+    if (rc != VN_OK) return rc;
+    return (p == end) ? VN_OK : VN_E_FORMAT;
+}
+
+static int runtime_snapshot_decode_v2(const vn_u8* payload,
+                                      vn_u32 payload_size,
+                                      VNRuntimeSessionSnapshotV2* out_snapshot) {
+    vn_u8* base_payload;
+    const vn_u8* p;
+    const vn_u8* end;
+    vn_u32 base_size;
+    vn_u32 i;
+    int rc;
+
+    if (payload == (const vn_u8*)0 || out_snapshot == (VNRuntimeSessionSnapshotV2*)0 ||
+        payload_size != runtime_snapshot_payload_size_v2()) {
+        return VN_E_INVALID_ARG;
+    }
+    if (payload[0] != VN_RUNTIME_SNAPSHOT_MAGIC_0 ||
+        payload[1] != VN_RUNTIME_SNAPSHOT_MAGIC_1 ||
+        payload[2] != VN_RUNTIME_SNAPSHOT_MAGIC_2 ||
+        payload[3] != VN_RUNTIME_SNAPSHOT_MAGIC_3) {
+        return VN_E_UNSUPPORTED;
+    }
+    if (runtime_u32_le_read(payload + 4) != VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_2) {
+        return VN_E_UNSUPPORTED;
+    }
+    if (runtime_u32_le_read(payload + 8) != payload_size) {
+        return VN_E_FORMAT;
+    }
+    base_size = runtime_snapshot_payload_size();
+    base_payload = (vn_u8*)malloc((size_t)base_size);
+    if (base_payload == (vn_u8*)0) {
+        return VN_E_NOMEM;
+    }
+    (void)memcpy(base_payload, payload, (size_t)base_size);
+    runtime_u32_le_write(base_payload + 4, VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_1);
+    runtime_u32_le_write(base_payload + 8, base_size);
+    vn_runtime_session_snapshot_v2_init(out_snapshot);
+    rc = runtime_snapshot_decode(base_payload, base_size, &out_snapshot->v1);
+    free(base_payload);
+    if (rc != VN_OK) {
+        return rc;
+    }
+
+    p = payload + base_size;
+    end = payload + payload_size;
+    rc = runtime_snapshot_read_bytes(&p, end, out_snapshot->scene_name, sizeof(out_snapshot->scene_name));
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u32(&p, end, &out_snapshot->content_mode);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->vm_background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->vm_previous_background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->vm_background_duration_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u32(&p, end, &out_snapshot->vm_background_serial);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u32(&p, end, &out_snapshot->vm_sprite_serial);
+    if (rc != VN_OK) return rc;
+    for (i = 0u; i < VN_RUNTIME_SNAPSHOT_VISUAL_LAYER_MAX; ++i) {
+        vn_u16 x;
+        vn_u16 y;
+        rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->visual_layers[i].texture_id);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_read_u16(&p, end, &x);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_read_u16(&p, end, &y);
+        if (rc != VN_OK) return rc;
+        out_snapshot->visual_layers[i].x = (vn_i16)x;
+        out_snapshot->visual_layers[i].y = (vn_i16)y;
+        rc = runtime_snapshot_read_u8(&p, end, &out_snapshot->visual_layers[i].active);
+        if (rc != VN_OK) return rc;
+        rc = runtime_snapshot_read_u8(&p, end, &out_snapshot->visual_layers[i].reserved);
+        if (rc != VN_OK) return rc;
+    }
+    rc = runtime_snapshot_read_u32(&p, end, &out_snapshot->background_seen_serial);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->background_previous_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->background_texture_id);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u16(&p, end, &out_snapshot->background_duration_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u32(&p, end, &out_snapshot->background_elapsed_ms);
+    if (rc != VN_OK) return rc;
+    rc = runtime_snapshot_read_u8(&p, end, &out_snapshot->background_active);
+    if (rc != VN_OK) return rc;
+    if (p != end || out_snapshot->content_mode > 1u ||
+        runtime_text_is_terminated(out_snapshot->scene_name, sizeof(out_snapshot->scene_name)) == VN_FALSE) {
+        return VN_E_FORMAT;
+    }
+    return VN_OK;
+}
+
 int vn_runtime_session_save_to_file(const VNRuntimeSession* session,
                                     const char* path,
                                     vn_u32 slot_id,
                                     vn_u32 timestamp_s) {
-    VNRuntimeSessionSnapshot snapshot;
+    VNRuntimeSessionSnapshotV2 snapshot;
     vn_u8 header[VNSAVE_HEADER_SIZE_V1];
     vn_u8* payload;
     vn_u32 payload_size;
@@ -860,8 +1305,9 @@ int vn_runtime_session_save_to_file(const VNRuntimeSession* session,
         return VN_E_INVALID_ARG;
     }
     payload = (vn_u8*)0;
-    payload_size = runtime_snapshot_payload_size();
-    rc = vn_runtime_session_capture_snapshot(session, &snapshot);
+    payload_size = runtime_snapshot_payload_size_v2();
+    vn_runtime_session_snapshot_v2_init(&snapshot);
+    rc = vn_runtime_session_capture_snapshot_v2(session, &snapshot);
     if (rc != VN_OK) {
         return rc;
     }
@@ -869,7 +1315,7 @@ int vn_runtime_session_save_to_file(const VNRuntimeSession* session,
     if (payload == (vn_u8*)0) {
         return VN_E_NOMEM;
     }
-    rc = runtime_snapshot_encode(&snapshot, payload, payload_size);
+    rc = runtime_snapshot_encode_v2(&snapshot, payload, payload_size);
     if (rc != VN_OK) {
         free(payload);
         return rc;
@@ -881,8 +1327,8 @@ int vn_runtime_session_save_to_file(const VNRuntimeSession* session,
     header[3] = (vn_u8)'V';
     runtime_u32_le_write(header + 4, VNSAVE_VERSION_1);
     runtime_u32_le_write(header + 8, slot_id);
-    runtime_u32_le_write(header + 12, snapshot.vm_pc_offset);
-    runtime_u32_le_write(header + 16, snapshot.scene_id);
+    runtime_u32_le_write(header + 12, snapshot.v1.vm_pc_offset);
+    runtime_u32_le_write(header + 16, snapshot.v1.scene_id);
     runtime_u32_le_write(header + 20, timestamp_s);
     runtime_u32_le_write(header + 24, crc);
     runtime_u32_le_write(header + 28, 0u);
@@ -911,12 +1357,17 @@ int vn_runtime_session_load_from_file(const char* path,
     FILE* fp;
     vn_u8* payload;
     VNRuntimeSessionSnapshot snapshot;
+    VNRuntimeSessionSnapshotV2 snapshot_v2;
+    vn_u32 payload_version;
     int rc;
 
-    if (path == (const char*)0 || out_session == (VNRuntimeSession**)0) {
+    if (out_session == (VNRuntimeSession**)0) {
         return VN_E_INVALID_ARG;
     }
     *out_session = (VNRuntimeSession*)0;
+    if (path == (const char*)0) {
+        return VN_E_INVALID_ARG;
+    }
 
     rc = vnsave_probe_file(path, &probe);
     if (rc != VN_OK) {
@@ -925,10 +1376,10 @@ int vn_runtime_session_load_from_file(const char* path,
     if (probe.version != VNSAVE_VERSION_1 || probe.header_size != VNSAVE_HEADER_SIZE_V1) {
         return VN_E_UNSUPPORTED;
     }
-    if (probe.payload_size != runtime_snapshot_payload_size()) {
+    if (probe.payload_size != runtime_snapshot_payload_size() &&
+        probe.payload_size != runtime_snapshot_payload_size_v2()) {
         return VN_E_UNSUPPORTED;
     }
-
     fp = vn_platform_fopen_read_binary(path);
     if (fp == (FILE*)0) {
         return VN_E_IO;
@@ -950,13 +1401,30 @@ int vn_runtime_session_load_from_file(const char* path,
     }
     (void)fclose(fp);
 
-    rc = runtime_snapshot_decode(payload, probe.payload_size, &snapshot);
+    payload_version = runtime_u32_le_read(payload + 4);
+    if (payload_version == VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_1) {
+        rc = runtime_snapshot_decode(payload, probe.payload_size, &snapshot);
+        free(payload);
+        if (rc != VN_OK) {
+            return rc;
+        }
+        if (probe.script_pc != snapshot.vm_pc_offset || probe.scene_id != snapshot.scene_id) {
+            return VN_E_FORMAT;
+        }
+        return vn_runtime_session_create_from_snapshot(&snapshot, out_session);
+    }
+    if (payload_version == VN_RUNTIME_SNAPSHOT_PAYLOAD_VERSION_2) {
+        rc = runtime_snapshot_decode_v2(payload, probe.payload_size, &snapshot_v2);
+        free(payload);
+        if (rc != VN_OK) {
+            return rc;
+        }
+        if (probe.script_pc != snapshot_v2.v1.vm_pc_offset ||
+            probe.scene_id != snapshot_v2.v1.scene_id) {
+            return VN_E_FORMAT;
+        }
+        return vn_runtime_session_create_from_snapshot_v2(&snapshot_v2, out_session);
+    }
     free(payload);
-    if (rc != VN_OK) {
-        return rc;
-    }
-    if (probe.script_pc != snapshot.vm_pc_offset || probe.scene_id != snapshot.scene_id) {
-        return VN_E_FORMAT;
-    }
-    return vn_runtime_session_create_from_snapshot(&snapshot, out_session);
+    return VN_E_UNSUPPORTED;
 }

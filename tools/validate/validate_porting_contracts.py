@@ -34,6 +34,12 @@ def require_contains(text: str, needle: str, field: str):
         raise ValueError(field)
 
 
+def require_define(text: str, name: str, value: str, field: str):
+    expected = ["#define", name, value]
+    if not any(line.split() == expected for line in text.splitlines()):
+        raise ValueError(field)
+
+
 def main(argv):
     root = Path(".")
     if len(argv) > 2:
@@ -51,12 +57,20 @@ def main(argv):
         porting = read_text(root, "docs/backend-porting.md")
         backend_doc = read_text(root, "docs/api/backend.md")
         backend_header = read_text(root, "include/vn_backend.h")
+        pixel_pipeline_header = read_text(root, "src/backend/common/pixel_pipeline.h")
+        builtin_backends = {
+            "scalar": read_text(root, "src/backend/scalar/scalar_backend.c"),
+            "avx2": read_text(root, "src/backend/avx2/avx2_backend.c"),
+            "neon": read_text(root, "src/backend/neon/neon_backend.c"),
+            "rvv": read_text(root, "src/backend/rvv/rvv_backend.c"),
+        }
         renderer_header = read_text(root, "include/vn_renderer.h")
         priority_test = read_text(root, "tests/unit/test_backend_priority.c")
         fallback_test = read_text(root, "tests/unit/test_renderer_fallback.c")
         dirty_test = read_text(root, "tests/unit/test_renderer_dirty_submit.c")
         consistency_test = read_text(root, "tests/unit/test_backend_consistency.c")
         golden_test = read_text(root, "tests/unit/test_runtime_golden.c")
+        resource_texture_test = read_text(root, "tests/unit/test_resource_texture_backend.c")
         readme = read_text(root, "README.md")
         toolchain = read_text(root, "docs/toolchain.md")
         issue = read_text(root, "issue.md")
@@ -77,10 +91,19 @@ def main(argv):
         require_contains(porting, "`src/tools/preview_cli.c`", "porting.preview_cli")
         require_contains(porting, "`src/tools/preview_parse.c`", "porting.preview_parse")
         require_contains(porting, "`VNRenderBackend`", "porting.backend_table")
+        require_contains(porting, "`get_framebuffer`", "porting.framebuffer_callback")
+        require_contains(porting, "`VN_OP_FLAG_RESOURCE_TEXTURE`", "porting.resource_texture_flag")
+        require_contains(porting, "`VN_OP_FLAG_RESOURCE_CROSSFADE_FROM`（`0x40u`）", "porting.crossfade_from")
+        require_contains(porting, "`VN_OP_FLAG_RESOURCE_CROSSFADE_TO`（`0x20u`）", "porting.crossfade_to")
+        require_contains(porting, "`VNTextureLookupFn`", "porting.texture_lookup")
+        require_contains(porting, "`vn_pp_draw_resource_crossfade(...)`", "porting.crossfade_helper")
+        require_contains(porting, "premultiplied linear", "porting.crossfade_premultiplied")
+        require_contains(porting, "malformed pair 必须返回 `VN_E_FORMAT`", "porting.crossfade_malformed")
         require_contains(porting, "`test_renderer_fallback`", "porting.fallback_test")
         require_contains(porting, "`test_renderer_dirty_submit`", "porting.dirty_test")
         require_contains(porting, "`test_backend_consistency`", "porting.consistency_test")
         require_contains(porting, "`test_runtime_golden`", "porting.golden_test")
+        require_contains(porting, "`test_resource_texture_backend`", "porting.resource_texture_test")
         require_contains(porting, "`avx2_asm`", "porting.avx2_asm")
         require_contains(porting, "./scripts/check_c89.sh", "porting.check_c89")
         require_contains(porting, "./scripts/ci/run_cc_suite.sh", "porting.cc_suite")
@@ -89,13 +112,24 @@ def main(argv):
 
         require_contains(backend_doc, "`avx2_asm` 当前不属于默认优先级链", "backend_doc.avx2_asm")
         require_contains(backend_header, "#define VN_ARCH_AVX2_ASM 5", "backend_header.avx2_asm")
+        require_define(backend_header, "VN_OP_FLAG_RESOURCE_CROSSFADE_FROM", "0x40u", "backend_header.crossfade_from")
+        require_define(backend_header, "VN_OP_FLAG_RESOURCE_CROSSFADE_TO", "0x20u", "backend_header.crossfade_to")
+        require_contains(pixel_pipeline_header, "int vn_pp_draw_resource_crossfade(", "pixel_pipeline_header.crossfade")
         require_contains(renderer_header, "VN_RENDERER_FLAG_FORCE_AVX2_ASM", "renderer_header.force_avx2_asm")
+        for backend_name, backend_source in builtin_backends.items():
+            require_contains(backend_source, "vn_pp_draw_resource_crossfade", f"backend.{backend_name}.crossfade_helper")
+            require_contains(backend_source, "VN_OP_FLAG_RESOURCE_CROSSFADE_FROM", f"backend.{backend_name}.crossfade_from")
+            require_contains(backend_source, "VN_OP_FLAG_RESOURCE_CROSSFADE_TO", f"backend.{backend_name}.crossfade_to")
 
         require_contains(priority_test, "simd auto must not select force-only avx2_asm", "priority_test.avx2_asm")
         require_contains(fallback_test, 'expect_backend(VN_RENDERER_FLAG_FORCE_AVX2_ASM, "avx2_asm")', "fallback_test.avx2_asm")
         require_contains(dirty_test, 'strcmp(backend_name, "avx2") == 0 || strcmp(backend_name, "avx2_asm") == 0', "dirty_test.avx2_asm")
         require_contains(consistency_test, '"avx2_asm"', "consistency_test.avx2_asm")
         require_contains(golden_test, '"avx2_asm"', "golden_test.avx2_asm")
+        require_contains(resource_texture_test, "test_content_pack_golden", "resource_texture_test.content_golden")
+        require_contains(resource_texture_test, "VN_OP_FLAG_RESOURCE_CROSSFADE_FROM", "resource_texture_test.crossfade_from")
+        require_contains(resource_texture_test, "VN_OP_FLAG_RESOURCE_CROSSFADE_TO", "resource_texture_test.crossfade_to")
+        require_contains(resource_texture_test, "VN_E_FORMAT", "resource_texture_test.crossfade_malformed")
 
         require_contains(readme, "docs/backend-porting.md", "readme.porting_doc")
         require_contains(toolchain, "python3 tools/toolchain.py validate-porting-contracts", "toolchain.validate_porting")
@@ -111,6 +145,7 @@ def main(argv):
                 "porting_doc=present",
                 "backend_contract=present",
                 "tests=present",
+                "resource_crossfade=present",
             ]
         )
     )

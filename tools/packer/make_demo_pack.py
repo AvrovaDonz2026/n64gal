@@ -8,9 +8,12 @@ import zlib
 MAGIC = b"VNPK"
 VERSION = 2
 ENTRY_SIZE = 18
+MAX_RESOURCE_COUNT = 4096
+MAX_RUNTIME_TEXTURE_BYTES = 32 * 1024 * 1024
 
 RESOURCE_TYPE_IMAGE = 1
 RESOURCE_TYPE_SCRIPT = 2
+RESOURCE_TYPE_SCENE_CATALOG = 3
 
 FMT_RGBA16 = 1
 FMT_CI8 = 2
@@ -77,6 +80,8 @@ def decode_png_rgba(path):
         elif ctype == b"PLTE":
             plte = bytes(chunk)
         elif ctype == b"tRNS":
+            if trns is not None:
+                raise ValueError(f"duplicate PNG tRNS chunk: {path}")
             trns = bytes(chunk)
         elif ctype == b"IDAT":
             idat.extend(chunk)
@@ -93,6 +98,8 @@ def decode_png_rgba(path):
         raise ValueError(f"unsupported interlaced PNG: {path}")
     if width <= 0 or height <= 0 or width > 65535 or height > 65535:
         raise ValueError(f"invalid PNG dimensions {width}x{height}: {path}")
+    if width * height > MAX_RUNTIME_TEXTURE_BYTES:
+        raise ValueError(f"PNG exceeds runtime texture pixel limit: {path}")
 
     if color_type == 6:
         bpp = 4
@@ -108,6 +115,31 @@ def decode_png_rgba(path):
             raise ValueError(f"indexed PNG missing/invalid PLTE: {path}")
     else:
         raise ValueError(f"unsupported PNG color_type={color_type}: {path}")
+
+    transparent_gray = None
+    transparent_rgb = None
+    if trns is not None:
+        if color_type == 0:
+            if len(trns) != 2:
+                raise ValueError(f"grayscale PNG tRNS length must be 2, got {len(trns)}: {path}")
+            transparent_gray = struct.unpack(">H", trns)[0]
+            if transparent_gray > 0xFF:
+                raise ValueError(f"grayscale PNG tRNS sample exceeds 8-bit range: {path}")
+        elif color_type == 2:
+            if len(trns) != 6:
+                raise ValueError(f"truecolor PNG tRNS length must be 6, got {len(trns)}: {path}")
+            transparent_rgb = struct.unpack(">HHH", trns)
+            if any(sample > 0xFF for sample in transparent_rgb):
+                raise ValueError(f"truecolor PNG tRNS sample exceeds 8-bit range: {path}")
+        elif color_type == 3:
+            palette_count = len(plte) // 3
+            if len(trns) > palette_count:
+                raise ValueError(
+                    f"indexed PNG tRNS length exceeds PLTE entries "
+                    f"{len(trns)} > {palette_count}: {path}"
+                )
+        else:
+            raise ValueError(f"PNG color_type={color_type} must not contain tRNS: {path}")
 
     raw = zlib.decompress(bytes(idat))
     stride = width * bpp
@@ -173,14 +205,14 @@ def decode_png_rgba(path):
             r = out_scan[src_pos]
             g = out_scan[src_pos + 1]
             b = out_scan[src_pos + 2]
-            a = 255
+            a = 0 if transparent_rgb == (r, g, b) else 255
             src_pos += 3
         elif color_type == 0:
             v = out_scan[src_pos]
             r = v
             g = v
             b = v
-            a = 255
+            a = 0 if transparent_gray == v else 255
             src_pos += 1
         elif color_type == 4:
             v = out_scan[src_pos]
@@ -319,15 +351,36 @@ def rgba_to_ci8_payload(width, height, rgba):
     return pal_rgba16 + bytes(indices)
 
 
+def expected_texture_payload_size(width, height, fmt):
+    pixels = width * height
+    if fmt == "rgba16":
+        expected = pixels * 2
+    elif fmt == "ia8":
+        expected = pixels
+    elif fmt == "ci8":
+        expected = pixels + 512
+    else:
+        raise ValueError(f"unsupported format: {fmt}")
+    if expected > MAX_RUNTIME_TEXTURE_BYTES:
+        raise ValueError(
+            f"{fmt} texture payload exceeds runtime cache limit "
+            f"{MAX_RUNTIME_TEXTURE_BYTES} bytes: {expected}"
+        )
+    return expected
+
+
 def convert_png_to_format(path, fmt):
     width, height, rgba = decode_png_rgba(path)
+    expected = expected_texture_payload_size(width, height, fmt)
     if fmt == "rgba16":
-        return width, height, rgba_to_rgba16_be(rgba)
-    if fmt == "ia8":
-        return width, height, rgba_to_ia8(rgba)
-    if fmt == "ci8":
-        return width, height, rgba_to_ci8_payload(width, height, rgba)
-    raise ValueError(f"unsupported format: {fmt}")
+        payload = rgba_to_rgba16_be(rgba)
+    elif fmt == "ia8":
+        payload = rgba_to_ia8(rgba)
+    else:
+        payload = rgba_to_ci8_payload(width, height, rgba)
+    if len(payload) != expected:
+        raise ValueError(f"{fmt} texture payload size mismatch: {len(payload)} != {expected}")
+    return width, height, payload
 
 
 def load_image_jobs(manifest_path):
@@ -371,50 +424,10 @@ def load_image_jobs(manifest_path):
     return jobs
 
 
-def build_pack(script_paths, image_jobs):
-    blobs = []
-    next_id = 0
-
-    for p in script_paths:
-        data = p.read_bytes()
-        blobs.append(
-            {
-                "id": next_id,
-                "name": p.name,
-                "source": str(p),
-                "kind": "script",
-                "type": RESOURCE_TYPE_SCRIPT,
-                "flags": 0,
-                "width": 0,
-                "height": 0,
-                "data_size": len(data),
-                "crc32": crc32_u32(data),
-                "data": data,
-            }
-        )
-        next_id += 1
-
-    for job in image_jobs:
-        w, h, payload = convert_png_to_format(job["source"], job["format"])
-        blobs.append(
-            {
-                "id": next_id,
-                "name": job["name"],
-                "source": str(job["source"]),
-                "kind": "image",
-                "format": job["format"],
-                "type": RESOURCE_TYPE_IMAGE,
-                "flags": FORMAT_TO_FLAG[job["format"]],
-                "width": w,
-                "height": h,
-                "data_size": len(payload),
-                "crc32": crc32_u32(payload),
-                "data": payload,
-            }
-        )
-        next_id += 1
-
+def encode_pack(blobs):
     count = len(blobs)
+    if count > MAX_RESOURCE_COUNT:
+        raise ValueError(f"vnpak resource count exceeds runtime limit {MAX_RESOURCE_COUNT}: {count}")
     header = struct.pack("<4sHH", MAGIC, VERSION, count)
     table_size = ENTRY_SIZE * count
     data_off = len(header) + table_size
@@ -470,6 +483,52 @@ def build_pack(script_paths, image_jobs):
         "resources": resources_manifest,
     }
     return pack_bytes, manifest
+
+
+def build_pack(script_paths, image_jobs):
+    blobs = []
+    next_id = 0
+
+    for p in script_paths:
+        data = p.read_bytes()
+        blobs.append(
+            {
+                "id": next_id,
+                "name": p.name,
+                "source": str(p),
+                "kind": "script",
+                "type": RESOURCE_TYPE_SCRIPT,
+                "flags": 0,
+                "width": 0,
+                "height": 0,
+                "data_size": len(data),
+                "crc32": crc32_u32(data),
+                "data": data,
+            }
+        )
+        next_id += 1
+
+    for job in image_jobs:
+        w, h, payload = convert_png_to_format(job["source"], job["format"])
+        blobs.append(
+            {
+                "id": next_id,
+                "name": job["name"],
+                "source": str(job["source"]),
+                "kind": "image",
+                "format": job["format"],
+                "type": RESOURCE_TYPE_IMAGE,
+                "flags": FORMAT_TO_FLAG[job["format"]],
+                "width": w,
+                "height": h,
+                "data_size": len(payload),
+                "crc32": crc32_u32(payload),
+                "data": payload,
+            }
+        )
+        next_id += 1
+
+    return encode_pack(blobs)
 
 
 def main():

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 import sys
+
+from release_spec import normalize_release_spec
 
 
 VN_E_INVALID_ARG = -1
@@ -22,23 +25,63 @@ def error(trace_id, error_code, field, message):
     return 1
 
 
-def read_text(root: Path, rel: str):
+def read_text(root, rel):
     path = root / rel
     if not path.exists():
         raise FileNotFoundError(rel)
     return path.read_text(encoding="utf-8")
 
 
-def require_contains(text: str, needle: str, field: str):
+def read_json(root, rel):
+    return json.loads(read_text(root, rel))
+
+
+def require_contains(text, needle, field):
     if needle not in text:
         raise ValueError(field)
 
 
-def require_contains_any(text: str, needles, field: str):
-    for needle in needles:
-        if needle in text:
-            return
-    raise ValueError(field)
+def require_equal(actual, expected, field):
+    if actual != expected:
+        raise ValueError(field)
+
+
+def validate_spec_docs(root, spec_rel, expected_tag, require_explicit):
+    raw = read_json(root, spec_rel)
+    spec = normalize_release_spec(raw)
+    require_equal(spec.get("version"), expected_tag, f"{spec_rel}.version")
+    require_equal(spec.get("tag"), expected_tag, f"{spec_rel}.tag")
+    require_equal(
+        spec.get("release_url"),
+        f"https://github.com/AvrovaDonz2026/n64gal/releases/tag/{expected_tag}",
+        f"{spec_rel}.release_url",
+    )
+    if require_explicit:
+        for field in (
+            "release_note",
+            "release_evidence",
+            "release_package",
+            "release_checklist",
+            "assets",
+        ):
+            if field not in raw:
+                raise ValueError(f"{spec_rel}.{field}")
+        if "asset" in raw:
+            raise ValueError(f"{spec_rel}.legacy_asset")
+
+    docs = {}
+    for field in (
+        "release_note",
+        "release_evidence",
+        "release_package",
+        "release_checklist",
+    ):
+        path = spec[field]
+        if not path:
+            raise ValueError(f"{spec_rel}.{field}")
+        docs[field] = read_text(root, path)
+        require_contains(docs[field], expected_tag, f"{path}.version")
+    return raw, spec, docs
 
 
 def main(argv):
@@ -50,7 +93,6 @@ def main(argv):
             print("usage: validate_release_docs.py [root]", file=sys.stderr)
             return 2
         root = Path(argv[1])
-
     if not root.exists():
         return error("tool.validate.release_docs.io", VN_E_IO, "root", "root directory not found")
 
@@ -58,96 +100,66 @@ def main(argv):
         readme = read_text(root, "README.md")
         issue = read_text(root, "issue.md")
         changelog = read_text(root, "CHANGELOG.md")
-        release_note = read_text(root, "docs/release-v0.1.0-alpha.md")
-        release_evidence = read_text(root, "docs/release-evidence-v0.1.0-alpha.md")
-        release_package = read_text(root, "docs/release-package-v0.1.0-alpha.md")
-        release_note_v1 = read_text(root, "docs/release-v1.0.0.md")
-        release_evidence_v1 = read_text(root, "docs/release-evidence-v1.0.0.md")
-        release_package_v1 = read_text(root, "docs/release-package-v1.0.0.md")
-        alpha_checklist = read_text(root, "docs/release-checklist-v0.1.0-alpha.md")
-        mvp_gap = read_text(root, "docs/release-gap-v0.1.0-mvp.md")
-        roadmap = read_text(root, "docs/release-roadmap-1.0.0.md")
+        roadmap_v1 = read_text(root, "docs/release-roadmap-1.0.0.md")
+        roadmap_v11 = read_text(root, "docs/release-roadmap-1.1.0.md")
         triage_v1 = read_text(root, "docs/release-triage-v1.0.0.md")
-        checklist_v1 = read_text(root, "docs/release-checklist-v1.0.0.md")
-        release_publish_spec = read_text(root, "docs/release-publish-v0.1.0-alpha.json")
-        release_publish_spec_v1 = read_text(root, "docs/release-publish-v1.0.0.json")
+        _, alpha, alpha_docs = validate_spec_docs(
+            root, "docs/release-publish-v0.1.0-alpha.json", "v0.1.0-alpha", False
+        )
+        _, v1, v1_docs = validate_spec_docs(
+            root, "docs/release-publish-v1.0.0.json", "v1.0.0", False
+        )
+        raw_v11, v11, v11_docs = validate_spec_docs(
+            root, "docs/release-publish-v1.1.0.json", "v1.1.0", True
+        )
     except FileNotFoundError as exc:
         return error("tool.validate.release_docs.io", VN_E_IO, str(exc), "required release document missing")
     except OSError:
         return error("tool.validate.release_docs.io", VN_E_IO, "root", "failed reading release docs")
+    except (ValueError, json.JSONDecodeError) as exc:
+        return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "invalid release document or spec")
 
     try:
-        require_contains(readme, "当前对外版本状态：`v1.0.0` 已发布", "readme.v1_published")
-        require_contains(readme, "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0", "readme.release_url")
-        require_contains(readme, "docs/release-v1.0.0.md", "readme.release_note_link")
-        require_contains(readme, "docs/release-evidence-v1.0.0.md", "readme.release_evidence_link")
-        require_contains(readme, "docs/release-package-v1.0.0.md", "readme.release_package_link")
-        require_contains(readme, "docs/release-checklist-v1.0.0.md", "readme.v1_checklist_link")
-        require_contains(readme, "docs/release-triage-v1.0.0.md", "readme.v1_triage_link")
-
+        require_contains(readme, "当前对外版本状态：`v1.0.0` 已发布", "readme.stable_release")
+        require_contains(readme, "当前开发版本：`v1.1.0`", "readme.current_development")
+        require_contains(readme, "RVV native 因没有设备证据继续延期", "readme.rvv_deferred")
         require_contains(issue, "`v1.0.0` 已发布", "issue.v1_published")
-        require_contains(issue, "`v1.0.0` 发布范围：先不包含 `RVV/riscv64 native`", "issue.v1_boundary")
 
-        require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha_section")
-        require_contains(changelog, "`rvv` 最小可运行后端与 `qemu-first` 验证链", "changelog.rvv")
-        require_contains(changelog, "`avx2_asm`", "changelog.avx2_asm")
-        require_contains(changelog, "`JIT`", "changelog.jit")
-        require_contains(changelog, "`vnsave` 迁移不在当前版本范围", "changelog.vnsave_boundary")
+        require_contains(changelog, "## Unreleased (`v1.1.0`)", "changelog.unreleased_v11")
+        require_contains(changelog, "## v1.0.0 - 2026-04-08", "changelog.v1")
+        require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
 
-        require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
-        require_contains(release_note, "`avx2_asm` 自动选择；它仍是 force-only 实验后端。", "release_note.avx2_asm")
-        require_contains(release_note, "`JIT`；当前仍是文档化实验方向，不是 release blocker。", "release_note.jit")
-        require_contains(release_note, "`riscv64 Linux`：`rvv -> scalar`，当前以 `cross-build + qemu` 为主", "release_note.rvv")
+        require_equal(bool(alpha.get("prerelease")), True, "alpha.prerelease")
+        require_equal([item["path"] for item in alpha["assets"]], ["assets/demo/demo.vnpak"], "alpha.assets")
+        require_contains(alpha_docs["release_note"], "`riscv64 Linux`", "alpha.note.platform")
 
-        require_contains(release_evidence, "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v0.1.0-alpha", "release_evidence.link")
-        require_contains(release_evidence, "`demo.vnpak`", "release_evidence.asset")
-        require_contains(release_evidence, "`./scripts/check_c89.sh`", "release_evidence.check_c89")
-        require_contains(release_evidence, "`./scripts/ci/run_cc_suite.sh`", "release_evidence.cc_suite")
-        require_contains(release_evidence, "`S0`", "release_evidence.s0")
-        require_contains(release_evidence, "`S10`", "release_evidence.s10")
+        require_equal(bool(v1.get("prerelease")), False, "v1.prerelease")
+        require_equal([item["path"] for item in v1["assets"]], ["assets/demo/demo.vnpak"], "v1.assets")
+        require_contains(v1_docs["release_note"], "`runtime-session-only`", "v1.note.save_scope")
+        require_contains(v1_docs["release_evidence"], "`ci-matrix`", "v1.evidence.ci")
+        if "- [ ]" in v1_docs["release_checklist"]:
+            raise ValueError("v1.checklist.archived_status")
 
-        require_contains(release_package, "`assets/demo/demo.vnpak`", "release_package.demo_pack")
-        require_contains(release_package, "`docs/release-v0.1.0-alpha.md`", "release_package.release_note")
-        require_contains(release_package, "`docs/release-evidence-v0.1.0-alpha.md`", "release_package.release_evidence")
-        require_contains(release_package, "`docs/backend-porting.md`", "release_package.backend_porting")
-        require_contains(release_package, "`docs/migration.md`", "release_package.migration")
-        require_contains(release_package, "`release_publish_map(.md/.json)`", "release_package.publish_map")
+        require_equal(bool(raw_v11.get("draft")), False, "v11.draft")
+        require_equal(bool(raw_v11.get("prerelease")), False, "v11.prerelease")
+        require_equal(
+            [item["path"] for item in v11["assets"]],
+            ["assets/demo/demo.vnpak", "assets/demo/content-demo.vnpak"],
+            "v11.assets",
+        )
+        require_contains(v11_docs["release_note"], "尚未创建", "v11.note.not_published")
+        require_contains(v11_docs["release_note"], "Runtime API", "v11.note.runtime_api")
+        require_contains(v11_docs["release_note"], "`vnpak`", "v11.note.vnpak")
+        require_contains(v11_docs["release_note"], "`vnsave v1`", "v11.note.vnsave")
+        require_contains(v11_docs["release_evidence"], "四个正式平台", "v11.evidence.platforms")
+        require_contains(v11_docs["release_package"], "`assets[]`", "v11.package.assets")
+        require_contains(v11_docs["release_checklist"], "RVV/riscv64 native", "v11.checklist.rvv")
+        require_contains(roadmap_v11, "真实内容渲染切片", "v11.roadmap.slice")
+        require_contains(roadmap_v11, "`vnpak v2`", "v11.roadmap.vnpak")
+        require_contains(roadmap_v11, "`vnsave v1`", "v11.roadmap.vnsave")
 
-        require_contains(release_note_v1, "`v1.0.0`", "release_note_v1.version")
-        require_contains(release_note_v1, "`runtime-session-only`", "release_note_v1.save_scope")
-        require_contains(release_note_v1, "`RVV/riscv64 native`", "release_note_v1.rvv_boundary")
-
-        require_contains(release_evidence_v1, "`runtime-session-only`", "release_evidence_v1.save_scope")
-        require_contains(release_evidence_v1, "`ci-matrix`", "release_evidence_v1.ci_matrix")
-
-        require_contains(release_package_v1, "`docs/release-v1.0.0.md`", "release_package_v1.release_note")
-        require_contains(release_package_v1, "`docs/release-publish-v1.0.0.json`", "release_package_v1.release_spec")
-
-        require_contains(alpha_checklist, "`v0.1.0-alpha` 不是 ABI/格式冻结版本", "alpha_checklist.not_frozen")
-        require_contains(alpha_checklist, "`riscv64 native` 不在当前发布级承诺范围", "alpha_checklist.rvv_boundary")
-        require_contains(alpha_checklist, "`JIT` 不在当前发布范围", "alpha_checklist.jit")
-
-        require_contains(mvp_gap, "`v0.1.0-alpha` GitHub prerelease 已发布", "mvp_gap.alpha_released")
-        require_contains(mvp_gap, "`v1.0.0` 范围已明确排除 `RVV/riscv64 native`", "mvp_gap.rvv_boundary")
-
-        require_contains(roadmap, "`v1.0.0` **先不包含 RVV / riscv64 native 承诺**", "roadmap.rvv_boundary")
-        require_contains(roadmap, "docs/release-triage-v1.0.0.md", "roadmap.v1_triage_link")
-        require_contains(triage_v1, "## 2. Must Have", "triage.must_have")
-        require_contains(triage_v1, "## 3. Nice To Have", "triage.nice_to_have")
-        require_contains(triage_v1, "## 4. Post-1.0", "triage.post_1_0")
-        require_contains_any(triage_v1, ["freeze the public contract", "真实 tag、GitHub Release、asset、publish map、bundle、report、remote summary 已全部落地"], "triage.summary")
-        require_contains(checklist_v1, "`RVV/riscv64 native` 转入 `post-1.0`", "checklist_v1.rvv_boundary")
-        require_contains(release_publish_spec, "\"repository\": \"AvrovaDonz2026/n64gal\"", "release_publish_spec.repository")
-        require_contains(release_publish_spec, "\"tag\": \"v0.1.0-alpha\"", "release_publish_spec.tag")
-        require_contains(release_publish_spec, "\"draft\": false", "release_publish_spec.draft")
-        require_contains(release_publish_spec, "\"prerelease\": true", "release_publish_spec.prerelease")
-        require_contains(release_publish_spec, "\"release_note\": \"docs/release-v0.1.0-alpha.md\"", "release_publish_spec.release_note")
-        require_contains(release_publish_spec, "\"name\": \"demo.vnpak\"", "release_publish_spec.asset_name")
-        require_contains(release_publish_spec, "\"path\": \"assets/demo/demo.vnpak\"", "release_publish_spec.asset")
-
-        require_contains(release_publish_spec_v1, "\"tag\": \"v1.0.0\"", "release_publish_spec_v1.tag")
-        require_contains(release_publish_spec_v1, "\"prerelease\": false", "release_publish_spec_v1.prerelease")
-        require_contains(release_publish_spec_v1, "\"release_note\": \"docs/release-v1.0.0.md\"", "release_publish_spec_v1.release_note")
+        require_contains(roadmap_v1, "docs/release-triage-v1.0.0.md", "v1.roadmap.triage")
+        require_contains(triage_v1, "## 2. Must Have", "v1.triage.must_have")
     except ValueError as exc:
         return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "release document drift detected")
 
@@ -156,9 +168,9 @@ def main(argv):
             [
                 "trace_id=tool.validate.release_docs.ok",
                 f"root={root}",
-                "alpha_release_docs=present",
-                "mvp_gap=present",
-                "v1_boundary=present",
+                "historical_v1=validated",
+                "current_v1_1=validated",
+                f"current_assets={len(v11['assets'])}",
             ]
         )
     )

@@ -28,6 +28,21 @@ Render IR 单条指令。
 5. `alpha`: 透明度
 6. `flags`: 扩展语义位
 
+`VN_OP_FLAG_RESOURCE_TEXTURE` 表示 `tex_id` 指向 vnpak 图片资源；未设置时继续使用 legacy procedural texture，旧 golden 语义不变。
+
+资源背景 crossfade 使用两项公开 flag：
+
+1. `VN_OP_FLAG_RESOURCE_CROSSFADE_FROM` 固定为 `0x40u`
+2. `VN_OP_FLAG_RESOURCE_CROSSFADE_TO` 固定为 `0x20u`
+
+它们只允许组成相邻的 resource `VN_OP_SPRITE` pair。FROM 必须紧邻 TO，二者都必须同时带 `VN_OP_FLAG_RESOURCE_TEXTURE`，并具有相同的 `layer/x/y/w/h`；FROM 与 TO 的 `alpha` 必须互补且和为 255。FROM 不能位于 op 数组末尾，TO 不能单独出现，flag 也不得混入 pair 之外的其它位。任一条件不满足都是 malformed pair，后端必须返回 `VN_E_FORMAT`，不得退化成两次普通纹理绘制。
+
+合法 pair 统一交给公共 `vn_pp_draw_resource_crossfade(...)`。该函数解码两个资源 texel，在 premultiplied alpha 空间按 TO 进度做透明感知的 linear crossfade，再与当前 framebuffer 合成；因此透明 texel 不会引入普通 source-over 双重衰减造成的中间亮度下陷。full submit 与 dirty submit 必须使用同一语义。
+
+### `VNTextureView`
+
+后端内部的只读图片 view，包含 `data/data_size/width/height/format`。当前格式为 RGBA16、CI8 与 IA8；runtime 通过 `vn_texture_source_bind(...)` 绑定当前 session 的缓存 lookup。
+
 ### `VNBackendCaps`
 
 后端能力位：
@@ -46,6 +61,10 @@ Render IR 单条指令。
 4. `submit_ops`
 5. `end_frame`
 6. `query_caps`
+7. `submit_ops_dirty`
+8. `get_framebuffer`
+
+`get_framebuffer` 返回后端当前逻辑 `ARGB8888` 的只读像素与宽高，renderer/runtime 在其上实现 frame view；它属于 runtime 内部 backend ABI 的兼容追加。
 
 ## 3. 后端注册与选择
 
@@ -90,6 +109,8 @@ Render IR 单条指令。
 4. `neon`：已接入最小可运行链路；`fill`、uniform alpha/fade，以及宽行 `SPRITE/TEXT` 的 row-palette 写回路径已使用 NEON/NEON-assisted 实现；最近一轮已补热循环常量外提、`div255` 预加载、palette-row no-stack lane pack、更保守的大矩形 row-palette 启发式，以及与 AVX2 对齐的 `row params + local sample/combine/blend` textured-row 热路径收口；随后又把 `sample/hash -> combine` 做成 4-lane chunk 内核，把 textured alpha blend 收口到 packed-channel 向量 helper，并把 row 级 `seed/checker/base_rgb/text_blue_bias` 常量前折叠到 params。最新一轮又把 row-palette alpha path 切到预打包 `full/RB/G` palette、给 opaque row-palette 补了整行缓存复用，并继续把 repeated-`v8` 的半透明 row-palette 接上 `RB/G` 行缓存复用；`uniform blend/fade` row kernel 也已收口到 packed `RB/G` 两路版本。`aarch64` 交叉编译与 GitHub `arm64 Linux/Windows` 原生 CI 已通过，且本地已再次用 `qemu-aarch64` 复核 `fallback`、`dirty submit` 与 `runtime golden`。当前剩余重点转向 row-palette gather/apply 的进一步降开销与更宽 chunk 评估；其中 `u_lut` lane-load 已先切到 `vld1_u8 + vmovl` 并补 `u_lut` 专用尾部 padding（`v_lut` 侧 `tail_pad=0` 以避免越界写），alpha repeated-v8 row-cache 构建也已改成 4-lane chunk helper，而 `row-palette` 的 full/RB/G palette gather 以及 direct textured row 的 `u` 索引 chunk 都开始复用 `u_lut_u32` 展开缓存与单次 `vld1q_u32` 索引载入；这轮又把 `u_lut` 与 `u_lut_u32` 的生成收口到同一遍循环里，把 alpha row-palette 全面切到“只生成 `RB/G`，不再生成 full palette”，删除了冗余的 `g_neon_u_lut(u8)` 缓存，并把 row-palette / direct row / palette build / fill-fade 的几个 4px 热循环统一改成 8px unroll；最新一轮又新增了 `sample_combine` 预加载常量版 helper，让 hottest loop 不再每个 chunk 反复 `vld1q` 行常量，同时把 non-palette direct row 的 `params` 初始化也收口到按 `v8` 复用。后续重点继续落在 row-palette gather/apply 与更宽 chunk 评估，目标架构外返回 `VN_E_UNSUPPORTED`。
 5. `rvv`：已接入最小可运行链路，`fill`、不透明矩形填充、统一颜色半透明 `fade/fill`，以及 `SPRITE/TEXT` 的 `tex/hash -> combine -> alpha` 路径使用 RVV 向量写入；其中 `sample -> combine` 已融合为单次行内向量流水，目标架构外返回 `VN_E_UNSUPPORTED`。`riscv64` 交叉构建、`qemu-user` 冒烟与 `scalar vs rvv` CRC 对照已在本地验证。
 
+`v1.1.0` 的真实资源纹理由四个后端统一转入 C89 reference sampler，覆盖 RGBA16/CI8/IA8、最近邻缩放、alpha、透明感知 premultiplied linear crossfade 和 dirty clip。AVX2/NEON/RVV 的 legacy procedural 热路径保持原有优化；真实纹理 SIMD 专项优化留到有稳定 profile 后。RVV native 仍因缺少设备证据延期，只维护 cross/QEMU correctness。
+
 实现说明：
 
 1. `avx2` 在 `init` 阶段做运行时检测（仅 CPU 支持 AVX2 时启用）。
@@ -100,6 +121,7 @@ Render IR 单条指令。
 6. `SPRITE/TEXT` 走统一的 `tex -> combine` 采样链路（共享 `pixel_pipeline`），保证 `scalar/avx2` 输出语义一致。
 7. `SPRITE/TEXT` 纹理坐标映射使用 8-bit UV LUT（每帧按可见区域构建）以减少逐像素除法开销，并进一步压低 LUT 带宽与缓存占用。
 8. `rvv` 当前已将 `tex/hash` 采样与 `combine` 融合成单次行内向量流水，`alpha=255` 时直接写 framebuffer，`alpha<255` 时也已切到单循环 `sample -> combine -> blend/store`；UV LUT 也已收口到 8-bit 存储，且 `seed/checker` 常量与 layer/flag 基础偏置已前折叠到行级参数。后续优化重点转为可重复 perf 证据沉淀与更进一步的寄存器压力优化。
+9. 四个内建后端遇到 crossfade FROM 时必须校验相邻 TO 并调用 `vn_pp_draw_resource_crossfade(...)`；malformed pair 必须返回 `VN_E_FORMAT`，不得落入各 ISA 的普通 resource texture fast path。
 
 ## 6. 后端能力位约定
 
@@ -120,6 +142,7 @@ Render IR 单条指令。
 8. `test_runtime_api` 与 `test_preview_protocol` 现也补入 `S10` 端到端覆盖，直接校验 `scene_name -> pack -> VM -> frontend` 路径会落到 6-op 压力场景，并在库结果与外部协议输出里保留 `scene_name/op_count/bgm_id` 等关键字段。
 9. 当机器不支持某个 SIMD 后端时，相关 golden 对照会自动跳过，不把当前主机不支持的 ISA 记作失败。
 10. `riscv64` 当前采用两级验证：先做交叉构建，再通过 `scripts/ci/run_riscv64_qemu_suite.sh` 在 `qemu-user` 下验证 `scalar` 回退链、`rvv` 冒烟执行，以及 `test_runtime_golden` 的 golden 容差对照 / `scalar vs rvv` CRC 一致性。
+11. `test_resource_texture_backend` 对 RGBA16/CI8/IA8、alpha、透明 crossfade、malformed pair 拒绝、裁剪、dirty/full parity 和各可用后端一致性做直接 framebuffer 校验。
 
 ## 8. Dirty-Tile 扩展现状
 

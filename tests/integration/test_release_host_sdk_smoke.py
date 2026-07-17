@@ -48,6 +48,9 @@ def main():
     if "host_embed ok" not in summary_text:
         print("host sdk summary missing host_embed result", file=sys.stderr)
         return 1
+    if "host_embed_template ok" not in summary_text:
+        print("host sdk summary missing real-content template result", file=sys.stderr)
+        return 1
 
     summary_path.unlink()
     summary_json_path.unlink()

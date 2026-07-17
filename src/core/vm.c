@@ -53,6 +53,17 @@ int vm_init(VNState* s, const vn_u8* script, vn_u32 script_size) {
     s->last_choice_text_id = 0u;
     s->choice_serial = 0u;
     s->fade_serial = 0u;
+    s->background_texture_id = VN_VM_TEXTURE_NONE;
+    s->previous_background_texture_id = VN_VM_TEXTURE_NONE;
+    s->background_duration_ms = 0u;
+    s->background_serial = 0u;
+    for (i = 0u; i < VN_VM_MAX_SPRITE_LAYERS; ++i) {
+        s->sprite_layers[i].texture_id = VN_VM_TEXTURE_NONE;
+        s->sprite_layers[i].x = 0;
+        s->sprite_layers[i].y = 0;
+        s->sprite_layers[i].active = 0u;
+    }
+    s->sprite_serial = 0u;
     s->flags = 0u;
     return VN_TRUE;
 }
@@ -100,6 +111,44 @@ void vm_step(VNState* s, vn_u32 delta_ms) {
 
         op = *s->script_pc;
         s->script_pc += 1;
+
+        if (op == VN_VM_OP_BG) {
+            if (vm_need(s, 4u) == VN_FALSE) {
+                vm_fail(s);
+                return;
+            }
+            s->previous_background_texture_id = s->background_texture_id;
+            s->background_texture_id = vm_read_u16_le(s->script_pc);
+            s->background_duration_ms = vm_read_u16_le(s->script_pc + 2);
+            s->script_pc += 4;
+            s->background_serial += 1u;
+            continue;
+        }
+
+        if (op == VN_VM_OP_SPRITE) {
+            vn_u8 layer;
+            vn_u16 texture_id;
+            VNVMSpriteLayer* sprite;
+
+            if (vm_need(s, 7u) == VN_FALSE) {
+                vm_fail(s);
+                return;
+            }
+            layer = s->script_pc[0];
+            texture_id = vm_read_u16_le(s->script_pc + 1);
+            if (layer == 0u || layer > VN_VM_MAX_SPRITE_LAYERS) {
+                vm_fail(s);
+                return;
+            }
+            sprite = &s->sprite_layers[(vn_u32)layer - 1u];
+            sprite->texture_id = texture_id;
+            sprite->x = (vn_i16)vm_read_u16_le(s->script_pc + 3);
+            sprite->y = (vn_i16)vm_read_u16_le(s->script_pc + 5);
+            sprite->active = (texture_id != VN_VM_TEXTURE_NONE) ? 1u : 0u;
+            s->script_pc += 7;
+            s->sprite_serial += 1u;
+            continue;
+        }
 
         if (op == VN_VM_OP_TEXT) {
             if (vm_need(s, 4u) == VN_FALSE) {
@@ -408,4 +457,46 @@ vn_u32 vm_fade_serial(const VNState* s) {
         return 0u;
     }
     return s->fade_serial;
+}
+
+vn_u16 vm_background_texture_id(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return VN_VM_TEXTURE_NONE;
+    }
+    return s->background_texture_id;
+}
+
+vn_u16 vm_previous_background_texture_id(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return VN_VM_TEXTURE_NONE;
+    }
+    return s->previous_background_texture_id;
+}
+
+vn_u16 vm_background_duration_ms(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->background_duration_ms;
+}
+
+vn_u32 vm_background_serial(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->background_serial;
+}
+
+const VNVMSpriteLayer* vm_sprite_layer(const VNState* s, vn_u32 layer_index) {
+    if (s == (const VNState*)0 || layer_index >= VN_VM_MAX_SPRITE_LAYERS) {
+        return (const VNVMSpriteLayer*)0;
+    }
+    return &s->sprite_layers[layer_index];
+}
+
+vn_u32 vm_sprite_serial(const VNState* s) {
+    if (s == (const VNState*)0) {
+        return 0u;
+    }
+    return s->sprite_serial;
 }

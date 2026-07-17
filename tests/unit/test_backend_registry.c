@@ -40,6 +40,7 @@ static const VNRenderBackend g_dummy_scalar = {
     dummy_submit,
     dummy_end_frame,
     dummy_caps,
+    0,
     0
 };
 

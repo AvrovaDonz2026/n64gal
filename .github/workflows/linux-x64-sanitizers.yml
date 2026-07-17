@@ -1,0 +1,42 @@
+name: linux-x64-sanitizers
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x64-sanitizers:
+    runs-on: ubuntu-latest
+    env:
+      CC: clang
+      BUILD_DIR: build_ci_sanitizers
+    steps:
+      - uses: actions/checkout@v4
+      - name: C89 ASan and UBSan validation with content soak
+        run: ./scripts/ci/run_linux_x64_sanitizers.sh
+      - name: Validate shortened sanitizer entrypoint
+        env:
+          VN_SANITIZER_PREBUILT_DIR: build_ci_sanitizers
+        run: python3 tests/integration/test_linux_x64_sanitizer_script.py
+      - name: Publish sanitizer summary
+        if: always()
+        run: |
+          if [ -f build_ci_sanitizers/sanitizer_summary.md ]; then
+            cat build_ci_sanitizers/sanitizer_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload sanitizer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-sanitizers
+          if-no-files-found: warn
+          path: |
+            build_ci_sanitizers/logs
+            build_ci_sanitizers/sanitizer_summary.md
+            build_ci_sanitizers/sanitizer_summary.json

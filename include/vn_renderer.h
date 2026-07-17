@@ -27,5 +27,8 @@ void renderer_submit_dirty(const VNRenderOp* ops,
 void renderer_end_frame(void);
 void renderer_shutdown(void);
 const char* renderer_backend_name(void);
+int renderer_get_framebuffer(const vn_u32** out_pixels,
+                             vn_u32* out_width,
+                             vn_u32* out_height);
 
 #endif

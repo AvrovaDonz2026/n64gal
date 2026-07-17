@@ -11,6 +11,7 @@
 1. 资源读取保持 C89 兼容。
 2. 支持 `vnpak` 版本兼容读取（v1/v2）。
 3. 在运行时做资源一致性校验，避免坏包静默运行。
+4. `v1.1.0` 在不升级 `vnpak v2` 的前提下追加场景目录和真实图片语义。
 
 ## 2.1 当前版本承诺级别
 
@@ -109,6 +110,12 @@
 
 ## 6. 图像格式与 Flags
 
+当前资源 type：
+
+1. `VN_RESOURCE_TYPE_IMAGE = 1`
+2. `VN_RESOURCE_TYPE_SCRIPT = 2`
+3. `VN_RESOURCE_TYPE_SCENE_CATALOG = 3`
+
 `ResourceEntry.flags` 低 4 位用于图像像素格式：
 
 1. `1`: `RGBA16`
@@ -116,6 +123,22 @@
 3. `3`: `IA8`
 
 `type=2`（脚本资源）时 `flags=0`。
+
+运行时会严格校验图片尺寸和 payload 大小，并在第一次进入当前 render op 集合时通过 vnpak CRC 读取到 32 MiB LRU 缓存。所有后端使用最近邻采样；图片自身 alpha 与 render op alpha 相乘后再混合。
+
+工具与 runtime 共用以下硬边界：单个 pack 最多 4096 个资源，单张转换后图片 payload 不得超过 32 MiB。项目验证阶段会拒绝超限输入，不生成 runtime 无法打开的包。
+
+同一帧 `VNRenderOp[]` 引用的唯一图片 working set 总量也不得超过 32 MiB。runtime 会在加载前整体预检，超限返回 `VN_E_NOMEM` 且不会留下部分 pinned 状态；内容项目应按“当前背景 + 过渡中的上一背景 + 活跃立绘层”计算峰值。
+
+### `VNSC v1` 场景目录
+
+内容项目在 pack 中追加且只追加一个 `type=3` 资源：
+
+1. header：`"VNSC" + u16 version + u16 scene_count + u32 entry_scene_id`
+2. entry：`u32 scene_id + u16 script_resource_id + u8 name_len + u8 reserved + name bytes`
+3. 整数均为 little-endian，`reserved` 必须为 0
+4. 场景名和 ID 必须唯一，script resource 必须存在且为 `type=2`
+5. 没有 `VNSC` 的历史包继续走 legacy 场景映射
 
 ### `CI8` 资源载荷布局（当前约定）
 
@@ -136,7 +159,10 @@
 
 1. `assets/demo/demo.vnpak`
 2. `assets/demo/manifest.json`
-3. 可选输入：`assets/demo/images/images.json`
+3. `assets/demo/content-demo.vnpak`
+4. 可选输入：`assets/demo/images/images.json`
+
+`demo.vnpak` 保留 v1 回归资源布局；`content-demo.vnpak` 由 `assets/demo/content-project.json` 重建，包含自定义 `Opening/Gallery`、三种图片格式和 `VNSC` catalog。
 
 `images.json` 示例字段：
 

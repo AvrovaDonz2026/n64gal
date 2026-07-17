@@ -9,6 +9,14 @@
 #define VNPAK_READ_MAX_VERSION VNPAK_VERSION_2
 #define VNPAK_WRITE_DEFAULT_VERSION VNPAK_VERSION_2
 
+#define VN_RESOURCE_TYPE_IMAGE         1u
+#define VN_RESOURCE_TYPE_SCRIPT        2u
+#define VN_RESOURCE_TYPE_SCENE_CATALOG 3u
+
+#define VN_IMAGE_FORMAT_RGBA16 1u
+#define VN_IMAGE_FORMAT_CI8    2u
+#define VN_IMAGE_FORMAT_IA8    3u
+
 typedef struct {
     vn_u8 type;
     vn_u8 flags;

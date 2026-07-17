@@ -6,7 +6,11 @@ on:
       tag:
         description: Release tag to validate
         required: true
-        default: v0.1.0-alpha
+        default: v1.1.0
+      release_spec:
+        description: Release publish spec to validate
+        required: true
+        default: docs/release-publish-v1.1.0.json
 
 permissions:
   contents: read
@@ -18,14 +22,30 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - name: Native CC suite
+        run: ./scripts/ci/run_cc_suite.sh
+      - name: Real-content soak
+        run: |
+          BUILD_DIR=build_release_preflight/content_soak \
+          python3 tools/toolchain.py release-soak \
+            --pack assets/demo/content-demo.vnpak \
+            --scenes Opening,Gallery \
+            --scene-duration-sec 450 \
+            --backend scalar \
+            --summary-out build_release_preflight/content_soak_summary.md \
+            --summary-json-out build_release_preflight/content_soak_summary.json
       - name: Release preflight
         run: |
           python3 tools/toolchain.py release-preflight \
             --skip-cc-suite \
+            --ci-suite-summary build_ci_cc/ci_suite_summary.md \
+            --content-soak-summary build_release_preflight/content_soak_summary.md \
+            --content-soak-summary-json build_release_preflight/content_soak_summary.json \
             --soak-frames-per-scene 120 \
             --soak-scenes S0,S1,S2,S3,S10 \
             --remote-github-repo "${{ github.repository }}" \
             --remote-tag "${{ inputs.tag }}" \
+            --release-spec "${{ inputs.release_spec }}" \
             --remote-token-env GITHUB_TOKEN \
             --out-dir build_release_preflight
       - name: Publish preflight summary
@@ -33,6 +53,9 @@ jobs:
         run: |
           if [ -f build_release_preflight/release_preflight_summary.md ]; then
             cat build_release_preflight/release_preflight_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f build_release_preflight/content_soak_summary.md ]; then
+            cat build_release_preflight/content_soak_summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Upload preflight artifact
         if: always()

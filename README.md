@@ -6,16 +6,19 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 
 1. 库优先：核心能力通过 `vn_runtime.h` 暴露，`vn_player` 只是可选 CLI 包装。
 2. 单一渲染契约：Frontend 输出统一 `VNRenderOp[]`，后端按 ISA 执行。
-3. 跨架构主线：`x64/avx2`、`arm64/neon`、`riscv64/rvv(qemu-first)`。
+3. 跨架构主线：`x64/avx2`、`arm64/neon`；`riscv64/rvv` 仅维护 cross/QEMU correctness。
 4. 可验证：runtime / preview / pack / save / toolchain 都有测试和 validator。
 
 当前公开稳定版本是 `v1.0.0`。
+当前开发里程碑是 `v1.1.0` 真实内容渲染切片。
 
 ## 版本状态
 
 - 当前对外版本状态：`v1.0.0` 已发布
 - 当前正式发布对象：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
 - 当前 `v1.0.0` 范围决策：先不包含 RVV / riscv64 native 承诺
+- 当前开发版本：`v1.1.0`，尚未创建 tag 或 GitHub Release
+- `v1.1.0` 范围：自定义场景、真实图片渲染、preview 截图和兼容追加的 session 状态
 
 ## 当前范围
 
@@ -32,7 +35,9 @@ Session API：`create/step/is_done/set_choice/inject_input/destroy`。
 
 Runtime 当前也已公开 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，但默认仍保持 `off`。
 当前最小公开 save/load 范围固定为 `runtime-session-only`，不等同于通用宿主 save ABI。
-当前场景名不是任意字符串，而是固定集合：`S0/S1/S2/S3/S10`。
+Legacy 包的场景名仍固定为 `S0/S1/S2/S3/S10`；带 `VNSC` catalog 的内容包接受项目声明的合法 ASCII 场景名。
+
+`v1.1.0` 在保留这条 legacy 基准路径的同时加入内容项目场景目录、背景和持久立绘层。版本边界继续固定为 Runtime API v1、Preview Protocol v1、`vnpak v2` 和 `vnsave v1`；真实内容能力不通过升级这些公开主版本实现。
 
 首个 `v1.0.0` 当前只承诺：
 
@@ -55,6 +60,8 @@ Runtime 当前也已公开 `VN_RUNTIME_PERF_DYNAMIC_RESOLUTION`，但默认仍�
 
 详细发布边界见 [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md) 和 [docs/compat-matrix.md](./docs/compat-matrix.md)。
 更多发布背景见 [docs/release-v1.0.0.md](./docs/release-v1.0.0.md)、[docs/release-evidence-v1.0.0.md](./docs/release-evidence-v1.0.0.md)、[docs/release-package-v1.0.0.md](./docs/release-package-v1.0.0.md)、[docs/release-checklist-v1.0.0.md](./docs/release-checklist-v1.0.0.md) 和 [docs/release-triage-v1.0.0.md](./docs/release-triage-v1.0.0.md)。
+
+`v1.1.0` 的开发与发布验收入口见 [roadmap](./docs/release-roadmap-1.1.0.md)、[release note](./docs/release-v1.1.0.md)、[evidence](./docs/release-evidence-v1.1.0.md)、[package](./docs/release-package-v1.1.0.md) 和 [checklist](./docs/release-checklist-v1.1.0.md)。RVV native 因没有设备证据继续延期，不阻塞本里程碑。
 
 ## 代码优先
 
@@ -100,6 +107,7 @@ docs/           API / perf / release / migration / governance
 
 1. `assets/demo/demo.vnpak`
 2. `assets/demo/manifest.json`
+3. `assets/demo/content-demo.vnpak`
 
 ### 2. 构建
 
@@ -128,6 +136,8 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
   src/core/runtime_persist.c \
   src/core/runtime_session_support.c \
   src/core/runtime_session_loop.c \
+  src/core/scene_catalog.c \
+  src/core/runtime_texture.c \
   src/core/dynamic_resolution.c \
   src/frontend/render_ops.c \
   src/frontend/dirty_tiles.c \
@@ -149,7 +159,7 @@ cc -std=c89 -pedantic-errors -Wall -Wextra -Werror -Iinclude \
 
 常用参数：
 
-1. `--scene=S0|S1|S2|S3|S10`
+1. `--scene=<catalog 场景名>`；legacy 包使用 `S0|S1|S2|S3|S10`
 2. `--backend=auto|scalar|avx2|avx2_asm|neon|rvv`
 3. `--resolution=600x800`
 4. `--frames=<N>`
@@ -304,7 +314,7 @@ perf 工具：
 5. Save： [docs/api/save.md](./docs/api/save.md)
 6. Save 版本策略： [docs/vnsave-version-policy.md](./docs/vnsave-version-policy.md)
 7. Perf： [docs/perf-report.md](./docs/perf-report.md)
-8. Release： [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md)
+8. Release： [docs/release-roadmap-1.1.0.md](./docs/release-roadmap-1.1.0.md)
 9. Backend 移植： [docs/backend-porting.md](./docs/backend-porting.md)
 10. 兼容矩阵： [`docs/platform-matrix.md`](./docs/platform-matrix.md) / [docs/compat-matrix.md](./docs/compat-matrix.md)
 11. 生态扩展： [docs/extension-manifest.md](./docs/extension-manifest.md)
@@ -313,7 +323,15 @@ perf 工具：
 14. 宿主接入： [docs/host-sdk.md](./docs/host-sdk.md)
 15. 项目跟踪： [issue.md](./issue.md)
 
-如需看版本发布和 `1.0.0` 收口细节，直接读：
+如需看当前 `1.1.0` 开发与发布框架，直接读：
+
+1. [docs/release-roadmap-1.1.0.md](./docs/release-roadmap-1.1.0.md)
+2. [docs/release-v1.1.0.md](./docs/release-v1.1.0.md)
+3. [docs/release-evidence-v1.1.0.md](./docs/release-evidence-v1.1.0.md)
+4. [docs/release-package-v1.1.0.md](./docs/release-package-v1.1.0.md)
+5. [docs/release-checklist-v1.1.0.md](./docs/release-checklist-v1.1.0.md)
+
+历史 `v1.0.0` 收口细节：
 
 1. [docs/release-v1.0.0.md](./docs/release-v1.0.0.md)
 2. [docs/release-evidence-v1.0.0.md](./docs/release-evidence-v1.0.0.md)

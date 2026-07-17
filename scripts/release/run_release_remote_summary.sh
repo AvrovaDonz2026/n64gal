@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/build_release_remote}"
-RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.0.0.json}"
+RELEASE_SPEC="${RELEASE_SPEC:-$ROOT_DIR/docs/release-publish-v1.1.0.json}"
 RELEASE_JSON=""
 RELEASE_JSON_URL=""
 GITHUB_REPO=""
@@ -96,25 +96,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 source_spec_defaults() {
-  eval "$(
-  python3 - "$RELEASE_SPEC" <<'PY'
-import json
-import shlex
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-fields = {
-    "SPEC_TAG": payload.get("tag", ""),
-    "SPEC_RELEASE_URL": payload.get("release_url", ""),
-    "SPEC_REPOSITORY": payload.get("repository", ""),
-}
-for key, value in fields.items():
-    print(f"{key}={shlex.quote(str(value))}")
-PY
-  )"
+  eval "$(python3 tools/validate/release_spec.py --shell "$RELEASE_SPEC")"
+  mapfile -t SPEC_ASSET_NAMES < <(python3 tools/validate/release_spec.py --asset-names "$RELEASE_SPEC")
 }
 
 if [[ -z "$RELEASE_JSON" && -z "$RELEASE_JSON_URL" && -z "$GITHUB_REPO" ]]; then
@@ -172,27 +155,42 @@ fi
 python3 tools/validate/validate_release_remote_state.py --release-spec "$RELEASE_SPEC" --release-json "$RELEASE_JSON" >/tmp/n64gal_release_remote_validate.log
 
 eval "$(
-python3 - "$RELEASE_SPEC" "$RELEASE_JSON" <<'PY'
+python3 - "$RELEASE_JSON" <<'PY'
 import json
 import shlex
 import sys
 
-spec = json.load(open(sys.argv[1], "r", encoding="utf-8"))
-remote = json.load(open(sys.argv[2], "r", encoding="utf-8"))
-asset_path = spec["asset"]["path"]
-asset_name = asset_path.split("/")[-1]
-asset_entry = next(item for item in remote["assets"] if item["name"] == asset_name)
+remote = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 fields = {
     "REMOTE_TAG": remote["tag_name"],
     "REMOTE_HTML_URL": remote["html_url"],
-    "REMOTE_ASSET_NAME": asset_entry["name"],
-    "REMOTE_ASSET_URL": asset_entry["browser_download_url"],
-    "REMOTE_ASSET_SIZE": str(asset_entry["size"]),
 }
 for key, value in fields.items():
     print(f"{key}={shlex.quote(str(value))}")
 PY
 )"
+mapfile -t REMOTE_ASSET_SIZES < <(
+  python3 - "$RELEASE_JSON" "${SPEC_ASSET_NAMES[@]}" <<'PY'
+import json
+import sys
+
+remote = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assets = {entry["name"]: entry for entry in remote["assets"]}
+for name in sys.argv[2:]:
+    print(assets[name]["size"])
+PY
+)
+mapfile -t REMOTE_ASSET_URLS < <(
+  python3 - "$RELEASE_JSON" "${SPEC_ASSET_NAMES[@]}" <<'PY'
+import json
+import sys
+
+remote = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assets = {entry["name"]: entry for entry in remote["assets"]}
+for name in sys.argv[2:]:
+    print(assets[name]["browser_download_url"])
+PY
+)
 
 {
   echo "# Release Remote Summary"
@@ -209,9 +207,10 @@ PY
   echo
   echo "1. Tag: \`$REMOTE_TAG\`"
   echo "2. Release URL: \`$REMOTE_HTML_URL\`"
-  echo "3. Asset: \`$REMOTE_ASSET_NAME\`"
-  echo "4. Asset size: \`$REMOTE_ASSET_SIZE\`"
-  echo "5. Asset URL: \`$REMOTE_ASSET_URL\`"
+  echo "3. Assets: \`${#SPEC_ASSET_NAMES[@]}\`"
+  for i in "${!SPEC_ASSET_NAMES[@]}"; do
+    echo "$((i + 4)). \`${SPEC_ASSET_NAMES[$i]}\`: size=\`${REMOTE_ASSET_SIZES[$i]}\`, url=\`${REMOTE_ASSET_URLS[$i]}\`"
+  done
 } >"$SUMMARY_OUT"
 
 {
@@ -223,7 +222,16 @@ PY
   printf '  "release_json_url": "%s",\n' "$RELEASE_JSON_URL"
   printf '  "tag": "%s",\n' "$REMOTE_TAG"
   printf '  "release_url": "%s",\n' "$REMOTE_HTML_URL"
-  printf '  "asset": {"name":"%s","size":%s,"url":"%s"},\n' "$REMOTE_ASSET_NAME" "$REMOTE_ASSET_SIZE" "$REMOTE_ASSET_URL"
+  printf '  "asset": {"name":"%s","size":%s,"url":"%s"},\n' "${SPEC_ASSET_NAMES[0]}" "${REMOTE_ASSET_SIZES[0]}" "${REMOTE_ASSET_URLS[0]}"
+  printf '  "assets": [\n'
+  for i in "${!SPEC_ASSET_NAMES[@]}"; do
+    printf '    {"name":"%s","size":%s,"url":"%s"}' "${SPEC_ASSET_NAMES[$i]}" "${REMOTE_ASSET_SIZES[$i]}" "${REMOTE_ASSET_URLS[$i]}"
+    if [[ $i -lt $((${#SPEC_ASSET_NAMES[@]} - 1)) ]]; then
+      printf ','
+    fi
+    printf '\n'
+  done
+  printf '  ],\n'
   printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
   printf '  "summary_json": "%s"\n' "$SUMMARY_JSON_OUT"
   printf '}\n'

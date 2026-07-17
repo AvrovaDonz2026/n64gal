@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "vn_error.h"
 #include "vn_runtime.h"
+#include "../../src/core/runtime_internal.h"
 
 static int run_perf_scene(const char* scene_name,
                           vn_u32 frames,
@@ -37,6 +39,94 @@ static int run_perf_scene(const char* scene_name,
     return 0;
 }
 
+static int test_content_cache_hash_collision(void) {
+    VNRuntimeState state_a;
+    VNRuntimeState state_b;
+    VNRuntimeSession session;
+    RenderOpCacheKey key_a;
+    RenderOpCacheKey key_b;
+    RenderOpCacheKey frame_key;
+    VNRenderOp ops[16];
+    vn_u32 op_count;
+    int cache_hit;
+    int frame_hit;
+
+    (void)memset(&state_a, 0, sizeof(state_a));
+    state_init_defaults(&state_a);
+    state_a.content_mode = 1u;
+    state_a.base_width = 320u;
+    state_a.base_height = 240u;
+    state_a.render_width = 320u;
+    state_a.render_height = 240u;
+    state_a.visual_layers[0].texture_id = 2u;
+    state_a.visual_layers[0].x = 282;
+    state_a.visual_layers[0].y = 54;
+    state_a.visual_layers[0].width = 64u;
+    state_a.visual_layers[0].height = 64u;
+    state_a.visual_layers[0].layer = 1u;
+    state_a.visual_layers[0].active = 1u;
+    state_b = state_a;
+    state_b.visual_layers[0].texture_id = 3u;
+    state_b.visual_layers[0].x = 224;
+    state_b.visual_layers[0].y = -63;
+
+    runtime_render_key_init(&key_a, &state_a);
+    runtime_render_key_init(&key_b, &state_b);
+    if (key_a.visual_hash != key_b.visual_hash ||
+        runtime_render_key_equal(&key_a, &key_b) != VN_FALSE) {
+        (void)fprintf(stderr,
+                      "content cache collision was not disambiguated hash_a=0x%08X hash_b=0x%08X\n",
+                      (unsigned int)key_a.visual_hash,
+                      (unsigned int)key_b.visual_hash);
+        return 1;
+    }
+    key_b = key_a;
+    if (runtime_render_key_equal(&key_a, &key_b) == VN_FALSE) {
+        (void)fprintf(stderr, "identical content cache keys did not match\n");
+        return 1;
+    }
+
+    (void)memset(&session, 0, sizeof(session));
+    session.perf_flags = VN_RUNTIME_PERF_FRAME_REUSE;
+    session.frame_ready = VN_TRUE;
+    if (runtime_prepare_frame_reuse(&session, &state_a, &frame_key, &frame_hit) == VN_FALSE ||
+        frame_hit != VN_FALSE) {
+        (void)fprintf(stderr, "initial collision frame-reuse state mismatch\n");
+        return 1;
+    }
+    runtime_commit_frame_reuse(&session, &frame_key);
+    if (runtime_prepare_frame_reuse(&session, &state_b, &frame_key, &frame_hit) == VN_FALSE ||
+        frame_hit != VN_FALSE || session.frame_reuse_misses != 2u) {
+        (void)fprintf(stderr, "colliding content state reused stale framebuffer\n");
+        return 1;
+    }
+
+    (void)memset(&session, 0, sizeof(session));
+    session.perf_flags = VN_RUNTIME_PERF_OP_CACHE;
+    op_count = 16u;
+    if (runtime_build_render_ops_cached(&session,
+                                        &state_a,
+                                        ops,
+                                        &op_count,
+                                        &cache_hit) != VN_OK ||
+        cache_hit != VN_FALSE) {
+        (void)fprintf(stderr, "initial collision op-cache build mismatch\n");
+        return 1;
+    }
+    op_count = 16u;
+    if (runtime_build_render_ops_cached(&session,
+                                        &state_b,
+                                        ops,
+                                        &op_count,
+                                        &cache_hit) != VN_OK ||
+        cache_hit != VN_FALSE || session.op_cache_misses != 2u ||
+        op_count != 2u || ops[1].tex_id != 3u || ops[1].x != 224) {
+        (void)fprintf(stderr, "colliding content state reused stale render ops\n");
+        return 1;
+    }
+    return 0;
+}
+
 int main(void) {
     VNRunConfig cfg;
     VNRunResult res;
@@ -45,8 +135,12 @@ int main(void) {
     VNRunResult dirty_res;
     VNRunResult s10_res;
     VNRuntimeBuildInfo build_info;
+    VNRuntimeBuildInfoV2 build_info_v2;
     int rc;
 
+    if (test_content_cache_hash_collision() != 0) {
+        return 1;
+    }
     memset((void*)&build_info, 0, sizeof(build_info));
     vn_runtime_query_build_info(&build_info);
     if (build_info.runtime_api_version == (const char*)0 ||
@@ -89,6 +183,33 @@ int main(void) {
         build_info.host_arch == (const char*)0 ||
         build_info.host_compiler == (const char*)0) {
         (void)fprintf(stderr, "missing host build info\n");
+        return 1;
+    }
+
+    (void)memset(&build_info_v2, 0, sizeof(build_info_v2));
+    if (vn_runtime_query_build_info_v2(&build_info_v2) != VN_E_INVALID_ARG) {
+        (void)fprintf(stderr, "uninitialized build info v2 should fail\n");
+        return 1;
+    }
+    vn_runtime_build_info_v2_init(&build_info_v2);
+    rc = vn_runtime_query_build_info_v2(&build_info_v2);
+    if (rc != VN_OK ||
+        build_info_v2.struct_size != (vn_u32)sizeof(build_info_v2) ||
+        build_info_v2.version != VN_RUNTIME_BUILD_INFO_V2_VERSION ||
+        build_info_v2.engine_version == (const char*)0 ||
+        strcmp(build_info_v2.engine_version, "1.1.0") != 0 ||
+        build_info_v2.capability_flags != (VN_RUNTIME_CAP_SCENE_CATALOG |
+                                           VN_RUNTIME_CAP_RESOURCE_TEXTURE |
+                                           VN_RUNTIME_CAP_FRAME_VIEW |
+                                           VN_RUNTIME_CAP_SNAPSHOT_V2) ||
+        build_info_v2.v1.runtime_api_version == (const char*)0 ||
+        strcmp(build_info_v2.v1.runtime_api_version, VN_RUNTIME_API_VERSION) != 0) {
+        (void)fprintf(stderr, "runtime build info v2 mismatch rc=%d\n", rc);
+        return 1;
+    }
+    build_info_v2.version += 1u;
+    if (vn_runtime_query_build_info_v2(&build_info_v2) != VN_E_INVALID_ARG) {
+        (void)fprintf(stderr, "unsupported build info v2 version should fail\n");
         return 1;
     }
 

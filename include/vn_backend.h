@@ -24,6 +24,26 @@ typedef struct RendererConfig RendererConfig;
 #define VN_OP_TEXT   3
 #define VN_OP_FADE   4
 
+#define VN_OP_FLAG_RESOURCE_TEXTURE 0x80u
+#define VN_OP_FLAG_RESOURCE_CROSSFADE_FROM 0x40u
+#define VN_OP_FLAG_RESOURCE_CROSSFADE_TO   0x20u
+
+#define VN_TEXTURE_FORMAT_RGBA16 1u
+#define VN_TEXTURE_FORMAT_CI8    2u
+#define VN_TEXTURE_FORMAT_IA8    3u
+
+typedef struct {
+    const vn_u8* data;
+    vn_u32 data_size;
+    vn_u16 width;
+    vn_u16 height;
+    vn_u8 format;
+} VNTextureView;
+
+typedef int (*VNTextureLookupFn)(void* user,
+                                 vn_u16 tex_id,
+                                 VNTextureView* out_view);
+
 typedef struct {
     vn_u8 op;
     vn_u8 layer;
@@ -69,7 +89,13 @@ typedef struct {
     int (*submit_ops_dirty)(const VNRenderOp* ops,
                             vn_u32 op_count,
                             const VNRenderDirtySubmit* dirty_submit);
+    int (*get_framebuffer)(const vn_u32** out_pixels,
+                           vn_u32* out_width,
+                           vn_u32* out_height);
 } VNRenderBackend;
+
+int vn_texture_source_bind(VNTextureLookupFn lookup, void* user);
+void vn_texture_source_unbind(void);
 
 int vn_backend_register(const VNRenderBackend* be);
 const VNRenderBackend* vn_backend_select(vn_u32 prefer_arch_mask);

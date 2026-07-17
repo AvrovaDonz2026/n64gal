@@ -29,7 +29,9 @@ static int preview_add_command(VNPreviewRequest* req,
 static int preview_load_request_file(VNPreviewRequest* req,
                                      VNPreviewReport* report,
                                      const char* path);
-static void preview_resolve_pack_path(VNPreviewRequest* req);
+static void preview_resolve_paths(VNPreviewRequest* req);
+static int preview_validate_capture_request(const VNPreviewRequest* req,
+                                            VNPreviewReport* report);
 
 int preview_parse_cli(VNPreviewRequest* req,
                       VNPreviewReport* report,
@@ -123,6 +125,15 @@ int preview_parse_cli(VNPreviewRequest* req,
             preview_str_copy(req->pack_path, sizeof(req->pack_path), argv[i]);
         } else if (strncmp(arg, "--pack=", 7) == 0) {
             preview_str_copy(req->pack_path, sizeof(req->pack_path), arg + 7);
+        } else if (strcmp(arg, "--screenshot") == 0) {
+            if ((i + 1) >= argc) {
+                preview_error(report, VN_E_INVALID_ARG, "missing value for --screenshot", 2);
+                return 2;
+            }
+            i += 1;
+            preview_str_copy(req->screenshot_path, sizeof(req->screenshot_path), argv[i]);
+        } else if (strncmp(arg, "--screenshot=", 13) == 0) {
+            preview_str_copy(req->screenshot_path, sizeof(req->screenshot_path), arg + 13);
         } else if (strcmp(arg, "--scene") == 0) {
             if ((i + 1) >= argc) {
                 preview_error(report, VN_E_INVALID_ARG, "missing value for --scene", 2);
@@ -307,11 +318,15 @@ int preview_parse_cli(VNPreviewRequest* req,
     if (req->backend_name[0] != '\0') {
         req->cfg.backend_name = req->backend_name;
     }
-    preview_resolve_pack_path(req);
+    preview_resolve_paths(req);
     if (req->resolved_pack_path[0] != '\0') {
         req->cfg.pack_path = req->resolved_pack_path;
     }
     report->command_count = req->command_count;
+    rc = preview_validate_capture_request(req, report);
+    if (rc != VN_OK) {
+        return 2;
+    }
     return 0;
 }
 
@@ -364,6 +379,8 @@ static int preview_load_request_file(VNPreviewRequest* req,
             preview_str_copy(req->project_dir, sizeof(req->project_dir), value);
         } else if (strcmp(key, "pack") == 0 || strcmp(key, "pack_path") == 0) {
             preview_str_copy(req->pack_path, sizeof(req->pack_path), value);
+        } else if (strcmp(key, "screenshot") == 0 || strcmp(key, "screenshot_path") == 0) {
+            preview_str_copy(req->screenshot_path, sizeof(req->screenshot_path), value);
         } else if (strcmp(key, "scene") == 0 || strcmp(key, "scene_name") == 0) {
             preview_str_copy(req->scene_name, sizeof(req->scene_name), value);
         } else if (strcmp(key, "backend") == 0) {
@@ -452,7 +469,7 @@ static int preview_load_request_file(VNPreviewRequest* req,
         if (req->backend_name[0] != '\0') {
             req->cfg.backend_name = req->backend_name;
         }
-        preview_resolve_pack_path(req);
+        preview_resolve_paths(req);
         if (req->resolved_pack_path[0] != '\0') {
             req->cfg.pack_path = req->resolved_pack_path;
         }
@@ -465,12 +482,13 @@ static void preview_print_usage(void) {
     (void)printf("usage: vn_previewd [--request FILE] [--response FILE] [options]\n");
     (void)printf("  --project-dir PATH\n");
     (void)printf("  --pack PATH\n");
+    (void)printf("  --screenshot PATH\n");
     (void)printf("  --scene NAME\n");
     (void)printf("  --backend auto|scalar|avx2|avx2_asm|neon|rvv\n");
     (void)printf("  --resolution WIDTHxHEIGHT\n");
     (void)printf("  --frames N --dt-ms N --trace --hold-end\n");
     (void)printf("  --command run_to_end|step_frame[:N]|reload_scene|set_choice:N|inject_input:choice:N\n");
-    (void)printf("  --command inject_input:key:C|inject_input:trace_toggle|inject_input:quit\n");
+    (void)printf("  --command inject_input:key:C|inject_input:trace_toggle|inject_input:quit|capture_screenshot\n");
 }
 
 static void preview_str_copy(char* dst, size_t dst_size, const char* src) {
@@ -679,6 +697,10 @@ static int preview_parse_command(const char* text,
         out_command->kind = VN_PREVIEW_CMD_INJECT_QUIT;
         return VN_OK;
     }
+    if (strcmp(text, "capture_screenshot") == 0) {
+        out_command->kind = VN_PREVIEW_CMD_CAPTURE_SCREENSHOT;
+        return VN_OK;
+    }
     return VN_E_INVALID_ARG;
 }
 
@@ -699,7 +721,7 @@ static int preview_add_command(VNPreviewRequest* req,
     return VN_OK;
 }
 
-static void preview_resolve_pack_path(VNPreviewRequest* req) {
+static void preview_resolve_paths(VNPreviewRequest* req) {
     const char* leaf;
     const char* base_dir;
 
@@ -715,9 +737,15 @@ static void preview_resolve_pack_path(VNPreviewRequest* req) {
         base_dir = req->request_dir;
     }
     vn_platform_path_join(req->resolved_pack_path,
-                      sizeof(req->resolved_pack_path),
-                      base_dir,
-                      leaf);
+                          sizeof(req->resolved_pack_path),
+                          base_dir,
+                          leaf);
+    if (req->screenshot_path[0] != '\0') {
+        vn_platform_path_join(req->resolved_screenshot_path,
+                              sizeof(req->resolved_screenshot_path),
+                              base_dir,
+                              req->screenshot_path);
+    }
     if (req->scene_name[0] == '\0') {
         preview_str_copy(req->scene_name, sizeof(req->scene_name), "S0");
         req->cfg.scene_name = req->scene_name;
@@ -726,4 +754,24 @@ static void preview_resolve_pack_path(VNPreviewRequest* req) {
         preview_str_copy(req->backend_name, sizeof(req->backend_name), "auto");
         req->cfg.backend_name = req->backend_name;
     }
+}
+
+static int preview_validate_capture_request(const VNPreviewRequest* req,
+                                            VNPreviewReport* report) {
+    vn_u32 i;
+
+    if (req == (const VNPreviewRequest*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    for (i = 0u; i < req->command_count; ++i) {
+        if (req->commands[i].kind == VN_PREVIEW_CMD_CAPTURE_SCREENSHOT &&
+            req->resolved_screenshot_path[0] == '\0') {
+            preview_error(report,
+                          VN_E_INVALID_ARG,
+                          "capture_screenshot requires screenshot_path",
+                          2);
+            return VN_E_INVALID_ARG;
+        }
+    }
+    return VN_OK;
 }

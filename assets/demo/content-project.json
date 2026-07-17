@@ -1,0 +1,19 @@
+{
+  "template_version": 2,
+  "template_name": "content-demo",
+  "kind": "content-project",
+  "stability": "preview",
+  "entry_scene": "Opening",
+  "scenes": [
+    {
+      "name": "Opening",
+      "script": "content/scripts/Opening.vns.txt"
+    },
+    {
+      "name": "Gallery",
+      "script": "content/scripts/Gallery.vns.txt"
+    }
+  ],
+  "images_manifest": "images/images.json",
+  "pack_output": "build/content-demo.vnpak"
+}

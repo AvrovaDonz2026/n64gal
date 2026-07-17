@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased (`v1.1.0`)
+
+### Planned
+
+1. 自定义场景目录、背景与最多 8 个持久立绘层进入既有 `VM -> runtime state -> VNRenderOp[] -> backend` 链路。
+2. 包内 `RGBA16/CI8/IA8` 真实纹理渲染、按需缓存与 preview 截图证据。
+3. 兼容追加 build-info v2、只读 frame view 和 snapshot v2；Runtime API 仍为 `public stable v1`。
+4. release spec 显式声明 note/evidence/package/checklist 和多个 `assets[]`。
+
+### Compatibility
+
+1. `preview protocol v1` 不变。
+2. `vnpak` 继续默认写 `v2`、读取 `v1/v2`。
+3. `vnsave v1` 外层格式不变，并继续读取 v1.0 runtime payload。
+4. 正式平台仍为 Linux/Windows 上的 x64/arm64；`RVV/riscv64 native` 继续延期。
+
+## v1.0.0 - 2026-04-08
+
+首个正式版本，冻结经过验证的 Runtime API v1、格式边界和四平台发布承诺。
+
+### Added
+
+1. `VNRuntimeBuildInfo` 与 runtime/preview/pack/save/host 版本协商。
+2. `VNRuntimeSessionSnapshot`、会话 snapshot capture/restore 和基于 `vnsave v1` 的文件级 save/load。
+3. `vnsave` probe、最小 `v0 -> v1` migrate 和公开版本策略。
+4. host SDK smoke、platform/preview evidence、release bundle/report/publish-map/remote-summary 链路。
+
+### Stable Contracts
+
+1. Runtime API：`public stable v1`，后续只允许兼容追加。
+2. Preview protocol：`v1`。
+3. `vnpak`：读 `v1/v2`，默认写 `v2`。
+4. `vnsave`：外层格式 `v1`，公开 save/load 范围为 `runtime-session-only`。
+5. 正式平台：Linux x64、Windows x64、Linux arm64、Windows arm64。
+
+### Deferred
+
+1. `RVV/riscv64 native` 发布级支持与性能承诺。
+2. `avx2_asm` 自动优先级、SSE2 和 JIT。
+
 ## v0.1.0-alpha
 
 首个对外预发布版本，目标是固定当前已经可运行、可验证、可跨平台构建的最小能力集，而不是 `1.0.0` 级别的长期兼容承诺。

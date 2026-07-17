@@ -4,6 +4,18 @@
 #include "vn_types.h"
 #include "vn_backend.h"
 
+#define VN_RUNTIME_VISUAL_LAYER_MAX 8u
+
+typedef struct {
+    vn_u16 texture_id;
+    vn_i16 x;
+    vn_i16 y;
+    vn_u16 width;
+    vn_u16 height;
+    vn_u8 layer;
+    vn_u8 active;
+} VNRuntimeVisualLayer;
+
 typedef struct {
     vn_u32 frame_index;
     vn_u32 clear_color;
@@ -24,6 +36,18 @@ typedef struct {
     vn_u32 choice_count;
     vn_u32 choice_text_id;
     vn_u32 choice_selected_index;
+    vn_u32 content_mode;
+    vn_u16 base_width;
+    vn_u16 base_height;
+    vn_u16 render_width;
+    vn_u16 render_height;
+    vn_u16 background_texture_id;
+    vn_u16 previous_background_texture_id;
+    vn_u8 background_active;
+    vn_u8 previous_background_active;
+    vn_u8 background_transition_alpha;
+    vn_u8 background_transition_active;
+    VNRuntimeVisualLayer visual_layers[VN_RUNTIME_VISUAL_LAYER_MAX];
 } VNRuntimeState;
 
 #define VN_SCENE_S0 0u

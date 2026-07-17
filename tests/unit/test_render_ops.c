@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "vn_frontend.h"
 #include "vn_error.h"
@@ -9,6 +10,7 @@ static int expect_scene(vn_u32 scene_id, vn_u32 expected_count, vn_u8 expected_l
     vn_u32 count;
     int rc;
 
+    (void)memset(&state, 0, sizeof(state));
     state.frame_index = 17u;
     state.clear_color = 220u;
     state.scene_id = scene_id;
@@ -62,6 +64,7 @@ int main(void) {
     vn_u32 count;
     int rc;
 
+    (void)memset(&state, 0, sizeof(state));
     if (expect_scene(VN_SCENE_S0, 3u, VN_OP_TEXT) != 0) {
         return 1;
     }
@@ -192,6 +195,73 @@ int main(void) {
     }
     if (ops[3].w < 500u || ops[4].alpha != 176u || ops[2].w != 448u) {
         (void)fprintf(stderr, "scene S10 layout mismatch\n");
+        return 1;
+    }
+
+    (void)memset(&state, 0, sizeof(state));
+    state.content_mode = 1u;
+    state.clear_color = 24u;
+    state.resource_count = 6u;
+    state.base_width = 320u;
+    state.base_height = 240u;
+    state.render_width = 160u;
+    state.render_height = 120u;
+    state.previous_background_active = 1u;
+    state.previous_background_texture_id = 2u;
+    state.background_active = 1u;
+    state.background_texture_id = 3u;
+    state.background_transition_active = 1u;
+    state.background_transition_alpha = 128u;
+    state.visual_layers[0].active = 1u;
+    state.visual_layers[0].layer = 1u;
+    state.visual_layers[0].texture_id = 4u;
+    state.visual_layers[0].x = 40;
+    state.visual_layers[0].y = 32;
+    state.visual_layers[0].width = 16u;
+    state.visual_layers[0].height = 16u;
+    state.text_id = 200u;
+    state.vm_fade_active = 1u;
+    state.fade_layer_mask = 3u;
+    state.fade_alpha = 64u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || count != 6u ||
+        ops[0].op != VN_OP_CLEAR ||
+        ops[1].tex_id != 2u || ops[1].alpha != 127u ||
+        ops[1].flags != (VN_OP_FLAG_RESOURCE_TEXTURE |
+                         VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) ||
+        ops[2].tex_id != 3u || ops[2].alpha != 128u ||
+        ops[2].flags != (VN_OP_FLAG_RESOURCE_TEXTURE |
+                         VN_OP_FLAG_RESOURCE_CROSSFADE_TO) ||
+        ops[3].tex_id != 4u || ops[3].x != 20 || ops[3].y != 16 ||
+        ops[3].w != 8u || ops[3].h != 8u ||
+        ops[4].op != VN_OP_TEXT || ops[5].op != VN_OP_FADE) {
+        (void)fprintf(stderr, "content render op sequence mismatch rc=%d count=%u\n",
+                      rc,
+                      (unsigned int)count);
+        return 1;
+    }
+    state.background_transition_alpha = 0u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || ops[1].alpha != 255u || ops[2].alpha != 0u) {
+        (void)fprintf(stderr, "content background transition start mismatch\n");
+        return 1;
+    }
+    state.background_transition_alpha = 255u;
+    count = 8u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_OK || ops[1].alpha != 0u || ops[2].alpha != 255u) {
+        (void)fprintf(stderr, "content background transition end mismatch\n");
+        return 1;
+    }
+    state.background_transition_alpha = 128u;
+    count = 5u;
+    rc = build_render_ops(&state, ops, &count);
+    if (rc != VN_E_NOMEM || count != 6u) {
+        (void)fprintf(stderr, "content render op capacity mismatch rc=%d count=%u\n",
+                      rc,
+                      (unsigned int)count);
         return 1;
     }
 

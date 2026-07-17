@@ -43,6 +43,7 @@ def main():
         shutil.copy2(ROOT / "src" / "core" / "runtime_cli.c", temp_root / "src" / "core" / "runtime_cli.c")
         shutil.copy2(ROOT / "src" / "core" / "runtime_session_support.c", temp_root / "src" / "core" / "runtime_session_support.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_vnpak.c", temp_root / "tests" / "unit" / "test_vnpak.c")
+        shutil.copy2(ROOT / "tests" / "unit" / "test_scene_catalog.c", temp_root / "tests" / "unit" / "test_scene_catalog.c")
 
         broken = (temp_root / "docs" / "api" / "pack.md").read_text(encoding="utf-8")
         broken = broken.replace("当前运行时兼容读取 `v1/v2`。", "当前运行时兼容读取 `v2 only`。", 1)

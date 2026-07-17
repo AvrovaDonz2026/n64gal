@@ -102,6 +102,8 @@
 3. backend 全局状态
 4. 键盘状态
 
+当前 renderer/backend 与纹理 provider 使用进程级状态，一次只支持一个 live session。创建下一个 session 前必须先销毁当前 session。
+
 ### `vn_runtime_session_capture_snapshot` / `vn_runtime_session_create_from_snapshot`
 
 当前可用于最小“会话级 quick-save / quick-load”原型：
@@ -114,6 +116,12 @@
 
 1. 它解决的是 runtime 会话恢复，不等于通用宿主 save/load ABI
 2. 若宿主要做长期存档资产，仍必须同时遵守 `vnsave` 版本策略
+
+`v1.1.0` 的真实内容 session 使用 `VNRuntimeSessionSnapshotV2` 和对应 init/capture/create API；旧 snapshot 无法表达背景过渡和立绘层，会明确返回 `VN_E_UNSUPPORTED`。
+
+### `vn_runtime_session_get_frame_view`
+
+宿主先用 `vn_runtime_frame_view_init(...)` 初始化 `struct_size/version`，再在成功 step 后取得只读 `ARGB8888_U32` framebuffer view。返回指针由 runtime 持有，在下一次 step、动态分辨率重配或 destroy 后失效；新建和刚恢复的 session 在首帧前返回 `VN_E_RENDER_STATE`。
 
 ### `vn_runtime_session_save_to_file` / `vn_runtime_session_load_from_file`
 
@@ -158,8 +166,8 @@
 当前宿主文件桥接是“路径级”约定：
 
 1. `pack_path` 指向 `.vnpak`
-2. `scene_name` 当前选择固定符号场景：`S0/S1/S2/S3/S10`
-3. 当前代码会显式拒绝未知 `scene_name`，因此不应把它理解成任意 pack 内字符串
+2. 带 `VNSC` 的内容包按 catalog 接受自定义 `scene_name`
+3. 没有 catalog 的历史包继续只接受 `S0/S1/S2/S3/S10`；两种模式都会拒绝未知名称
 4. 运行时自行打开 pack 并读取资源
 5. `pack_path` 可以是相对路径或绝对路径，分隔符与二进制打开模式由 `src/core/platform.c` 统一处理
 
@@ -211,13 +219,14 @@
 
 ## Version Negotiation Matrix
 
-宿主若不想只依赖文档，也可以直接调用 `vn_runtime_query_build_info(...)` 读取当前 build 的：
+宿主若不想只依赖文档，也可以调用 `vn_runtime_query_build_info(...)`；需要 1.1 能力发现时，先初始化再调用 `vn_runtime_query_build_info_v2(...)`。当前可读取：
 
 1. `runtime_api_version/runtime_api_stability`
 2. `preview_protocol_version`
 3. `vnpak` 读范围与默认写版本
 4. `vnsave` 当前版本、稳定级别与公开 save/load 范围
 5. `host_os/host_arch/host_compiler`
+6. 引擎版本与 scene catalog、真实纹理、frame view、snapshot v2 能力位
 
 当前建议宿主按以下版本面做兼容判断：
 

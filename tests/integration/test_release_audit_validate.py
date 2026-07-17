@@ -27,10 +27,12 @@ def write_release_artifacts(temp_root: Path, version: str):
     release_note_rel = f"docs/release-{version}.md"
     release_evidence_rel = f"docs/release-evidence-{version}.md"
     release_package_rel = f"docs/release-package-{version}.md"
+    release_checklist_rel = f"docs/release-checklist-{version}.md"
 
     shutil.copy2(ROOT / release_note_rel, temp_root / release_note_rel)
     shutil.copy2(ROOT / release_evidence_rel, temp_root / release_evidence_rel)
     shutil.copy2(ROOT / release_package_rel, temp_root / release_package_rel)
+    shutil.copy2(ROOT / release_checklist_rel, temp_root / release_checklist_rel)
     shutil.copy2(ROOT / release_spec_rel, temp_root / release_spec_rel)
 
     return {
@@ -43,7 +45,7 @@ def write_release_artifacts(temp_root: Path, version: str):
 
 
 def main():
-    rc, out, err = run_case(["--allow-dirty"])
+    rc, out, err = run_case(["--allow-dirty", "--release-spec", "docs/release-publish-v1.0.0.json"])
     if rc != 0:
         print(f"release_audit current repo failed rc={rc} stderr={err}", file=sys.stderr)
         return 1
@@ -59,11 +61,12 @@ def main():
         shutil.copy2(ROOT / "README.md", temp_root / "README.md")
         shutil.copy2(ROOT / "issue.md", temp_root / "issue.md")
         shutil.copy2(ROOT / "CHANGELOG.md", temp_root / "CHANGELOG.md")
-        shutil.copy2(ROOT / "docs" / "release-checklist-v1.0.0.md", temp_root / "docs" / "release-checklist-v1.0.0.md")
         shutil.copy2(ROOT / "assets" / "demo" / "demo.vnpak", temp_root / "assets" / "demo" / "demo.vnpak")
+        (temp_root / "assets" / "demo" / "content-demo.vnpak").write_bytes(b"content-demo")
 
         alpha = write_release_artifacts(temp_root, "v0.1.0-alpha")
         v1 = write_release_artifacts(temp_root, "v1.0.0")
+        v11 = write_release_artifacts(temp_root, "v1.1.0")
 
         bundle_manifest = temp_root / "release_bundle_manifest.json"
         publish_map = temp_root / "release_publish_map.json"
@@ -92,11 +95,25 @@ def main():
             print(f"release_audit v1 bundle manifest failed rc={rc} stderr={err}", file=sys.stderr)
             return 1
 
-        broken = (temp_root / "docs" / "release-checklist-v1.0.0.md").read_text(encoding="utf-8")
-        broken = broken.replace("`python3 tools/toolchain.py validate-all`", "`python3 tools/toolchain.py validate-none`", 1)
-        (temp_root / "docs" / "release-checklist-v1.0.0.md").write_text(broken, encoding="utf-8")
+        bundle_manifest.write_text(
+            '{"files":[{"path":"demo.vnpak","sha256":"deadbeef","bytes":1},{"path":"content-demo.vnpak","sha256":"feedface","bytes":2}]}\n',
+            encoding="utf-8",
+        )
+        publish_map.write_text(
+            '{"tag":"v1.1.0","release_url":"https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0","release_spec":"%s","assets":[{"name":"demo.vnpak","path":"assets/demo/demo.vnpak","sha256":"deadbeef","bytes":1},{"name":"content-demo.vnpak","path":"assets/demo/content-demo.vnpak","sha256":"feedface","bytes":2}]}\n'
+            % str(v11["release_spec"]),
+            encoding="utf-8",
+        )
+        rc, out, err = run_case(["--allow-dirty", "--bundle-manifest", str(bundle_manifest), "--publish-map", str(publish_map), "--release-spec", str(v11["release_spec"]), str(temp_root)])
+        if rc != 0:
+            print(f"release_audit v1.1 bundle manifest failed rc={rc} stderr={err}", file=sys.stderr)
+            return 1
 
-        rc, out, err = run_case(["--allow-dirty", str(temp_root)])
+        broken = (temp_root / "docs" / "release-checklist-v1.1.0.md").read_text(encoding="utf-8")
+        broken = broken.replace("`python3 tools/toolchain.py validate-all`", "`python3 tools/toolchain.py validate-none`", 1)
+        (temp_root / "docs" / "release-checklist-v1.1.0.md").write_text(broken, encoding="utf-8")
+
+        rc, out, err = run_case(["--allow-dirty", "--release-spec", str(v11["release_spec"]), str(temp_root)])
         if rc == 0:
             print("broken release audit should fail", file=sys.stderr)
             return 1
@@ -114,7 +131,7 @@ def main():
             return 1
 
         publish_map.write_text('{"tag":"broken","release_url":"bad","release_spec":"broken","asset":{"path":"broken","sha256":"","bytes":0}}\n', encoding="utf-8")
-        rc, out, err = run_case(["--allow-dirty", "--publish-map", str(publish_map), str(temp_root)])
+        rc, out, err = run_case(["--allow-dirty", "--publish-map", str(publish_map), "--release-spec", str(v11["release_spec"]), str(temp_root)])
         if rc == 0:
             print("broken publish map should fail", file=sys.stderr)
             return 1

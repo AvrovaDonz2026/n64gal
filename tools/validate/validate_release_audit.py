@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import sys
 
+from release_spec import normalize_release_spec
+
 
 VN_E_INVALID_ARG = -1
 VN_E_IO = -2
@@ -58,23 +60,6 @@ def worktree_dirty(root: Path) -> int:
     return 1 if proc.stdout.strip() else 0
 
 
-def release_doc_paths_from_spec(spec_payload):
-    release_note = spec_payload.get("release_note", "")
-    version = str(spec_payload.get("version", ""))
-    note_path = Path(release_note)
-    note_name = note_path.name
-    suffix = ""
-    if note_name.startswith("release-") and note_name.endswith(".md"):
-        suffix = note_name[len("release-"):-3]
-    elif version:
-        suffix = version
-    return (
-        release_note,
-        str(note_path.with_name(f"release-evidence-{suffix}.md")),
-        str(note_path.with_name(f"release-package-{suffix}.md")),
-    )
-
-
 def basename(path_text: str) -> str:
     return Path(path_text).name
 
@@ -87,7 +72,7 @@ def main(argv):
     soak_summary = ""
     bundle_manifest = ""
     publish_map = ""
-    release_spec = "docs/release-publish-v0.1.0-alpha.json"
+    release_spec = "docs/release-publish-v1.1.0.json"
     i = 1
 
     while i < len(argv):
@@ -154,13 +139,12 @@ def main(argv):
         readme = read_text(root, "README.md")
         issue = read_text(root, "issue.md")
         changelog = read_text(root, "CHANGELOG.md")
-        checklist = read_text(root, "docs/release-checklist-v1.0.0.md")
         release_spec_text = read_text(root, release_spec)
-        release_spec_payload = json.loads(release_spec_text)
-        release_note_rel, release_evidence_rel, release_package_rel = release_doc_paths_from_spec(release_spec_payload)
-        release_note = read_text(root, release_note_rel)
-        release_evidence = read_text(root, release_evidence_rel)
-        release_package = read_text(root, release_package_rel)
+        release_spec_payload = normalize_release_spec(json.loads(release_spec_text))
+        release_note = read_text(root, release_spec_payload["release_note"])
+        release_evidence = read_text(root, release_spec_payload["release_evidence"])
+        release_package = read_text(root, release_spec_payload["release_package"])
+        checklist = read_text(root, release_spec_payload["release_checklist"])
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release audit file missing")
     except OSError:
@@ -171,30 +155,35 @@ def main(argv):
     try:
         spec_tag = str(release_spec_payload.get("tag", ""))
         spec_release_url = str(release_spec_payload.get("release_url", ""))
+        spec_version = str(release_spec_payload.get("version", ""))
         spec_release_note = str(release_spec_payload.get("release_note", ""))
-        asset = release_spec_payload.get("asset")
-        if not isinstance(asset, dict):
-            raise ValueError("release_spec.asset")
-        spec_asset_path = str(asset.get("path", ""))
-
-        if not (root / "assets" / "demo" / "demo.vnpak").exists():
-            raise FileNotFoundError("assets/demo/demo.vnpak")
-        if spec_tag == "v0.1.0-alpha":
-            require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
-            require_contains(release_note, "`v0.1.0-alpha`", "release_note.alpha")
-        else:
-            require_contains(release_note, "`v1.0.0`", "release_note_v1.version")
-            require_contains(release_note, "`runtime-session-only`", "release_note_v1.save_scope")
-            require_contains(release_evidence, "`ci-matrix`", "release_evidence_v1.ci_matrix")
-            require_contains(release_package, "`docs/release-publish-v1.0.0.json`", "release_package_v1.release_spec")
-        require_contains_any(
-            release_evidence,
-            [f"`{basename(spec_asset_path)}`", f"`{spec_asset_path}`"],
-            "release_evidence.asset",
-        )
-        require_contains(release_package, f"`{spec_asset_path}`", "release_package.asset")
-        require_contains(checklist, "`python3 tools/toolchain.py validate-all`", "checklist.validate_all")
-        require_contains(checklist, "`python3 tools/toolchain.py release-gate`", "checklist.release_gate")
+        if not spec_version or spec_tag != spec_version:
+            raise ValueError("release_spec.version_tag")
+        if not spec_release_url.endswith(f"/tag/{spec_tag}"):
+            raise ValueError("release_spec.release_url")
+        require_contains_any(changelog, [f"## {spec_version}", f"`{spec_version}`"], "changelog.version")
+        require_contains(release_note, f"`{spec_version}`", "release_note.version")
+        require_contains(release_evidence, spec_version, "release_evidence.version")
+        require_contains(release_package, spec_version, "release_package.version")
+        require_contains(checklist, spec_version, "release_checklist.version")
+        for asset in release_spec_payload["assets"]:
+            spec_asset_path = asset["path"]
+            if not (root / spec_asset_path).exists():
+                raise FileNotFoundError(spec_asset_path)
+            require_contains_any(
+                release_evidence,
+                [f"`{asset['name']}`", f"`{spec_asset_path}`"],
+                f"release_evidence.asset.{asset['name']}",
+            )
+            require_contains(release_package, f"`{spec_asset_path}`", f"release_package.asset.{asset['name']}")
+        version_core = spec_version.lstrip("v").split("-", 1)[0]
+        try:
+            major_version = int(version_core.split(".", 1)[0])
+        except ValueError:
+            raise ValueError("release_spec.version")
+        if major_version >= 1:
+            require_contains(checklist, "python3 tools/toolchain.py validate-all", "checklist.validate_all")
+            require_contains(checklist, "python3 tools/toolchain.py release-gate", "checklist.release_gate")
 
         if skip_git == 0 and allow_dirty == 0 and worktree_dirty(root) != 0:
             return error("tool.validate.release_audit.format", VN_E_FORMAT, "worktree", "worktree must be clean")
@@ -213,15 +202,15 @@ def main(argv):
             files = bundle_payload.get("files")
             if not isinstance(files, list) or not files:
                 raise ValueError("bundle_manifest.files")
-            demo_entry = None
-            for entry in files:
-                if isinstance(entry, dict) and entry.get("path") == "demo.vnpak":
-                    demo_entry = entry
-                    break
-            if demo_entry is None:
-                raise ValueError("bundle_manifest.demo")
-            if not demo_entry.get("sha256") or int(demo_entry.get("bytes", 0)) <= 0:
-                raise ValueError("bundle_manifest.demo_fields")
+            manifest_entries = {
+                entry.get("path"): entry for entry in files if isinstance(entry, dict)
+            }
+            for asset in release_spec_payload["assets"]:
+                asset_entry = manifest_entries.get(asset["name"])
+                if asset_entry is None:
+                    raise ValueError(f"bundle_manifest.assets.{asset['name']}")
+                if not asset_entry.get("sha256") or int(asset_entry.get("bytes", 0)) <= 0:
+                    raise ValueError(f"bundle_manifest.assets.{asset['name']}.fields")
         if publish_map:
             publish_map_path = root / publish_map
             if not publish_map_path.exists():
@@ -231,13 +220,25 @@ def main(argv):
                 raise ValueError("publish_map.tag")
             if publish_payload.get("release_url") != spec_release_url:
                 raise ValueError("publish_map.release_url")
-            publish_asset = publish_payload.get("asset")
-            if not isinstance(publish_asset, dict):
-                raise ValueError("publish_map.asset")
-            if not publish_asset.get("path", "").endswith(spec_asset_path):
-                raise ValueError("publish_map.asset_path")
-            if not publish_asset.get("sha256") or int(publish_asset.get("bytes", 0)) <= 0:
-                raise ValueError("publish_map.asset_fields")
+            publish_assets = publish_payload.get("assets")
+            if publish_assets is None:
+                publish_asset = publish_payload.get("asset")
+                publish_assets = [publish_asset] if isinstance(publish_asset, dict) else []
+            if not isinstance(publish_assets, list):
+                raise ValueError("publish_map.assets")
+            published_by_name = {
+                str(entry.get("name") or basename(str(entry.get("path", "")))): entry
+                for entry in publish_assets
+                if isinstance(entry, dict)
+            }
+            for asset in release_spec_payload["assets"]:
+                publish_asset = published_by_name.get(asset["name"])
+                if publish_asset is None:
+                    raise ValueError(f"publish_map.assets.{asset['name']}")
+                if not str(publish_asset.get("path", "")).endswith(asset["path"]):
+                    raise ValueError(f"publish_map.assets.{asset['name']}.path")
+                if not publish_asset.get("sha256") or int(publish_asset.get("bytes", 0)) <= 0:
+                    raise ValueError(f"publish_map.assets.{asset['name']}.fields")
             if publish_payload.get("release_spec") and publish_payload.get("release_spec") != str(release_spec):
                 raise ValueError("publish_map.release_spec")
         if release_spec_payload.get("tag") != spec_tag:
@@ -246,8 +247,6 @@ def main(argv):
             raise ValueError("release_spec.release_url")
         if release_spec_payload.get("release_note") != spec_release_note:
             raise ValueError("release_spec.release_note")
-        if asset.get("path") != spec_asset_path:
-            raise ValueError("release_spec.asset_path")
     except FileNotFoundError as exc:
         return error("tool.validate.release_audit.io", VN_E_IO, str(exc), "required release artifact missing")
     except ValueError as exc:

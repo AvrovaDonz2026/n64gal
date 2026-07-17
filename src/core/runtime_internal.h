@@ -14,6 +14,8 @@
 #include "vn_error.h"
 #include "vn_save.h"
 #include "dynamic_resolution.h"
+#include "scene_catalog.h"
+#include "runtime_texture.h"
 
 #define VN_MAX_CHOICE_SEQ 64u
 #define VN_OP_CACHE_CAP 320u
@@ -36,6 +38,15 @@ typedef struct {
 } FadePlayer;
 
 typedef struct {
+    vn_u32 seen_serial;
+    vn_u16 previous_texture_id;
+    vn_u16 texture_id;
+    vn_u16 duration_ms;
+    vn_u32 elapsed_ms;
+    vn_u8 active;
+} BackgroundPlayer;
+
+typedef struct {
     int enabled;
     int active;
     int quit_requested;
@@ -44,6 +55,27 @@ typedef struct {
     int old_flags;
 #endif
 } KeyboardInput;
+
+typedef struct {
+    vn_u16 base_width;
+    vn_u16 base_height;
+    vn_u16 background_texture_id;
+    vn_u16 previous_background_texture_id;
+    vn_u16 text_id;
+    vn_u16 text_speed_ms;
+    vn_u8 background_active;
+    vn_u8 previous_background_active;
+    vn_u8 background_transition_alpha;
+    vn_u8 background_transition_active;
+    vn_u32 vm_ended;
+    vn_u32 vm_error;
+    vn_u32 choice_count;
+    vn_u32 choice_selected_index;
+    vn_u32 fade_layer_mask;
+    vn_u32 fade_alpha;
+    vn_u32 vm_fade_active;
+    VNRuntimeVisualLayer visual_layers[VN_RUNTIME_VISUAL_LAYER_MAX];
+} RenderContentVisualKey;
 
 typedef struct {
     vn_u32 op_count;
@@ -56,6 +88,11 @@ typedef struct {
     vn_u32 text_alpha;
     vn_u32 fade_flags;
     vn_u32 fade_mask;
+    vn_u32 content_mode;
+    vn_u32 visual_hash;
+    RenderContentVisualKey content_visual;
+    vn_u32 render_width;
+    vn_u32 render_height;
 } RenderOpCacheKey;
 
 typedef struct {
@@ -84,12 +121,18 @@ struct VNRuntimeSession {
     VNRenderOp ops[16];
     VNPak pak;
     VNState vm;
+    VNSceneCatalog scene_catalog;
+    VNRuntimeTextureStore texture_store;
     ChoiceFeed choice_feed;
     FadePlayer fade_player;
+    BackgroundPlayer background_player;
     KeyboardInput keyboard;
     RenderOpCacheEntry op_cache[VN_OP_CACHE_CAP];
     vn_u8* script_buf;
     vn_u32 script_size;
+    vn_u16 scene_script_resource_id;
+    char pack_path[VN_RUNTIME_SNAPSHOT_PATH_MAX];
+    char scene_name[VN_SCENE_NAME_MAX];
     vn_u32 frames_limit;
     vn_u32 dt_ms;
     vn_u32 trace;
@@ -123,8 +166,10 @@ struct VNRuntimeSession {
     int injected_has_choice;
     int injected_quit;
     int pak_opened;
+    int texture_store_ready;
     int vm_ready;
     int renderer_ready;
+    int frame_ready;
     int done;
     int exit_code;
     int summary_emitted;
@@ -160,10 +205,20 @@ void runtime_session_merge_injected_input(VNRuntimeSession* session,
                                           int* io_quit);
 void fade_player_init(FadePlayer* fade);
 void fade_player_step(FadePlayer* fade, const VNState* vm, vn_u32 dt_ms);
-int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32* out_size);
+void background_player_init(BackgroundPlayer* background);
+void background_player_step(BackgroundPlayer* background, const VNState* vm, vn_u32 dt_ms);
+int load_script_resource(const VNPak* pak,
+                         vn_u16 resource_id,
+                         vn_u8** out_buf,
+                         vn_u32* out_size);
+vn_u16 legacy_scene_script_res_id(vn_u32 scene_id);
 void state_reset_frame_events(VNRuntimeState* state);
 void state_from_vm(VNRuntimeState* state, VNState* vm);
 void state_init_defaults(VNRuntimeState* state);
+int state_apply_content_visuals(VNRuntimeState* state,
+                                const VNState* vm,
+                                const BackgroundPlayer* background,
+                                const VNPak* pak);
 void runtime_result_write(const VNRuntimeSession* session, VNRunResult* out_result);
 void runtime_session_cleanup(VNRuntimeSession* session);
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade);
@@ -189,6 +244,10 @@ int runtime_prepare_frame_reuse(VNRuntimeSession* session,
                                 const VNRuntimeState* state,
                                 RenderOpCacheKey* out_key,
                                 int* out_hit);
+void runtime_render_key_init(RenderOpCacheKey* out_key,
+                             const VNRuntimeState* state);
+int runtime_render_key_equal(const RenderOpCacheKey* a,
+                             const RenderOpCacheKey* b);
 void runtime_commit_frame_reuse(VNRuntimeSession* session,
                                 const RenderOpCacheKey* key_data);
 int runtime_build_render_ops_cached(VNRuntimeSession* session,

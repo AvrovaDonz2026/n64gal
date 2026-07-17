@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import hashlib
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -7,6 +10,24 @@ import sys
 ROOT = "."
 TOOL = ["python3", "tools/toolchain.py"]
 LIGHT_MODE = os.environ.get("VN_TOOLCHAIN_CLI_LIGHT") == "1"
+
+
+def content_soak_payload():
+    return {
+        "schema_version": 1,
+        "status": "success",
+        "source_state": "dirty",
+        "pack": "assets/demo/content-demo.vnpak",
+        "pack_sha256": hashlib.sha256(Path("assets/demo/content-demo.vnpak").read_bytes()).hexdigest(),
+        "scenes": ["Opening", "Gallery"],
+        "frames_per_scene": 28125,
+        "dt_ms": 16,
+        "total_simulated_ms": 900000,
+        "scene_results": [
+            {"scene": scene, "status": "success", "frames_executed": 28125, "vm_ended": 1, "vm_error": 0}
+            for scene in ("Opening", "Gallery")
+        ],
+    }
 
 
 def run_case(args):
@@ -25,6 +46,8 @@ def main():
     platform_summary_path = f"{platform_out_dir}/platform_evidence_summary.md"
     platform_summary_json_path = f"{platform_out_dir}/platform_evidence_summary.json"
     ci_summary_path = "tests/integration/toolchain_release_ci_suite_summary.md"
+    content_soak_summary_path = "tests/integration/toolchain_content_soak_summary.md"
+    content_soak_summary_json_path = "tests/integration/toolchain_content_soak_summary.json"
     try:
         if os.path.exists(out_path):
             os.remove(out_path)
@@ -46,6 +69,16 @@ def main():
     rc, out, err = run_case(["--help"])
     if rc != 2 or "validate-all" not in err or "validate-manifest" not in err or "probe-vnsave" not in err:
         print("toolchain help output mismatch", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["validate-project", "templates/minimal-vn"])
+    if rc != 0 or "trace_id=tool.project.validate.ok" not in out:
+        print(f"validate-project failed rc={rc} out={out} err={err}", file=sys.stderr)
+        return 1
+
+    rc, out, err = run_case(["build-project", "templates/minimal-vn"])
+    if rc != 0 or "trace_id=tool.project.build.ok" not in out:
+        print(f"build-project failed rc={rc} out={out} err={err}", file=sys.stderr)
         return 1
 
     rc, out, err = run_case(["validate-all"])
@@ -171,6 +204,12 @@ def main():
         return 1
 
     if not LIGHT_MODE:
+        with open(content_soak_summary_path, "w", encoding="utf-8") as handle:
+            handle.write("# Demo Soak Summary\n\n- Status: `success`\n- Scenes: `Opening,Gallery`\n")
+        with open(content_soak_summary_json_path, "w", encoding="utf-8") as handle:
+            json.dump(content_soak_payload(), handle)
+            handle.write("\n")
+
         rc, out, err = run_case(["release-host-sdk-smoke", "--summary-out", host_sdk_summary_path, "--summary-json-out", host_sdk_summary_json_path])
         if rc != 0 or "trace_id=release.host_sdk.ok" not in out:
             print(f"release-host-sdk-smoke failed rc={rc} out={out} err={err}", file=sys.stderr)
@@ -222,6 +261,8 @@ def main():
             "--soak-runner-bin", "build_release_soak/vn_player",
             "--soak-frames-per-scene", "2",
             "--soak-scenes", "S0",
+            "--ci-suite-summary", ci_summary_path,
+            "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
             "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
         ])
         if rc != 0 or "trace_id=release.preflight.ok" not in out:
@@ -232,6 +273,8 @@ def main():
             "--out-dir", "tests/integration/toolchain_release_bundle_tmp",
             "--gate-summary", summary_path,
             "--soak-summary", summary_path,
+            "--content-soak-summary", content_soak_summary_path,
+            "--content-soak-summary-json", content_soak_summary_json_path,
             "--ci-summary", ci_summary_path,
             "--host-sdk-summary", host_sdk_summary_path,
             "--host-sdk-summary-json", host_sdk_summary_json_path,
@@ -250,6 +293,8 @@ def main():
             "--bundle-manifest", "tests/integration/toolchain_release_bundle_tmp/release_bundle_manifest.json",
             "--gate-summary", summary_path,
             "--soak-summary", summary_path,
+            "--content-soak-summary", content_soak_summary_path,
+            "--content-soak-summary-json", content_soak_summary_json_path,
             "--ci-suite-summary", ci_summary_path,
             "--host-sdk-summary", host_sdk_summary_path,
             "--platform-evidence-summary", platform_summary_path,
@@ -307,6 +352,8 @@ def main():
             "--soak-scenes", "S0",
             "--summary-out", summary_path,
             "--ci-suite-summary", ci_summary_path,
+            "--content-soak-summary", content_soak_summary_path,
+            "--content-soak-summary-json", content_soak_summary_json_path,
             "--export-out-dir", "tests/integration/toolchain_release_export_via_gate_tmp",
         ])
         if rc != 0 or "trace_id=release.gate.ok" not in out:
@@ -325,6 +372,7 @@ def main():
             "--soak-scenes", "S0",
             "--summary-out", summary_path,
             "--ci-suite-summary", ci_summary_path,
+            "--release-spec", "docs/release-publish-v0.1.0-alpha.json",
             "--export-out-dir", "tests/integration/toolchain_release_export_remote_via_gate_tmp",
             "--remote-release-json", "tests/fixtures/release_api/github_release_v0.1.0-alpha.json",
         ])
@@ -396,6 +444,8 @@ def main():
         preview_summary_path,
         preview_summary_json_path,
         ci_summary_path,
+        content_soak_summary_path,
+        content_soak_summary_json_path,
     ):
         try:
             if os.path.exists(extra_path):

@@ -1,8 +1,15 @@
 {
-  "template_version": 1,
+  "template_version": 2,
   "template_name": "minimal-vn",
   "kind": "content-project",
   "stability": "preview",
-  "scene_name": "S0",
+  "entry_scene": "Opening",
+  "scenes": [
+    {
+      "name": "Opening",
+      "script": "assets/scripts/Opening.vns.txt"
+    }
+  ],
+  "images_manifest": "assets/images/images.json",
   "pack_output": "build/minimal.vnpak"
 }

@@ -3,7 +3,7 @@
 
 #include "runtime_internal.h"
 
-vn_u32 scene_script_res_id(vn_u32 scene_id) {
+vn_u16 legacy_scene_script_res_id(vn_u32 scene_id) {
     if (scene_id == VN_SCENE_S1) {
         return 1u;
     }
@@ -19,8 +19,10 @@ vn_u32 scene_script_res_id(vn_u32 scene_id) {
     return 0u;
 }
 
-int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32* out_size) {
-    vn_u32 res_id;
+int load_script_resource(const VNPak* pak,
+                         vn_u16 resource_id,
+                         vn_u8** out_buf,
+                         vn_u32* out_size) {
     const ResourceEntry* entry;
     vn_u8* script_buf;
     vn_u32 read_size;
@@ -33,9 +35,10 @@ int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32
     *out_buf = (vn_u8*)0;
     *out_size = 0u;
 
-    res_id = scene_script_res_id(scene_id);
-    entry = vnpak_get(pak, res_id);
-    if (entry == (const ResourceEntry*)0 || entry->type != 2u || entry->data_size == 0u) {
+    entry = vnpak_get(pak, (vn_u32)resource_id);
+    if (entry == (const ResourceEntry*)0 ||
+        entry->type != VN_RESOURCE_TYPE_SCRIPT ||
+        entry->data_size == 0u) {
         return VN_E_FORMAT;
     }
 
@@ -44,7 +47,11 @@ int load_scene_script(const VNPak* pak, vn_u32 scene_id, vn_u8** out_buf, vn_u32
         return VN_E_NOMEM;
     }
 
-    rc = vnpak_read_resource(pak, res_id, script_buf, entry->data_size, &read_size);
+    rc = vnpak_read_resource(pak,
+                             (vn_u32)resource_id,
+                             script_buf,
+                             entry->data_size,
+                             &read_size);
     if (rc != VN_OK) {
         free(script_buf);
         return rc;
@@ -80,6 +87,7 @@ void state_from_vm(VNRuntimeState* state, VNState* vm) {
 }
 
 void state_init_defaults(VNRuntimeState* state) {
+    vn_u32 i;
     state->frame_index = 0u;
     state->clear_color = 200u;
     state->scene_id = VN_SCENE_S0;
@@ -99,6 +107,147 @@ void state_init_defaults(VNRuntimeState* state) {
     state->choice_count = 0u;
     state->choice_text_id = 0u;
     state->choice_selected_index = 0u;
+    state->content_mode = 0u;
+    state->base_width = 0u;
+    state->base_height = 0u;
+    state->render_width = 0u;
+    state->render_height = 0u;
+    state->background_texture_id = VN_VM_TEXTURE_NONE;
+    state->previous_background_texture_id = VN_VM_TEXTURE_NONE;
+    state->background_active = 0u;
+    state->previous_background_active = 0u;
+    state->background_transition_alpha = 255u;
+    state->background_transition_active = 0u;
+    for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+        state->visual_layers[i].texture_id = VN_VM_TEXTURE_NONE;
+        state->visual_layers[i].x = 0;
+        state->visual_layers[i].y = 0;
+        state->visual_layers[i].width = 0u;
+        state->visual_layers[i].height = 0u;
+        state->visual_layers[i].layer = (vn_u8)(i + 1u);
+        state->visual_layers[i].active = 0u;
+    }
+}
+
+void background_player_init(BackgroundPlayer* background) {
+    if (background == (BackgroundPlayer*)0) {
+        return;
+    }
+    background->seen_serial = 0u;
+    background->previous_texture_id = VN_VM_TEXTURE_NONE;
+    background->texture_id = VN_VM_TEXTURE_NONE;
+    background->duration_ms = 0u;
+    background->elapsed_ms = 0u;
+    background->active = 0u;
+}
+
+void background_player_step(BackgroundPlayer* background, const VNState* vm, vn_u32 dt_ms) {
+    vn_u32 serial;
+
+    if (background == (BackgroundPlayer*)0 || vm == (const VNState*)0) {
+        return;
+    }
+    serial = vm_background_serial(vm);
+    if (serial != background->seen_serial) {
+        background->seen_serial = serial;
+        background->previous_texture_id = vm_previous_background_texture_id(vm);
+        background->texture_id = vm_background_texture_id(vm);
+        background->duration_ms = vm_background_duration_ms(vm);
+        background->elapsed_ms = 0u;
+        background->active = (background->duration_ms > 0u &&
+                              background->previous_texture_id != background->texture_id) ? 1u : 0u;
+    }
+    if (background->active != 0u) {
+        if (dt_ms >= (vn_u32)background->duration_ms - background->elapsed_ms) {
+            background->elapsed_ms = (vn_u32)background->duration_ms;
+            background->active = 0u;
+        } else {
+            background->elapsed_ms += dt_ms;
+        }
+    }
+}
+
+static int state_validate_image(const VNPak* pak, vn_u16 texture_id, const ResourceEntry** out_entry) {
+    const ResourceEntry* entry;
+
+    if (out_entry != (const ResourceEntry**)0) {
+        *out_entry = (const ResourceEntry*)0;
+    }
+    if (texture_id == VN_VM_TEXTURE_NONE) {
+        return VN_OK;
+    }
+    entry = vnpak_get(pak, (vn_u32)texture_id);
+    if (entry == (const ResourceEntry*)0 ||
+        entry->type != VN_RESOURCE_TYPE_IMAGE ||
+        entry->width == 0u || entry->height == 0u) {
+        return VN_E_FORMAT;
+    }
+    if (out_entry != (const ResourceEntry**)0) {
+        *out_entry = entry;
+    }
+    return VN_OK;
+}
+
+int state_apply_content_visuals(VNRuntimeState* state,
+                                const VNState* vm,
+                                const BackgroundPlayer* background,
+                                const VNPak* pak) {
+    vn_u32 i;
+    int rc;
+
+    if (state == (VNRuntimeState*)0 || vm == (const VNState*)0 ||
+        background == (const BackgroundPlayer*)0 || pak == (const VNPak*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    state->content_mode = 1u;
+    state->background_texture_id = background->texture_id;
+    state->previous_background_texture_id = background->previous_texture_id;
+    state->background_active = (background->texture_id != VN_VM_TEXTURE_NONE) ? 1u : 0u;
+    state->previous_background_active = (background->active != 0u &&
+                                         background->previous_texture_id != VN_VM_TEXTURE_NONE) ? 1u : 0u;
+    state->background_transition_active = background->active;
+    if (background->duration_ms == 0u || background->active == 0u) {
+        state->background_transition_alpha = 255u;
+    } else {
+        state->background_transition_alpha = (vn_u8)((background->elapsed_ms * 255u) /
+                                                     (vn_u32)background->duration_ms);
+    }
+    rc = state_validate_image(pak, state->background_texture_id, (const ResourceEntry**)0);
+    if (rc != VN_OK) {
+        return rc;
+    }
+    rc = state_validate_image(pak, state->previous_background_texture_id, (const ResourceEntry**)0);
+    if (rc != VN_OK) {
+        return rc;
+    }
+
+    for (i = 0u; i < VN_RUNTIME_VISUAL_LAYER_MAX; ++i) {
+        const VNVMSpriteLayer* vm_layer;
+        const ResourceEntry* entry;
+        VNRuntimeVisualLayer* layer;
+
+        vm_layer = vm_sprite_layer(vm, i);
+        layer = &state->visual_layers[i];
+        layer->layer = (vn_u8)(i + 1u);
+        if (vm_layer == (const VNVMSpriteLayer*)0 || vm_layer->active == 0u) {
+            layer->active = 0u;
+            layer->texture_id = VN_VM_TEXTURE_NONE;
+            layer->width = 0u;
+            layer->height = 0u;
+            continue;
+        }
+        rc = state_validate_image(pak, vm_layer->texture_id, &entry);
+        if (rc != VN_OK || entry == (const ResourceEntry*)0) {
+            return (rc != VN_OK) ? rc : VN_E_FORMAT;
+        }
+        layer->texture_id = vm_layer->texture_id;
+        layer->x = vm_layer->x;
+        layer->y = vm_layer->y;
+        layer->width = entry->width;
+        layer->height = entry->height;
+        layer->active = 1u;
+    }
+    return VN_OK;
 }
 
 void state_apply_fade(VNRuntimeState* state, const FadePlayer* fade) {
@@ -151,6 +300,57 @@ void runtime_result_write(const VNRuntimeSession* session, VNRunResult* out_resu
     out_result->dynamic_resolution_switches = vn_dynres_get_switch_count(&session->dynamic_resolution);
 }
 
+void vn_runtime_frame_view_init(VNRuntimeFrameView* out_view) {
+    if (out_view == (VNRuntimeFrameView*)0) {
+        return;
+    }
+    (void)memset(out_view, 0, sizeof(*out_view));
+    out_view->struct_size = (vn_u32)sizeof(*out_view);
+    out_view->version = VN_RUNTIME_FRAME_VIEW_VERSION;
+}
+
+int vn_runtime_session_get_frame_view(const VNRuntimeSession* session,
+                                      VNRuntimeFrameView* out_view) {
+    const vn_u32* pixels;
+    vn_u32 width;
+    vn_u32 height;
+    int rc;
+
+    if (out_view == (VNRuntimeFrameView*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (out_view->struct_size < (vn_u32)sizeof(*out_view) ||
+        out_view->version != VN_RUNTIME_FRAME_VIEW_VERSION) {
+        return VN_E_INVALID_ARG;
+    }
+    vn_runtime_frame_view_init(out_view);
+    if (session == (const VNRuntimeSession*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (session->renderer_ready == VN_FALSE || session->frame_ready == VN_FALSE) {
+        return VN_E_RENDER_STATE;
+    }
+    pixels = (const vn_u32*)0;
+    width = 0u;
+    height = 0u;
+    rc = renderer_get_framebuffer(&pixels, &width, &height);
+    if (rc != VN_OK || pixels == (const vn_u32*)0) {
+        return (rc != VN_OK) ? rc : VN_E_RENDER_STATE;
+    }
+    if (width != (vn_u32)session->renderer_cfg.width ||
+        height != (vn_u32)session->renderer_cfg.height ||
+        (height != 0u && width > 0xFFFFFFFFu / height)) {
+        return VN_E_RENDER_STATE;
+    }
+    out_view->pixels = pixels;
+    out_view->pixel_count = width * height;
+    out_view->stride_pixels = width;
+    out_view->width = (vn_u16)width;
+    out_view->height = (vn_u16)height;
+    out_view->pixel_format = VN_RUNTIME_PIXEL_FORMAT_ARGB8888_U32;
+    return VN_OK;
+}
+
 void runtime_session_cleanup(VNRuntimeSession* session) {
     if (session == (VNRuntimeSession*)0) {
         return;
@@ -158,6 +358,12 @@ void runtime_session_cleanup(VNRuntimeSession* session) {
     if (session->renderer_ready != VN_FALSE) {
         renderer_shutdown();
         session->renderer_ready = VN_FALSE;
+        session->frame_ready = VN_FALSE;
+    }
+    if (session->texture_store_ready != VN_FALSE) {
+        vn_texture_source_unbind();
+        runtime_texture_store_destroy(&session->texture_store);
+        session->texture_store_ready = VN_FALSE;
     }
     keyboard_disable(&session->keyboard);
     if (session->dirty_bits != (vn_u32*)0) {

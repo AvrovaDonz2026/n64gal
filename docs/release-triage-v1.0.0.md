@@ -1,5 +1,7 @@
 # Release Triage: v1.0.0
 
+> Archived status: `v1.0.0` was released on 2026-04-08; all release-blocking checklist items are complete.
+
 ## 1. 目的
 
 这份文档把“距离 `v1.0.0` 还差什么”收口成执行优先级，而不是继续把所有事项混在同一层级。
@@ -29,7 +31,7 @@
    - 但 `1.0.0` 必须明确：正式承诺是否只包含 `vnsave v1 probe/migrate`，还是包含完整 save/load 面
    - 这件事不能继续停留在“文档规则与实现之间”
 5. Release checklist 从“文档存在”变成“已逐项完成”。
-   - `docs/release-checklist-v1.0.0.md` 当前是完整清单，但大部分仍是待执行项
+   - `docs/release-checklist-v1.0.0.md` 已按最终发布证据回填为完成状态
    - 发布前至少要产出一轮完整的、可复现的 checklist 勾选证据
 6. 性能门禁达到“可发布解释”级别。
    - `x64` / `arm64` 的 perf smoke、threshold、artifact 需要持续稳定

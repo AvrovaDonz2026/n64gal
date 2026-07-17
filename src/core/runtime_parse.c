@@ -764,14 +764,12 @@ static void runtime_cli_copy_choice_feed(VNRunConfig* run_cfg, const ChoiceFeed*
 static int runtime_cli_run_fresh_session(const VNRuntimeCliOptions* options) {
     VNRunConfig run_cfg;
     VNRuntimeSession* session;
-    vn_u32 scene_id;
     int rc;
 
     run_cfg = options->run_cfg;
     runtime_cli_copy_choice_feed(&run_cfg, &options->choice_feed);
 
-    rc = parse_scene_id(run_cfg.scene_name, &scene_id);
-    if (rc != VN_OK) {
+    if (vn_scene_name_is_valid(run_cfg.scene_name) == VN_FALSE) {
         return runtime_cli_report_error("runtime.cli.scene.invalid",
                                         VN_E_INVALID_ARG,
                                         "invalid scene",
@@ -779,7 +777,6 @@ static int runtime_cli_run_fresh_session(const VNRuntimeCliOptions* options) {
                                         run_cfg.scene_name,
                                         2);
     }
-    (void)scene_id;
 
     if (options->save_out_path == (const char*)0) {
         rc = vn_runtime_run(&run_cfg, (VNRunResult*)0);

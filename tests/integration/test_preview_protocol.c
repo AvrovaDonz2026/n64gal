@@ -22,18 +22,22 @@ int main(void) {
     const char* request_path;
     const char* response_path;
     const char* bad_request_path;
+    const char* screenshot_path;
     FILE* fp;
     char* argv_req[5];
     char* argv_cli[10];
     char* argv_bad[5];
+    char* argv_capture[10];
     int rc;
 
     request_path = "tests/integration/preview_protocol_request.tmp";
     response_path = "tests/integration/preview_protocol_response.tmp.json";
     bad_request_path = "tests/integration/preview_protocol_bad_request.tmp";
+    screenshot_path = "tests/integration/preview_protocol_frame.tmp.ppm";
     (void)remove(request_path);
     (void)remove(response_path);
     (void)remove(bad_request_path);
+    (void)remove(screenshot_path);
 
     fp = fopen(request_path, "w");
     if (fp == (FILE*)0) {
@@ -201,9 +205,40 @@ int main(void) {
         return 1;
     }
 
+    argv_capture[0] = (char*)"vn_previewd";
+    argv_capture[1] = (char*)"--scene=S0";
+    argv_capture[2] = (char*)"--frames=1";
+    argv_capture[3] = (char*)"--resolution=32x24";
+    argv_capture[4] = (char*)"--screenshot";
+    argv_capture[5] = (char*)screenshot_path;
+    argv_capture[6] = (char*)"--command=step_frame:1";
+    argv_capture[7] = (char*)"--command=capture_screenshot";
+    argv_capture[8] = (char*)"--response";
+    argv_capture[9] = (char*)response_path;
+
+    rc = vn_preview_run_cli(10, argv_capture);
+    if (rc != 0 || !file_contains(screenshot_path, "P6\n32 24\n255\n")) {
+        (void)fprintf(stderr, "preview screenshot capture failed rc=%d\n", rc);
+        (void)remove(request_path);
+        (void)remove(response_path);
+        (void)remove(bad_request_path);
+        (void)remove(screenshot_path);
+        return 1;
+    }
+    if (!file_contains(response_path, "\"screenshot_count\":1") ||
+        !file_contains(response_path, "\"width\":32,\"height\":24,\"crc32\":\"")) {
+        (void)fprintf(stderr, "preview screenshot response missing evidence\n");
+        (void)remove(request_path);
+        (void)remove(response_path);
+        (void)remove(bad_request_path);
+        (void)remove(screenshot_path);
+        return 1;
+    }
+
     (void)remove(request_path);
     (void)remove(response_path);
     (void)remove(bad_request_path);
+    (void)remove(screenshot_path);
     (void)printf("test_preview_protocol ok\n");
     return 0;
 }

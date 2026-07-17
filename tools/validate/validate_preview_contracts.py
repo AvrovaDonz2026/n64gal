@@ -66,6 +66,9 @@ def main(argv):
         require_contains(preview_doc, "`inject_input` 在 `v1` 当前支持 `choice`、`key`、`trace_toggle`、`quit` 四类事件", "preview_doc.inject_input")
         require_contains(preview_doc, "`vn_previewd` 可执行程序", "preview_doc.previewd_entry")
         require_contains(preview_doc, "`vn_preview_run_cli(int argc, char** argv)`", "preview_doc.preview_cli_entry")
+        require_contains(preview_doc, "`capture_screenshot`", "preview_doc.capture_screenshot")
+        require_contains(preview_doc, "binary P6 PPM", "preview_doc.ppm")
+        require_contains(preview_doc, "`screenshot_count`", "preview_doc.screenshot_count")
 
         require_contains(preview_header, "int vn_preview_run_cli(int argc, char** argv);", "preview_header.api")
         require_contains(preview_main, "return vn_preview_run_cli(argc, argv);", "preview_main.forward")
@@ -74,6 +77,8 @@ def main(argv):
         require_contains(preview_test, "preview.ok", "preview_test.trace_ok")
         require_contains(preview_test, "preview.request.unsupported", "preview_test.trace_err")
         require_contains(preview_test, "inject_input.key", "preview_test.inject_input_key")
+        require_contains(preview_test, "--command=capture_screenshot", "preview_test.capture_screenshot")
+        require_contains(preview_test, "preview_protocol_frame.tmp.ppm", "preview_test.screenshot_file")
 
         require_contains(toolchain, "probe-preview", "toolchain.preview_probe")
         require_contains(readme, "probe-preview", "readme.preview_probe")

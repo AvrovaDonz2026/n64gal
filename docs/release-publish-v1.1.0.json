@@ -1,0 +1,22 @@
+{
+  "version": "v1.1.0",
+  "repository": "AvrovaDonz2026/n64gal",
+  "tag": "v1.1.0",
+  "release_url": "https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0",
+  "draft": false,
+  "prerelease": false,
+  "release_note": "docs/release-v1.1.0.md",
+  "release_evidence": "docs/release-evidence-v1.1.0.md",
+  "release_package": "docs/release-package-v1.1.0.md",
+  "release_checklist": "docs/release-checklist-v1.1.0.md",
+  "assets": [
+    {
+      "name": "demo.vnpak",
+      "path": "assets/demo/demo.vnpak"
+    },
+    {
+      "name": "content-demo.vnpak",
+      "path": "assets/demo/content-demo.vnpak"
+    }
+  ]
+}

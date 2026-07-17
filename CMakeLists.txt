@@ -32,6 +32,8 @@ add_library(vn_core
     src/core/runtime_persist.c
     src/core/runtime_session_support.c
     src/core/runtime_session_loop.c
+    src/core/scene_catalog.c
+    src/core/runtime_texture.c
     src/core/dynamic_resolution.c
     src/frontend/render_ops.c
     src/frontend/dirty_tiles.c
@@ -154,6 +156,14 @@ add_executable(test_vm tests/unit/test_vm.c)
 target_link_libraries(test_vm PRIVATE vn_core)
 add_test(NAME unit_vm COMMAND test_vm)
 
+add_executable(test_scene_catalog tests/unit/test_scene_catalog.c)
+target_link_libraries(test_scene_catalog PRIVATE vn_core)
+add_test(NAME unit_scene_catalog COMMAND test_scene_catalog)
+
+add_executable(test_resource_texture_backend tests/unit/test_resource_texture_backend.c)
+target_link_libraries(test_resource_texture_backend PRIVATE vn_core)
+add_test(NAME unit_resource_texture_backend COMMAND test_resource_texture_backend)
+
 add_executable(test_runtime_api tests/unit/test_runtime_api.c)
 target_link_libraries(test_runtime_api PRIVATE vn_core)
 add_test(NAME unit_runtime_api COMMAND test_runtime_api)
@@ -223,6 +233,8 @@ set_tests_properties(
     unit_backend_priority
     unit_avx2_fastpath_parity
     unit_vm
+    unit_scene_catalog
+    unit_resource_texture_backend
     unit_runtime_api
     unit_runtime_dynamic_resolution
     unit_runtime_session

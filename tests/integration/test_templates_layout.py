@@ -20,7 +20,7 @@ def main():
 
     require_file(minimal / "README.md")
     require_file(minimal / "template.json")
-    require_file(minimal / "assets" / "scripts" / "S0.vns.txt")
+    require_file(minimal / "assets" / "scripts" / "Opening.vns.txt")
     require_file(minimal / "assets" / "images" / "images.json")
     require_file(minimal / "tools" / "build_assets.sh")
     require_file(host / "README.md")
@@ -35,9 +35,17 @@ def main():
     with open(host / "template.json", "r", encoding="utf-8") as fp:
         host_meta = json.load(fp)
 
-    if minimal_meta.get("template_version") != 1 or host_meta.get("template_version") != 1:
+    if minimal_meta.get("template_version") != 2 or host_meta.get("template_version") != 1:
         print("template_version mismatch", file=sys.stderr)
         return 1
+    if minimal_meta.get("entry_scene") != "Opening" or len(minimal_meta.get("scenes", [])) != 1:
+        print("minimal project scene metadata mismatch", file=sys.stderr)
+        return 1
+    for host_source in ("session_loop.c", "linux_tty_loop.c", "windows_console_loop.c"):
+        source_text = (host / "src" / host_source).read_text(encoding="utf-8")
+        if 'cfg.scene_name = "Opening";' not in source_text:
+            print(f"host template scene mismatch: {host_source}", file=sys.stderr)
+            return 1
 
     proc = subprocess.run(
         ["bash", str(minimal / "tools" / "build_assets.sh")],
@@ -50,13 +58,10 @@ def main():
         return 1
 
     compiled_scripts = minimal / "build" / "scripts"
-    require_file(compiled_scripts / "S0.vns.bin")
-    require_file(compiled_scripts / "S1.vns.bin")
-    require_file(compiled_scripts / "S2.vns.bin")
-    require_file(compiled_scripts / "S3.vns.bin")
-    require_file(compiled_scripts / "S10.vns.bin")
+    require_file(compiled_scripts / "Opening.vns.bin")
     require_file(minimal / "build" / "minimal.vnpak")
     require_file(minimal / "build" / "manifest.json")
+    require_file(minimal / "build" / "resource-map.json")
     print("test_templates_layout ok")
     return 0
 

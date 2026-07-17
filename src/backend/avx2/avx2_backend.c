@@ -221,6 +221,54 @@ static void avx2_shutdown(void) {
 static void avx2_begin_frame(void) {
 }
 
+static int vn_avx2_draw_texture_op_clipped(const VNRenderOp* op,
+                                           const VNRenderRect* clip_rect) {
+    if ((op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) != 0u) {
+        return vn_pp_draw_resource_texture(g_avx2_framebuffer,
+                                           g_avx2_stride,
+                                           g_avx2_height,
+                                           op,
+                                           clip_rect);
+    }
+    if (clip_rect == (const VNRenderRect*)0) {
+        vn_avx2_draw_textured_rect(op);
+    } else {
+        vn_avx2_draw_textured_rect_clipped(op, clip_rect);
+    }
+    return VN_OK;
+}
+
+static int vn_avx2_draw_resource_crossfade_pair(const VNRenderOp* ops,
+                                                vn_u32 op_count,
+                                                vn_u32 op_index,
+                                                const VNRenderRect* clip_rect) {
+    const VNRenderOp* from_op;
+    const VNRenderOp* to_op;
+
+    if (op_index >= op_count || (op_count - op_index) < 2u) {
+        return VN_E_FORMAT;
+    }
+    from_op = &ops[op_index];
+    to_op = &ops[op_index + 1u];
+    if (from_op->op != VN_OP_SPRITE || to_op->op != VN_OP_SPRITE ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) == 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_TEXTURE) == 0u ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) == 0u ||
+        (from_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) == 0u ||
+        (to_op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u ||
+        from_op->x != to_op->x || from_op->y != to_op->y ||
+        from_op->w != to_op->w || from_op->h != to_op->h) {
+        return VN_E_FORMAT;
+    }
+    return vn_pp_draw_resource_crossfade(g_avx2_framebuffer,
+                                         g_avx2_stride,
+                                         g_avx2_height,
+                                         from_op,
+                                         to_op,
+                                         clip_rect);
+}
+
 static int avx2_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
     vn_u32 i;
 
@@ -233,12 +281,27 @@ static int avx2_submit_ops(const VNRenderOp* ops, vn_u32 op_count) {
 
     for (i = 0u; i < op_count; ++i) {
         const VNRenderOp* op;
+        int rc;
 
         op = &ops[i];
-        if (op->op == VN_OP_CLEAR) {
+        if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u) {
+            rc = vn_avx2_draw_resource_crossfade_pair(ops,
+                                                      op_count,
+                                                      i,
+                                                      (const VNRenderRect*)0);
+            if (rc != VN_OK) {
+                return rc;
+            }
+            ++i;
+        } else if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u) {
+            return VN_E_FORMAT;
+        } else if (op->op == VN_OP_CLEAR) {
             vn_avx2_clear_rect(op->alpha, (const VNRenderRect*)0);
         } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
-            vn_avx2_draw_textured_rect(op);
+            rc = vn_avx2_draw_texture_op_clipped(op, (const VNRenderRect*)0);
+            if (rc != VN_OK) {
+                return rc;
+            }
         } else if (op->op == VN_OP_FADE) {
             vn_avx2_fill_rect_uniform(0, 0, g_avx2_cfg.width, g_avx2_cfg.height, 0xFF000000u, op->alpha);
         } else {
@@ -278,6 +341,10 @@ static int avx2_submit_ops_dirty(const VNRenderOp* ops,
     if (ops[0].op != VN_OP_CLEAR) {
         return avx2_submit_ops(ops, op_count);
     }
+    if ((ops[0].flags & (VN_OP_FLAG_RESOURCE_CROSSFADE_FROM |
+                         VN_OP_FLAG_RESOURCE_CROSSFADE_TO)) != 0u) {
+        return VN_E_FORMAT;
+    }
 
     clear_op = &ops[0];
     for (rect_index = 0u; rect_index < dirty_submit->rect_count; ++rect_index) {
@@ -288,10 +355,22 @@ static int avx2_submit_ops_dirty(const VNRenderOp* ops,
         vn_avx2_clear_rect(clear_op->alpha, clip_rect);
         for (i = 1u; i < op_count; ++i) {
             const VNRenderOp* op;
+            int rc;
 
             op = &ops[i];
-            if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
-                vn_avx2_draw_textured_rect_clipped(op, clip_rect);
+            if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_FROM) != 0u) {
+                rc = vn_avx2_draw_resource_crossfade_pair(ops, op_count, i, clip_rect);
+                if (rc != VN_OK) {
+                    return rc;
+                }
+                ++i;
+            } else if ((op->flags & VN_OP_FLAG_RESOURCE_CROSSFADE_TO) != 0u) {
+                return VN_E_FORMAT;
+            } else if (op->op == VN_OP_SPRITE || op->op == VN_OP_TEXT) {
+                rc = vn_avx2_draw_texture_op_clipped(op, clip_rect);
+                if (rc != VN_OK) {
+                    return rc;
+                }
             } else if (op->op == VN_OP_FADE) {
                 vn_avx2_fill_rect_uniform_clipped(0,
                                                   0,
@@ -320,6 +399,21 @@ static void avx2_query_caps(VNBackendCaps* out_caps) {
     out_caps->has_tmem_cache = 0u;
 }
 
+static int avx2_get_framebuffer(const vn_u32** out_pixels,
+                                vn_u32* out_width,
+                                vn_u32* out_height) {
+    if (out_pixels == (const vn_u32**)0 || out_width == (vn_u32*)0 || out_height == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    if (g_avx2_ready == VN_FALSE || g_avx2_framebuffer == (vn_u32*)0) {
+        return VN_E_RENDER_STATE;
+    }
+    *out_pixels = g_avx2_framebuffer;
+    *out_width = g_avx2_stride;
+    *out_height = g_avx2_height;
+    return VN_OK;
+}
+
 static const VNRenderBackend g_avx2_backend = {
     "avx2",
     VN_ARCH_AVX2,
@@ -329,7 +423,8 @@ static const VNRenderBackend g_avx2_backend = {
     avx2_submit_ops,
     avx2_end_frame,
     avx2_query_caps,
-    avx2_submit_ops_dirty
+    avx2_submit_ops_dirty,
+    avx2_get_framebuffer
 };
 
 static const VNRenderBackend g_avx2_asm_backend = {
@@ -341,7 +436,8 @@ static const VNRenderBackend g_avx2_asm_backend = {
     avx2_submit_ops,
     avx2_end_frame,
     avx2_query_caps,
-    avx2_submit_ops_dirty
+    avx2_submit_ops_dirty,
+    avx2_get_framebuffer
 };
 
 int vn_register_avx2_asm_backend(void) {

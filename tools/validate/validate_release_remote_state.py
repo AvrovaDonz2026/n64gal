@@ -6,6 +6,8 @@ import sys
 import tempfile
 import urllib.request
 
+from release_spec import normalize_release_spec
+
 
 VN_E_INVALID_ARG = -1
 VN_E_IO = -2
@@ -32,7 +34,7 @@ def read_json(path: Path):
 
 
 def main(argv):
-    release_spec = Path("docs/release-publish-v1.0.0.json")
+    release_spec = Path("docs/release-publish-v1.1.0.json")
     release_json = None
     release_json_url = ""
     github_repo = ""
@@ -100,7 +102,7 @@ def main(argv):
         return error("tool.validate.release_remote_state.io", VN_E_IO, str(release_spec), "release spec not found")
 
     try:
-        spec = read_json(release_spec)
+        spec = normalize_release_spec(read_json(release_spec))
     except OSError:
         return error("tool.validate.release_remote_state.io", VN_E_IO, "release_spec", "failed reading release spec")
     except ValueError:
@@ -156,10 +158,7 @@ def main(argv):
     tag = spec.get("tag")
     release_url = spec.get("release_url")
     expect_draft = spec.get("draft", False)
-    expect_prerelease = spec.get("prerelease", True)
-    asset = spec.get("asset", {})
-    asset_path = asset.get("path", "")
-    asset_name = asset.get("name", Path(asset_path).name)
+    expect_prerelease = spec.get("prerelease", False)
 
     if remote.get("tag_name") != tag:
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "tag_name", "remote tag mismatch")
@@ -174,17 +173,20 @@ def main(argv):
     if not isinstance(assets, list) or not assets:
         return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "assets", "remote assets missing")
 
-    matched_asset = None
-    for entry in assets:
-        if isinstance(entry, dict) and entry.get("name") == asset_name:
-            matched_asset = entry
-            break
-    if matched_asset is None:
-        return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "assets.demo", "expected demo asset missing")
-    if int(matched_asset.get("size", 0)) <= 0:
-        return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "assets.demo.size", "demo asset size invalid")
-    if f"/download/{tag}/{asset_name}" not in matched_asset.get("browser_download_url", ""):
-        return error("tool.validate.release_remote_state.format", VN_E_FORMAT, "assets.demo.url", "demo asset download url mismatch")
+    remote_assets = {
+        entry.get("name"): entry
+        for entry in assets
+        if isinstance(entry, dict) and entry.get("name")
+    }
+    for asset in spec["assets"]:
+        asset_name = asset["name"]
+        matched_asset = remote_assets.get(asset_name)
+        if matched_asset is None:
+            return error("tool.validate.release_remote_state.format", VN_E_FORMAT, f"assets.{asset_name}", "expected release asset missing")
+        if int(matched_asset.get("size", 0)) <= 0:
+            return error("tool.validate.release_remote_state.format", VN_E_FORMAT, f"assets.{asset_name}.size", "release asset size invalid")
+        if f"/download/{tag}/{asset_name}" not in matched_asset.get("browser_download_url", ""):
+            return error("tool.validate.release_remote_state.format", VN_E_FORMAT, f"assets.{asset_name}.url", "release asset download url mismatch")
 
     print(
         " ".join(
@@ -194,7 +196,7 @@ def main(argv):
                 f"release_json={release_json}",
                 f"release_json_url={release_json_url if release_json_url else 'n/a'}",
                 f"tag={tag}",
-                f"asset={asset_name}",
+                f"assets={len(spec['assets'])}",
             ]
         )
     )

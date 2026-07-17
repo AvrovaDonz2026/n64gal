@@ -57,6 +57,8 @@ int preview_write_response(const VNPreviewRequest* req,
     preview_json_write_string(fp, req->cfg.scene_name);
     (void)fprintf(fp, ",\n    \"backend_name\":");
     preview_json_write_string(fp, req->cfg.backend_name);
+    (void)fprintf(fp, ",\n    \"screenshot_path\":");
+    preview_json_write_string(fp, req->resolved_screenshot_path);
     (void)fprintf(fp, ",\n    \"width\":%u,\n", (unsigned int)req->cfg.width);
     (void)fprintf(fp, "    \"height\":%u,\n", (unsigned int)req->cfg.height);
     (void)fprintf(fp, "    \"frames\":%u,\n", (unsigned int)req->cfg.frames);
@@ -71,7 +73,8 @@ int preview_write_response(const VNPreviewRequest* req,
     (void)fprintf(fp, "    \"reload_count\":%u,\n", (unsigned int)report->reload_count);
     (void)fprintf(fp, "    \"frame_samples\":%u,\n", (unsigned int)report->frame_samples);
     (void)fprintf(fp, "    \"session_done\":%u,\n", (unsigned int)report->session_done);
-    (void)fprintf(fp, "    \"events_truncated\":%u\n", (unsigned int)report->events_truncated);
+    (void)fprintf(fp, "    \"events_truncated\":%u,\n", (unsigned int)report->events_truncated);
+    (void)fprintf(fp, "    \"screenshot_count\":%u\n", (unsigned int)report->screenshot_count);
     (void)fprintf(fp, "  },\n");
     (void)fprintf(fp, "  \"perf_summary\":{\n");
     (void)fprintf(fp, "    \"samples\":%u,\n", (unsigned int)report->frame_samples);
@@ -87,6 +90,18 @@ int preview_write_response(const VNPreviewRequest* req,
     (void)fprintf(fp, ",\n  \"final_state\":");
     if (report->has_final_state != 0u) {
         preview_json_write_result(fp, &report->final_state);
+    } else {
+        (void)fprintf(fp, "null");
+    }
+    (void)fprintf(fp, ",\n  \"screenshot\":");
+    if (report->screenshot_count != 0u) {
+        (void)fprintf(fp, "{\"path\":");
+        preview_json_write_string(fp, report->screenshot_path);
+        (void)fprintf(fp,
+                      ",\"width\":%u,\"height\":%u,\"crc32\":\"%08x\"}",
+                      (unsigned int)report->screenshot_width,
+                      (unsigned int)report->screenshot_height,
+                      (unsigned int)report->screenshot_crc32);
     } else {
         (void)fprintf(fp, "null");
     }

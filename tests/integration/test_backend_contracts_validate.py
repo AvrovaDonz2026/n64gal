@@ -34,15 +34,28 @@ def main():
         (temp_root / "docs" / "api").mkdir(parents=True, exist_ok=True)
         (temp_root / "include").mkdir(parents=True, exist_ok=True)
         (temp_root / "src" / "core").mkdir(parents=True, exist_ok=True)
+        (temp_root / "src" / "backend" / "common").mkdir(parents=True, exist_ok=True)
+        (temp_root / "src" / "backend" / "scalar").mkdir(parents=True, exist_ok=True)
+        (temp_root / "src" / "backend" / "avx2").mkdir(parents=True, exist_ok=True)
+        (temp_root / "src" / "backend" / "neon").mkdir(parents=True, exist_ok=True)
+        (temp_root / "src" / "backend" / "rvv").mkdir(parents=True, exist_ok=True)
         (temp_root / "tests" / "unit").mkdir(parents=True, exist_ok=True)
 
         shutil.copy2(ROOT / "README.md", temp_root / "README.md")
         shutil.copy2(ROOT / "docs" / "toolchain.md", temp_root / "docs" / "toolchain.md")
         shutil.copy2(ROOT / "docs" / "api" / "backend.md", temp_root / "docs" / "api" / "backend.md")
         shutil.copy2(ROOT / "include" / "vn_backend.h", temp_root / "include" / "vn_backend.h")
+        shutil.copy2(ROOT / "src" / "backend" / "common" / "pixel_pipeline.h", temp_root / "src" / "backend" / "common" / "pixel_pipeline.h")
+        shutil.copy2(ROOT / "src" / "backend" / "common" / "pixel_pipeline.c", temp_root / "src" / "backend" / "common" / "pixel_pipeline.c")
+        for backend_name in ("scalar", "avx2", "neon", "rvv"):
+            shutil.copy2(
+                ROOT / "src" / "backend" / backend_name / f"{backend_name}_backend.c",
+                temp_root / "src" / "backend" / backend_name / f"{backend_name}_backend.c",
+            )
         shutil.copy2(ROOT / "src" / "core" / "backend_registry.c", temp_root / "src" / "core" / "backend_registry.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_backend_priority.c", temp_root / "tests" / "unit" / "test_backend_priority.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_renderer_fallback.c", temp_root / "tests" / "unit" / "test_renderer_fallback.c")
+        shutil.copy2(ROOT / "tests" / "unit" / "test_resource_texture_backend.c", temp_root / "tests" / "unit" / "test_resource_texture_backend.c")
 
         broken = (temp_root / "docs" / "api" / "backend.md").read_text(encoding="utf-8")
         broken = broken.replace("自动模式按 `avx2 -> neon -> rvv -> scalar` 顺序逐个尝试初始化。",
@@ -56,6 +69,19 @@ def main():
             return 1
         if "trace_id=tool.validate.backend_contracts.format" not in err:
             print("missing format failure trace_id", file=sys.stderr)
+            return 1
+
+        shutil.copy2(ROOT / "docs" / "api" / "backend.md", temp_root / "docs" / "api" / "backend.md")
+        broken = (temp_root / "docs" / "api" / "backend.md").read_text(encoding="utf-8")
+        broken = broken.replace("premultiplied alpha 空间", "ordinary alpha 空间", 1)
+        (temp_root / "docs" / "api" / "backend.md").write_text(broken, encoding="utf-8")
+
+        rc, out, err = run_case(temp_root)
+        if rc == 0:
+            print("backend crossfade contract drift should fail", file=sys.stderr)
+            return 1
+        if "field=backend_doc.crossfade_premultiplied" not in err:
+            print("missing crossfade contract failure field", file=sys.stderr)
             return 1
 
     print("test_backend_contracts_validate ok")

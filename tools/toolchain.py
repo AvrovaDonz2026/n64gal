@@ -71,16 +71,18 @@ def print_usage(program: str) -> int:
                 "  validate-runtime-contracts",
                 "  validate-save-contracts",
                 "  validate-template-contracts",
-                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>] [--summary-json-out <path>] [--with-soak] [--with-bundle] [--with-export]",
+                "  validate-project <project-dir|template.json>",
+                "  build-project <project-dir|template.json>",
+                "  release-gate [--allow-dirty] [--skip-cc-suite] [--summary-out <path>] [--summary-json-out <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--with-soak] [--with-bundle] [--with-export]",
                 "  release-host-sdk-smoke [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-platform-evidence [--out-dir <path>] [--platform-doc <path>] [--ci-suite-summary <path>] [--summary-out <path>] [--summary-json-out <path>]",
                 "  release-preview-evidence [--summary-out <path>] [--summary-json-out <path>] [--skip-build]",
                 "  release-soak [--frames-per-scene <n>] [--scenes <S0,...>] [--backend <name>] [--summary-out <path>] [--summary-json-out <path>]",
-                "  release-preflight [--allow-dirty] [--skip-cc-suite] [--out-dir <path>] [--soak-...] [--remote-...]",
-                "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
-                "  release-report [--out-dir <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
+                "  release-preflight [--allow-dirty] [--skip-cc-suite --ci-suite-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--out-dir <path>] [--soak-...] [--remote-...]",
+                "  release-bundle [--out-dir <path>] [--gate-summary <path>] [--soak-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--ci-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
+                "  release-report [--out-dir <path>] [--bundle-index <path>] [--bundle-manifest <path>] [--gate-summary <path>] [--soak-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--ci-suite-summary <path>] [--host-sdk-summary <path>] [--platform-evidence-summary <path>] [--preview-evidence-summary <path>]",
                 "  release-publish-map [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--bundle-index <path>] [--bundle-manifest <path>] [--report-json <path>]",
-                "  release-export [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--gate-summary <path>] [--soak-summary <path>] [--ci-suite-summary <path>]",
+                "  release-export [--out-dir <path>] [--release-spec <path>] [--tag <tag>] [--release-url <url>] [--gate-summary <path>] [--soak-summary <path>] [--content-soak-summary <path> --content-soak-summary-json <path>] [--ci-suite-summary <path>]",
                 "  release-remote-summary (--release-json <path> | --release-json-url <url> | --github-repo <owner/repo>) [--tag <tag>] [--api-root <url>] [--token-env <env>] [--release-spec <path>] [--out-dir <path>]",
                 "  migrate-vnsave --in <legacy_v0.vnsave> --out <v1.vnsave>",
                 "  probe-vnsave --in <save.vnsave>",
@@ -316,6 +318,20 @@ def command_validate_template_contracts(argv) -> int:
     return run_forward([sys.executable, "tools/validate/validate_template_contracts.py"])
 
 
+def command_validate_project(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.validate_project.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected project directory or template.json", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/packer/project.py", "validate", argv[0]])
+
+
+def command_build_project(argv) -> int:
+    if len(argv) != 1:
+        print("trace_id=tool.toolchain.build_project.usage error_code=-1 error_name=VN_E_INVALID_ARG message=expected project directory or template.json", file=sys.stderr)
+        return 2
+    return run_forward([sys.executable, "tools/packer/project.py", "build", argv[0]])
+
+
 def command_release_gate(argv) -> int:
     return run_forward(["bash", "scripts/release/run_release_gate.sh"] + list(argv))
 
@@ -414,6 +430,8 @@ def command_probe_preview(argv) -> int:
             "src/core/runtime_persist.c",
             "src/core/runtime_session_support.c",
             "src/core/runtime_session_loop.c",
+            "src/core/scene_catalog.c",
+            "src/core/runtime_texture.c",
             "src/core/dynamic_resolution.c",
             "src/frontend/render_ops.c",
             "src/frontend/dirty_tiles.c",
@@ -537,6 +555,10 @@ def main(argv) -> int:
             return command_validate_save_contracts(args)
         if command == "validate-template-contracts":
             return command_validate_template_contracts(args)
+        if command == "validate-project":
+            return command_validate_project(args)
+        if command == "build-project":
+            return command_build_project(args)
         if command == "release-gate":
             return command_release_gate(args)
         if command == "release-host-sdk-smoke":

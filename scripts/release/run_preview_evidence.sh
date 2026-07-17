@@ -78,6 +78,7 @@ TMP_BUILD_DIR="$BUILD_DIR/tmp"
 PREVIEW_BIN="${PREVIEW_BIN_OVERRIDE:-$BUILD_DIR/vn_previewd}"
 REQUEST_PATH="${REQUEST_PATH_OVERRIDE:-$BUILD_DIR/preview_request.txt}"
 RESPONSE_PATH="${RESPONSE_PATH_OVERRIDE:-$BUILD_DIR/preview_response.json}"
+SCREENSHOT_PATH="$BUILD_DIR/content_preview.ppm"
 
 if [[ -z "$SUMMARY_OUT" ]]; then
   SUMMARY_OUT="$BUILD_DIR/preview_evidence_summary.md"
@@ -112,6 +113,8 @@ COMMON_SRC=(
   src/core/runtime_persist.c
   src/core/runtime_session_support.c
   src/core/runtime_session_loop.c
+  src/core/scene_catalog.c
+  src/core/runtime_texture.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
@@ -151,18 +154,19 @@ if [[ ! -x "$PREVIEW_BIN" ]]; then
   exit 1
 fi
 
-cat >"$REQUEST_PATH" <<'EOF'
+cat >"$REQUEST_PATH" <<EOF
 preview_protocol=v1
 project_dir=.
-scene_name=S2
-backend=auto
-resolution=600x800
+pack=assets/demo/content-demo.vnpak
+screenshot=$SCREENSHOT_PATH
+scene_name=Opening
+backend=scalar
+resolution=64x48
 frames=8
+dt_ms=40
 trace=1
-command=set_choice:1
-command=inject_input:choice:1
-command=inject_input:key:t
 command=step_frame:8
+command=capture_screenshot
 EOF
 
 printf 'response=%s\n' "$RESPONSE_PATH" >>"$REQUEST_PATH"
@@ -177,9 +181,10 @@ fi
 head_short="$(git rev-parse --short HEAD)"
 branch_name="$(git branch --show-current)"
 
-python3 - "$RESPONSE_PATH" "$REQUEST_PATH" "$SUMMARY_JSON_OUT" "$SUMMARY_OUT" "$PREVIEW_BIN" "$BUILD_DIR" "$LOG_DIR" "$head_short" "$branch_name" <<'PY'
+python3 - "$RESPONSE_PATH" "$REQUEST_PATH" "$SCREENSHOT_PATH" "$SUMMARY_JSON_OUT" "$SUMMARY_OUT" "$PREVIEW_BIN" "$BUILD_DIR" "$LOG_DIR" "$head_short" "$branch_name" <<'PY'
 import json
 import sys
+import zlib
 from pathlib import Path
 
 
@@ -195,6 +200,7 @@ def fail(message: str) -> None:
 (
     response_path,
     request_path,
+    screenshot_path,
     summary_json_path,
     summary_md_path,
     preview_bin,
@@ -206,17 +212,33 @@ def fail(message: str) -> None:
 
 response = json.loads(Path(response_path).read_text(encoding="utf-8"))
 request_text = Path(request_path).read_text(encoding="utf-8")
+screenshot_file = Path(screenshot_path)
 
 request_info = response.get("request", {})
 final_state = response.get("final_state", {})
+response_summary = response.get("summary", {})
+screenshot = response.get("screenshot") or {}
 events = response.get("events")
+
+ppm_header = b"P6\n64 48\n255\n"
+ppm_bytes = screenshot_file.read_bytes() if screenshot_file.is_file() else b""
+ppm_payload = ppm_bytes[len(ppm_header):] if ppm_bytes.startswith(ppm_header) else b""
+payload_crc = f"{zlib.crc32(ppm_payload) & 0xFFFFFFFF:08x}"
+expected_screenshot_crc = "995ff007"
 
 checks = {
     "preview_protocol_v1": response.get("preview_protocol") == "v1",
     "status_ok": response.get("status") == "ok",
     "trace_id_ok": response.get("trace_id") == "preview.ok",
-    "scene_name_s2": request_info.get("scene_name") == "S2",
-    "choice_selected_index_1": final_state.get("choice_selected_index") == 1,
+    "scene_name_opening": request_info.get("scene_name") == "Opening",
+    "content_pack_selected": request_info.get("pack_path") == "./assets/demo/content-demo.vnpak",
+    "scalar_backend_selected": final_state.get("backend_name") == "scalar",
+    "screenshot_count_1": response_summary.get("screenshot_count") == 1,
+    "screenshot_path_matches": screenshot.get("path") == screenshot_path,
+    "screenshot_dimensions_64x48": screenshot.get("width") == 64 and screenshot.get("height") == 48,
+    "screenshot_ppm_valid": len(ppm_payload) == 64 * 48 * 3,
+    "screenshot_crc_matches_payload": screenshot.get("crc32") == payload_crc,
+    "screenshot_golden_crc": payload_crc == expected_screenshot_crc,
     "events_present": isinstance(events, list) and len(events) > 0,
     "dirty_tile_total_present": "dirty_tile_total" in final_state,
 }
@@ -235,6 +257,7 @@ summary = {
     "preview_bin": preview_bin,
     "request": request_path,
     "response": response_path,
+    "screenshot": screenshot_path,
     "summary_md": summary_md_path,
     "summary_json": summary_json_path,
     "checks": checks,
@@ -243,10 +266,14 @@ summary = {
         "host_os": response.get("host_os"),
         "host_arch": response.get("host_arch"),
         "scene_name": request_info.get("scene_name"),
+        "pack_path": request_info.get("pack_path"),
         "backend_name": final_state.get("backend_name"),
         "frames_executed": final_state.get("frames_executed"),
-        "choice_selected_index": final_state.get("choice_selected_index"),
         "dirty_tile_total": final_state.get("dirty_tile_total"),
+        "screenshot_path": screenshot.get("path"),
+        "screenshot_width": screenshot.get("width"),
+        "screenshot_height": screenshot.get("height"),
+        "screenshot_crc32": screenshot.get("crc32"),
         "events_count": len(events),
     },
 }
@@ -265,6 +292,7 @@ PY
   echo "- Preview bin: \`$PREVIEW_BIN\`"
   echo "- Request: \`$REQUEST_PATH\`"
   echo "- Response: \`$RESPONSE_PATH\`"
+  echo "- Screenshot: \`$SCREENSHOT_PATH\`"
   echo "- Summary JSON: \`$SUMMARY_JSON_OUT\`"
   echo
   echo "## Request"
@@ -276,10 +304,11 @@ PY
   echo "1. \`preview_protocol=v1\`"
   echo "2. \`status=ok\`"
   echo "3. \`trace_id=preview.ok\`"
-  echo "4. \`scene_name=S2\`"
-  echo "5. \`choice_selected_index=1\`"
-  echo "6. \`events\` present"
-  echo "7. \`dirty_tile_total\` present"
+  echo "4. \`scene_name=Opening\` from \`assets/demo/content-demo.vnpak\`"
+  echo "5. scalar screenshot \`64x48\` with CRC32 \`995ff007\`"
+  echo "6. screenshot PPM payload and response CRC agree"
+  echo "7. \`events\` present"
+  echo "8. \`dirty_tile_total\` present"
 } >"$SUMMARY_OUT"
 
-echo "trace_id=release.preview.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT response=$RESPONSE_PATH"
+echo "trace_id=release.preview.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT response=$RESPONSE_PATH screenshot=$SCREENSHOT_PATH"

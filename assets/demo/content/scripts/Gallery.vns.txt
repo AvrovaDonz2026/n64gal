@@ -1,0 +1,11 @@
+BG demo_ui_ia8 0
+SPRITE 1 demo_ui_rgba16 152 72
+TEXT 201 16
+WAIT 160
+FADE 3 144 160
+WAIT 200
+SPRITE 1 none 0 0
+END
+
+unused_tail:
+RETURN

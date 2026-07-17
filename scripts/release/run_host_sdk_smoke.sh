@@ -79,6 +79,8 @@ COMMON_SRC=(
   src/core/runtime_persist.c
   src/core/runtime_session_support.c
   src/core/runtime_session_loop.c
+  src/core/scene_catalog.c
+  src/core/runtime_texture.c
   src/core/dynamic_resolution.c
   src/frontend/render_ops.c
   src/frontend/dirty_tiles.c
@@ -105,6 +107,9 @@ run_capture() {
 SESSION_BIN="$BUILD_DIR/example_host_embed"
 LINUX_TTY_BIN="$BUILD_DIR/example_host_embed_linux_tty"
 WINDOWS_CONSOLE_BIN="$BUILD_DIR/example_host_embed_windows_console"
+TEMPLATE_SESSION_BIN="$BUILD_DIR/template_host_embed"
+TEMPLATE_LINUX_TTY_BIN="$BUILD_DIR/template_host_embed_linux_tty"
+TEMPLATE_WINDOWS_CONSOLE_BIN="$BUILD_DIR/template_host_embed_windows_console"
 
 if [[ $SKIP_BUILD -eq 0 ]]; then
   run_capture "build-demo-scripts" ./tools/scriptc/build_demo_scripts.sh
@@ -112,9 +117,13 @@ if [[ $SKIP_BUILD -eq 0 ]]; then
   run_capture "build-example-host-embed" "$CC_BIN" "${CFLAGS[@]}" examples/host-embed/session_loop.c "${COMMON_SRC[@]}" -o "$SESSION_BIN"
   run_capture "build-example-host-embed-linux-tty" "$CC_BIN" "${CFLAGS[@]}" examples/host-embed/linux_tty_loop.c "${COMMON_SRC[@]}" -o "$LINUX_TTY_BIN"
   run_capture "build-example-host-embed-windows-console" "$CC_BIN" "${CFLAGS[@]}" examples/host-embed/windows_console_loop.c "${COMMON_SRC[@]}" -o "$WINDOWS_CONSOLE_BIN"
+  run_capture "build-minimal-template-assets" bash templates/minimal-vn/tools/build_assets.sh
+  run_capture "build-template-host-embed" "$CC_BIN" "${CFLAGS[@]}" templates/host-embed/src/session_loop.c "${COMMON_SRC[@]}" -o "$TEMPLATE_SESSION_BIN"
+  run_capture "build-template-host-embed-linux-tty" "$CC_BIN" "${CFLAGS[@]}" templates/host-embed/src/linux_tty_loop.c "${COMMON_SRC[@]}" -o "$TEMPLATE_LINUX_TTY_BIN"
+  run_capture "build-template-host-embed-windows-console" "$CC_BIN" "${CFLAGS[@]}" templates/host-embed/src/windows_console_loop.c "${COMMON_SRC[@]}" -o "$TEMPLATE_WINDOWS_CONSOLE_BIN"
 fi
 
-for bin in "$SESSION_BIN" "$LINUX_TTY_BIN" "$WINDOWS_CONSOLE_BIN"; do
+for bin in "$SESSION_BIN" "$LINUX_TTY_BIN" "$WINDOWS_CONSOLE_BIN" "$TEMPLATE_SESSION_BIN" "$TEMPLATE_LINUX_TTY_BIN" "$TEMPLATE_WINDOWS_CONSOLE_BIN"; do
   if [[ ! -x "$bin" ]]; then
     echo "trace_id=release.host_sdk.binary.missing error_code=-2 error_name=VN_E_IO path=$bin message=host sdk example binary missing" >&2
     exit 1
@@ -124,6 +133,9 @@ done
 run_capture "run-example-host-embed" "$SESSION_BIN"
 run_capture "run-example-host-embed-linux-tty" "$LINUX_TTY_BIN"
 run_capture "run-example-host-embed-windows-console" "$WINDOWS_CONSOLE_BIN"
+run_capture "run-template-host-embed" "$TEMPLATE_SESSION_BIN"
+run_capture "run-template-host-embed-linux-tty" "$TEMPLATE_LINUX_TTY_BIN"
+run_capture "run-template-host-embed-windows-console" "$TEMPLATE_WINDOWS_CONSOLE_BIN"
 
 {
   echo "# Host SDK Smoke Summary"
@@ -138,12 +150,18 @@ run_capture "run-example-host-embed-windows-console" "$WINDOWS_CONSOLE_BIN"
   echo "1. \`examples/host-embed/session_loop.c\`"
   echo "2. \`examples/host-embed/linux_tty_loop.c\`"
   echo "3. \`examples/host-embed/windows_console_loop.c\`"
+  echo "4. \`templates/host-embed/src/session_loop.c\`"
+  echo "5. \`templates/host-embed/src/linux_tty_loop.c\`"
+  echo "6. \`templates/host-embed/src/windows_console_loop.c\`"
   echo
   echo "## Results"
   echo
   echo "1. \`$(tail -n 1 "$LOG_DIR/run-example-host-embed.log")\`"
   echo "2. \`$(tail -n 1 "$LOG_DIR/run-example-host-embed-linux-tty.log")\`"
   echo "3. \`$(tail -n 1 "$LOG_DIR/run-example-host-embed-windows-console.log")\`"
+  echo "4. \`$(tail -n 1 "$LOG_DIR/run-template-host-embed.log")\`"
+  echo "5. \`$(tail -n 1 "$LOG_DIR/run-template-host-embed-linux-tty.log")\`"
+  echo "6. \`$(tail -n 1 "$LOG_DIR/run-template-host-embed-windows-console.log")\`"
 } >"$SUMMARY_OUT"
 
 {
@@ -153,7 +171,10 @@ run_capture "run-example-host-embed-windows-console" "$WINDOWS_CONSOLE_BIN"
   printf '  "summary_md": "%s",\n' "$SUMMARY_OUT"
   printf '  "session_log": "%s",\n' "$LOG_DIR/run-example-host-embed.log"
   printf '  "linux_tty_log": "%s",\n' "$LOG_DIR/run-example-host-embed-linux-tty.log"
-  printf '  "windows_console_log": "%s"\n' "$LOG_DIR/run-example-host-embed-windows-console.log"
+  printf '  "windows_console_log": "%s",\n' "$LOG_DIR/run-example-host-embed-windows-console.log"
+  printf '  "template_session_log": "%s",\n' "$LOG_DIR/run-template-host-embed.log"
+  printf '  "template_linux_tty_log": "%s",\n' "$LOG_DIR/run-template-host-embed-linux-tty.log"
+  printf '  "template_windows_console_log": "%s"\n' "$LOG_DIR/run-template-host-embed-windows-console.log"
   printf '}\n'
 } >"$SUMMARY_JSON_OUT"
 

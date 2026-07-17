@@ -277,3 +277,26 @@ const char* renderer_backend_name(void) {
     }
     return be->name;
 }
+
+int renderer_get_framebuffer(const vn_u32** out_pixels,
+                             vn_u32* out_width,
+                             vn_u32* out_height) {
+    const VNRenderBackend* be;
+
+    if (out_pixels == (const vn_u32**)0 || out_width == (vn_u32*)0 || out_height == (vn_u32*)0) {
+        return VN_E_INVALID_ARG;
+    }
+    *out_pixels = (const vn_u32*)0;
+    *out_width = 0u;
+    *out_height = 0u;
+
+    if (g_initialized == VN_FALSE) {
+        return VN_E_RENDER_STATE;
+    }
+    be = vn_backend_get_active();
+    if (be == (const VNRenderBackend*)0 ||
+        be->get_framebuffer == (int (*)(const vn_u32**, vn_u32*, vn_u32*))0) {
+        return VN_E_RENDER_STATE;
+    }
+    return be->get_framebuffer(out_pixels, out_width, out_height);
+}

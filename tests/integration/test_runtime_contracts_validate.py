@@ -46,6 +46,8 @@ def main():
         shutil.copy2(ROOT / "src" / "core" / "runtime_persist.c", temp_root / "src" / "core" / "runtime_persist.c")
         shutil.copy2(ROOT / "src" / "core" / "runtime_session_support.c", temp_root / "src" / "core" / "runtime_session_support.c")
         shutil.copy2(ROOT / "src" / "core" / "runtime_session_loop.c", temp_root / "src" / "core" / "runtime_session_loop.c")
+        shutil.copy2(ROOT / "src" / "core" / "scene_catalog.c", temp_root / "src" / "core" / "scene_catalog.c")
+        shutil.copy2(ROOT / "src" / "core" / "runtime_texture.c", temp_root / "src" / "core" / "runtime_texture.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_runtime_api.c", temp_root / "tests" / "unit" / "test_runtime_api.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_runtime_session.c", temp_root / "tests" / "unit" / "test_runtime_session.c")
         shutil.copy2(ROOT / "tests" / "unit" / "test_runtime_cli_errors.c", temp_root / "tests" / "unit" / "test_runtime_cli_errors.c")
