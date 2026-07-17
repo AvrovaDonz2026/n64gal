@@ -9,15 +9,14 @@ N64GAL 是一个面向 Galgame / VN 的 C89 引擎原型。
 3. 跨架构主线：`x64/avx2`、`arm64/neon`；`riscv64/rvv` 仅维护 cross/QEMU correctness。
 4. 可验证：runtime / preview / pack / save / toolchain 都有测试和 validator。
 
-当前公开稳定版本是 `v1.0.0`。
-当前开发里程碑是 `v1.1.0` 真实内容渲染切片。
+当前公开稳定版本是 `v1.1.0`，真实内容渲染切片已经进入正式发布范围。
 
 ## 版本状态
 
-- 当前对外版本状态：`v1.0.0` 已发布
-- 当前正式发布对象：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.0.0`
+- 当前对外版本状态：`v1.1.0` 已发布
+- 当前正式发布对象：`https://github.com/AvrovaDonz2026/n64gal/releases/tag/v1.1.0`
 - 当前 `v1.0.0` 范围决策：先不包含 RVV / riscv64 native 承诺
-- 当前开发版本：`v1.1.0`，尚未创建 tag 或 GitHub Release
+- 当前最新稳定版本：`v1.1.0`
 - `v1.1.0` 范围：自定义场景、真实图片渲染、preview 截图和兼容追加的 session 状态
 
 ## 当前范围
@@ -61,7 +60,7 @@ Legacy 包的场景名仍固定为 `S0/S1/S2/S3/S10`；带 `VNSC` catalog 的内
 详细发布边界见 [docs/release-roadmap-1.0.0.md](./docs/release-roadmap-1.0.0.md) 和 [docs/compat-matrix.md](./docs/compat-matrix.md)。
 更多发布背景见 [docs/release-v1.0.0.md](./docs/release-v1.0.0.md)、[docs/release-evidence-v1.0.0.md](./docs/release-evidence-v1.0.0.md)、[docs/release-package-v1.0.0.md](./docs/release-package-v1.0.0.md)、[docs/release-checklist-v1.0.0.md](./docs/release-checklist-v1.0.0.md) 和 [docs/release-triage-v1.0.0.md](./docs/release-triage-v1.0.0.md)。
 
-`v1.1.0` 的开发与发布验收入口见 [roadmap](./docs/release-roadmap-1.1.0.md)、[release note](./docs/release-v1.1.0.md)、[evidence](./docs/release-evidence-v1.1.0.md)、[package](./docs/release-package-v1.1.0.md) 和 [checklist](./docs/release-checklist-v1.1.0.md)。RVV native 因没有设备证据继续延期，不阻塞本里程碑。
+`v1.1.0` 的发布范围与最终证据见 [roadmap](./docs/release-roadmap-1.1.0.md)、[release note](./docs/release-v1.1.0.md)、[evidence](./docs/release-evidence-v1.1.0.md)、[package](./docs/release-package-v1.1.0.md) 和 [checklist](./docs/release-checklist-v1.1.0.md)。RVV native 因没有设备证据继续延期，不进入本版本正式性能承诺。
 
 ## 代码优先
 

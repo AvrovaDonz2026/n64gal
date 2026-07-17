@@ -1,5 +1,7 @@
 # Release Roadmap: v1.1.0
 
+> Completed: `v1.1.0` 于 2026-07-17 按本路线图收口并发布；RVV native 仍按既定范围延期。
+
 ## Goal
 
 `v1.1.0` 在现有项目设计上交付第一个真实内容渲染切片：内容项目中的场景和图片进入既有 `VM -> runtime state -> VNRenderOp[] -> backend` 链路，同时保持 `v1.0.0` 已冻结的兼容边界。

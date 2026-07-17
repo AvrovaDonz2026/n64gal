@@ -1,13 +1,24 @@
 # Changelog
 
-## Unreleased (`v1.1.0`)
+## Unreleased
 
-### Planned
+暂无未发布变更。
+
+## v1.1.0 - 2026-07-17
+
+### Added
 
 1. 自定义场景目录、背景与最多 8 个持久立绘层进入既有 `VM -> runtime state -> VNRenderOp[] -> backend` 链路。
 2. 包内 `RGBA16/CI8/IA8` 真实纹理渲染、按需缓存与 preview 截图证据。
 3. 兼容追加 build-info v2、只读 frame view 和 snapshot v2；Runtime API 仍为 `public stable v1`。
 4. release spec 显式声明 note/evidence/package/checklist 和多个 `assets[]`。
+
+### Performance And Efficiency
+
+1. 真实内容接入既有 framebuffer reuse 与 op cache；clean release soak 中 `Opening`、`Gallery` 各执行 28,125 帧，并分别记录 28,112 次 frame-reuse hit。
+2. 真实纹理按 render-op 工作集懒加载，payload cache 上限为 32 MiB；当前帧资源 pin 后按 LRU 驱逐未 pin 项。
+3. 最新四平台 CI 的 legacy smoke 中，AVX2 在 x64 的 `S1/S10` p95 降幅为 89.93%-92.23%，NEON 在 arm64 的 `S1/S10` p95 降幅为 65.58%-68.43%。这些是当前 SIMD 相对 scalar 的同机结果，不是 v1.0 到 v1.1 的版本提速结论，也不代表真实纹理 SIMD 增益。
+4. Clang 19 ASan/UBSan 对真实内容执行 900 秒模拟 soak，最高单进程 RSS 为 32.48 MiB，低于 64 MiB 门限。
 
 ### Compatibility
 
@@ -15,6 +26,12 @@
 2. `vnpak` 继续默认写 `v2`、读取 `v1/v2`。
 3. `vnsave v1` 外层格式不变，并继续读取 v1.0 runtime payload。
 4. 正式平台仍为 Linux/Windows 上的 x64/arm64；`RVV/riscv64 native` 继续延期。
+
+### Validation
+
+1. `ci-matrix`、Linux x64 sanitizer、四平台 correctness/perf gate 与 RISC-V cross/QEMU correctness 全绿。
+2. `content-demo.vnpak` 的 scalar/AVX2/NEON 真实内容 CRC 固定为 `0x995FF007`。
+3. 两个 release asset 均进入 spec、bundle、publish map 与远端校验流程。
 
 ## v1.0.0 - 2026-04-08
 

@@ -120,12 +120,12 @@ def main(argv):
         return error("tool.validate.release_docs.format", VN_E_FORMAT, str(exc), "invalid release document or spec")
 
     try:
-        require_contains(readme, "当前对外版本状态：`v1.0.0` 已发布", "readme.stable_release")
-        require_contains(readme, "当前开发版本：`v1.1.0`", "readme.current_development")
+        require_contains(readme, "当前对外版本状态：`v1.1.0` 已发布", "readme.stable_release")
+        require_contains(readme, "当前最新稳定版本：`v1.1.0`", "readme.current_stable")
         require_contains(readme, "RVV native 因没有设备证据继续延期", "readme.rvv_deferred")
         require_contains(issue, "`v1.0.0` 已发布", "issue.v1_published")
 
-        require_contains(changelog, "## Unreleased (`v1.1.0`)", "changelog.unreleased_v11")
+        require_contains(changelog, "## v1.1.0 - 2026-07-17", "changelog.v11")
         require_contains(changelog, "## v1.0.0 - 2026-04-08", "changelog.v1")
         require_contains(changelog, "## v0.1.0-alpha", "changelog.alpha")
 
@@ -147,13 +147,17 @@ def main(argv):
             ["assets/demo/demo.vnpak", "assets/demo/content-demo.vnpak"],
             "v11.assets",
         )
-        require_contains(v11_docs["release_note"], "尚未创建", "v11.note.not_published")
+        require_contains(v11_docs["release_note"], "已于 2026-07-17 发布", "v11.note.published")
+        require_contains(v11_docs["release_note"], "## Performance And Efficiency", "v11.note.performance")
+        require_contains(v11_docs["release_note"], "不是 `v1.0.0 -> v1.1.0`", "v11.note.performance_scope")
         require_contains(v11_docs["release_note"], "Runtime API", "v11.note.runtime_api")
         require_contains(v11_docs["release_note"], "`vnpak`", "v11.note.vnpak")
         require_contains(v11_docs["release_note"], "`vnsave v1`", "v11.note.vnsave")
         require_contains(v11_docs["release_evidence"], "四个正式平台", "v11.evidence.platforms")
         require_contains(v11_docs["release_package"], "`assets[]`", "v11.package.assets")
         require_contains(v11_docs["release_checklist"], "RVV/riscv64 native", "v11.checklist.rvv")
+        if "- [ ]" in v11_docs["release_checklist"]:
+            raise ValueError("v11.checklist.archived_status")
         require_contains(roadmap_v11, "真实内容渲染切片", "v11.roadmap.slice")
         require_contains(roadmap_v11, "`vnpak v2`", "v11.roadmap.vnpak")
         require_contains(roadmap_v11, "`vnsave v1`", "v11.roadmap.vnsave")
@@ -169,7 +173,7 @@ def main(argv):
                 "trace_id=tool.validate.release_docs.ok",
                 f"root={root}",
                 "historical_v1=validated",
-                "current_v1_1=validated",
+                "stable_v1_1=validated",
                 f"current_assets={len(v11['assets'])}",
             ]
         )

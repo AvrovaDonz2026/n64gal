@@ -63,7 +63,7 @@ def main(argv):
 
     try:
         require_contains(compat, "| `v1.0.0` 首版承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.platform_row")
-        require_contains(compat, "| `v1.1.0` 计划 | 是 | 是 | 是 | 是 | 否 |", "compat.v11_platform_row")
+        require_contains(compat, "| `v1.1.0` 正式承诺 | 是 | 是 | 是 | 是 | 否 |", "compat.v11_platform_row")
         require_contains(compat, "| `rvv` | `qemu-first` | 否 | 转 `post-1.0` |", "compat.backend_rvv")
         require_contains(compat, "| `avx2_asm` | force-only 实验 | 否 | 不进入 auto 优先级 |", "compat.backend_avx2_asm")
         require_contains(compat, "| `vnsave` | `format v1 stable; generic ABI not public` | 首次引入 `v1` |", "compat.vnsave")
