@@ -485,7 +485,16 @@ def encode_pack(blobs):
     return pack_bytes, manifest
 
 
-def build_pack(script_paths, image_jobs):
+def source_relative_to(path, source_root):
+    try:
+        return path.resolve().relative_to(source_root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            f"resource source is outside source root: {path} (root={source_root})"
+        ) from exc
+
+
+def build_pack(script_paths, image_jobs, source_root=None):
     blobs = []
     next_id = 0
 
@@ -495,7 +504,11 @@ def build_pack(script_paths, image_jobs):
             {
                 "id": next_id,
                 "name": p.name,
-                "source": str(p),
+                "source": (
+                    source_relative_to(p, source_root)
+                    if source_root is not None
+                    else str(p)
+                ),
                 "kind": "script",
                 "type": RESOURCE_TYPE_SCRIPT,
                 "flags": 0,
@@ -514,7 +527,11 @@ def build_pack(script_paths, image_jobs):
             {
                 "id": next_id,
                 "name": job["name"],
-                "source": str(job["source"]),
+                "source": (
+                    source_relative_to(job["source"], source_root)
+                    if source_root is not None
+                    else str(job["source"])
+                ),
                 "kind": "image",
                 "format": job["format"],
                 "type": RESOURCE_TYPE_IMAGE,
@@ -537,6 +554,12 @@ def main():
     parser.add_argument("--images-manifest", default=None, type=pathlib.Path)
     parser.add_argument("--out", required=True, type=pathlib.Path)
     parser.add_argument("--manifest-out", default=None, type=pathlib.Path)
+    parser.add_argument(
+        "--source-root",
+        default=None,
+        type=pathlib.Path,
+        help="base directory for portable resource source paths (default: scripts-dir parent)",
+    )
     args = parser.parse_args()
 
     scripts = [
@@ -548,7 +571,8 @@ def main():
     ]
     image_jobs = load_image_jobs(args.images_manifest)
 
-    payload, manifest = build_pack(scripts, image_jobs)
+    source_root = args.source_root or args.scripts_dir.parent
+    payload, manifest = build_pack(scripts, image_jobs, source_root)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(payload)
     print(f"[vnpak] wrote {args.out} ({len(payload)} bytes)")

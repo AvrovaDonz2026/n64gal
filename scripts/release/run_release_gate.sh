@@ -387,12 +387,19 @@ PY
 
 trap 'rc=$?; if [[ $rc -eq 0 ]]; then write_summary success; else write_summary failed; fi; exit $rc' EXIT
 
-if [[ $ALLOW_DIRTY -eq 0 ]]; then
-  if [[ -n "$(git status --porcelain)" ]]; then
-    echo "trace_id=release.gate.worktree.dirty error_code=-3 error_name=VN_E_FORMAT message=worktree must be clean" >&2
-    exit 1
+require_clean_worktree() {
+  local phase
+  phase="$1"
+  if [[ $ALLOW_DIRTY -ne 0 ]]; then
+    return 0
   fi
-fi
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "trace_id=release.gate.worktree.dirty error_code=-3 error_name=VN_E_FORMAT phase=$phase message=worktree must be clean" >&2
+    return 1
+  fi
+}
+
+require_clean_worktree initial
 
 run_step "validate-all" python3 tools/toolchain.py validate-all
 run_step "check-c89" ./scripts/check_c89.sh
@@ -481,5 +488,8 @@ if [[ $WITH_EXPORT -ne 0 ]]; then
   fi
   run_step "release-export" "${export_cmd[@]}"
 fi
+
+write_summary success
+require_clean_worktree final
 
 echo "trace_id=release.gate.ok summary=$SUMMARY_OUT summary_json=$SUMMARY_JSON_OUT"

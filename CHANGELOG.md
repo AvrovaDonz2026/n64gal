@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-暂无未发布变更。
+### Fixed
+
+1. demo pack manifest 改用可复现的相对资源路径，避免不同 checkout 目录让发布 preflight 误判工作树为 dirty。
+2. release gate 在生成、soak 与 export 完成后再次检查工作树，保证 strict clean 门禁覆盖整个流程。
 
 ## v1.1.0 - 2026-07-17
 

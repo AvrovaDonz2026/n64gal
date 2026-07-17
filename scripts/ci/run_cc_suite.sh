@@ -117,6 +117,7 @@ run_capture "$LOG_DIR/test_error_contracts_validate.log" python3 tests/integrati
 run_capture "$LOG_DIR/test_host_sdk_contracts_validate.log" python3 tests/integration/test_host_sdk_contracts_validate.py
 run_capture "$LOG_DIR/test_migration_contracts_validate.log" python3 tests/integration/test_migration_contracts_validate.py
 run_capture "$LOG_DIR/test_pack_contracts_validate.log" python3 tests/integration/test_pack_contracts_validate.py
+run_capture "$LOG_DIR/test_demo_pack_reproducibility.log" python3 tests/integration/test_demo_pack_reproducibility.py
 run_capture "$LOG_DIR/test_platform_contracts_validate.log" python3 tests/integration/test_platform_contracts_validate.py
 run_capture "$LOG_DIR/test_preview_contracts_validate.log" python3 tests/integration/test_preview_contracts_validate.py
 run_capture "$LOG_DIR/test_perf_contracts_validate.log" python3 tests/integration/test_perf_contracts_validate.py
